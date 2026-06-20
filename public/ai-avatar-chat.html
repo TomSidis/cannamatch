@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Bud Avatar</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(circle at 50% 20%, #14241a 0%, #0a1410 70%);
+    font-family: "Segoe UI", "Heebo", sans-serif;
+    overflow: hidden;
+  }
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-end;
+  }
+  #stageWrap {
+    position: relative;
+    width: min(60vw, 380px);
+    height: min(34vh, 260px);
+    margin-bottom: 8px;
+  }
+  #stage { width: 100%; height: 100%; display: block; }
+  #chatBox {
+    width: min(92vw, 420px);
+    max-height: 46vh;
+    margin-bottom: 18px;
+    background: rgba(10, 22, 16, 0.82);
+    border: 1px solid rgba(57,255,133,0.25);
+    border-radius: 22px;
+    backdrop-filter: blur(18px);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 40px rgba(57,255,133,0.08);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #chatHeader {
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid rgba(57,255,133,0.14);
+    background: rgba(57,255,133,0.04);
+  }
+  #chatHeader .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #39FF85;
+    box-shadow: 0 0 10px rgba(57,255,133,0.9);
+    animation: dotPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes dotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  #chatHeader span { color: #EBF6ED; font-weight: 700; font-size: 14px; }
+  #chatHeader small { color: #7EA88E; font-size: 11px; }
+  #messages {
+    flex: 1; overflow-y: auto;
+    padding: 14px 14px 6px;
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 120px;
+  }
+  .msg {
+    max-width: 86%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.ai {
+    align-self: flex-start;
+    background: linear-gradient(135deg, rgba(20,40,26,0.95), rgba(16,28,20,0.95));
+    border: 1px solid rgba(57,255,133,0.18);
+    color: #D4EED9;
+    border-radius: 16px 6px 16px 16px;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg,#1B3E2A,#16302B);
+    color: #EBF6ED;
+    border-radius: 6px 16px 16px 16px;
+  }
+  .msg.ai .cursor {
+    display: inline-block; width: 6px; height: 13px;
+    background: #39FF85; margin-left: 2px;
+    animation: blink 0.8s steps(1) infinite;
+    vertical-align: -2px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  #inputRow {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(57,255,133,0.14);
+    background: rgba(0,0,0,0.2);
+  }
+  #inputRow input {
+    flex: 1; min-width: 0;
+    background: rgba(16,30,20,0.8);
+    border: 1.5px solid rgba(57,255,133,0.25);
+    color: #EBF6ED;
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    outline: none;
+  }
+  #inputRow input::placeholder { color: rgba(172,198,180,0.45); }
+  #inputRow input:focus { border-color: #39FF85; box-shadow: 0 0 0 3px rgba(57,255,133,0.12); }
+  #inputRow button {
+    background: #39FF85; color: #061006;
+    border: none; border-radius: 14px;
+    padding: 10px 18px; font-weight: 700; font-size: 13px;
+    cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+  }
+  #inputRow button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #inputRow button:not(:disabled):hover { transform: translateY(-1px); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stageWrap"><canvas id="stage"></canvas></div>
+
+  <div id="chatBox">
+    <div id="chatHeader">
+      <span class="dot"></span>
+      <span>צמח — AI Avatar</span>
+      <small style="margin-right:auto"></small>
+      <small id="stateLabel">idle</small>
+    </div>
+    <div id="messages"></div>
+    <div id="inputRow">
+      <input id="userInput" type="text" placeholder="שאל אותי משהו..." />
+      <button id="sendBtn">שלח</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= CANVAS AI AVATAR ENGINE ================= */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const stageWrap = document.getElementById('stageWrap');
+
+function resizeCanvas() {
+  const rect = stageWrap.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+
+const sheet = new Image();
+sheet.src = "/Gemini_Generated_Image_5u19do5u19do5u19.png";
+
+const COLS = 3, ROWS = 2;
+let frameW = 0, frameH = 0, ready = false;
+
+let avatarState = 'idle'; // idle | thinking | speaking
+let speakAmplitude = 0;
+let t = 0;
+
+const stateLabel = document.getElementById('stateLabel');
+function setState(s) {
+  avatarState = s;
+  stateLabel.textContent = s;
+}
+
+function drawAura(cx, cy, baseR, time) {
+  if (avatarState === 'thinking') {
+    for (let i = 0; i < 3; i++) {
+      const phase = (time * 1.6 + i * 0.7) % (Math.PI * 2);
+      const r = baseR + Math.sin(phase) * 14 + i * 18;
+      const alpha = 0.18 - i * 0.04 + Math.sin(time * 4 + i) * 0.05;
+      const hue = (time * 60 + i * 40) % 360;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(r, 4), 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${hue}, 100%, 65%, ${Math.max(alpha, 0)})`;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = `hsla(${hue}, 100%, 60%, 0.8)`;
+      ctx.shadowBlur = 24;
+      ctx.stroke();
+    }
+  } else if (avatarState === 'speaking') {
+    const r = baseR + 10 + speakAmplitude * 18;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(57,255,133,${0.10 + speakAmplitude * 0.12})`;
+    ctx.shadowColor = 'rgba(57,255,133,0.9)';
+    ctx.shadowBlur = 28;
+    ctx.fill();
+  } else {
+    const pulse = (Math.sin(time * 1.3) + 1) / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, baseR + 6 + pulse * 6, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(57,255,133,${0.07 + pulse * 0.06})`;
+    ctx.shadowColor = 'rgba(57,255,133,0.5)';
+    ctx.shadowBlur = 18;
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+function render(dt) {
+  const w = stageWrap.clientWidth;
+  const h = stageWrap.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!ready) return;
+
+  t += dt;
+
+  const charW = Math.min(w * 0.7, h * 0.7 * (frameW / frameH));
+  const charH = charW * (frameH / frameW);
+  const cx = w / 2;
+  const cy = h * 0.58;
+
+  drawAura(cx, cy, Math.min(charW, charH) * 0.42, t);
+
+  let breathe = 1;
+  let bob = 0;
+  let frameIndex = 0;
+
+  if (avatarState === 'idle') {
+    breathe = 1 + Math.sin(t * 1.6) * 0.025;
+    bob = Math.sin(t * 1.6) * 5;
+    frameIndex = 0;
+  } else if (avatarState === 'thinking') {
+    breathe = 1 + Math.sin(t * 4) * 0.015;
+    bob = Math.sin(t * 6) * 3;
+    frameIndex = Math.floor(t * 4) % COLS;
+  } else if (avatarState === 'speaking') {
+    speakAmplitude = 0.55 + Math.sin(t * 22) * 0.45 * Math.max(speakAmplitude, 0.3);
+    breathe = 1 + Math.abs(Math.sin(t * 14)) * 0.05 * speakAmplitude;
+    bob = Math.sin(t * 10) * 4;
+    frameIndex = Math.floor(t * 10) % COLS;
+  }
+
+  const dw = charW * breathe;
+  const dh = charH * breathe;
+  const sx = frameIndex * frameW;
+  const sy = 0;
+
+  ctx.save();
+  ctx.translate(cx, cy + bob);
+  ctx.drawImage(sheet, sx, sy, frameW, frameH, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  render(dt);
+  requestAnimationFrame(loop);
+}
+
+sheet.onload = () => {
+  frameW = sheet.width / COLS;
+  frameH = sheet.height / ROWS;
+  ready = true;
+  resizeCanvas();
+  requestAnimationFrame(loop);
+};
+
+/* ================= CHAT / AI ENGINE ================= */
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+
+let history = [];
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role === 'user' ? 'user' : 'ai'}`;
+  div.textContent = text;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function typeOut(el, fullText, onDone) {
+  let i = 0;
+  setState('speaking');
+  el.textContent = '';
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  el.appendChild(cursor);
+
+  const interval = setInterval(() => {
+    i++;
+    el.textContent = fullText.slice(0, i);
+    el.appendChild(cursor);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (i >= fullText.length) {
+      clearInterval(interval);
+      cursor.remove();
+      setState('idle');
+      speakAmplitude = 0;
+      onDone && onDone();
+    }
+  }, 18);
+}
+
+async function fetchAIResponse(userText) {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 600,
+      system: 'אתה צמח, עוזר AI ידידותי באפליקציית קנאמאצ׳. ענה בקצרה ובעברית.',
+      messages: [...history, { role: 'user', content: userText }],
+    }),
+  });
+  const data = await res.json();
+  const text = (data.content || [])
+    .map((b) => (b.type === 'text' ? b.text : ''))
+    .filter(Boolean)
+    .join('\n') || 'מצטער, לא הצלחתי לקבל תשובה כרגע.';
+  return text;
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  inputEl.value = '';
+  sendBtn.disabled = true;
+  inputEl.disabled = true;
+
+  addMessage('user', text);
+  history.push({ role: 'user', content: text });
+
+  setState('thinking');
+  const aiDiv = addMessage('ai', '');
+
+  try {
+    const reply = await fetchAIResponse(text);
+    history.push({ role: 'assistant', content: reply });
+    typeOut(aiDiv, reply, () => {
+      sendBtn.disabled = false;
+      inputEl.disabled = false;
+      inputEl.focus();
+    });
+  } catch (err) {
+    setState('idle');
+    typeOut(aiDiv, 'שגיאת חיבור — נסה שוב בעוד רגע.', () => {
+      sendBtn.disabled = false;
+      inputEl.disabled = false;
+    });
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+addMessage('ai', 'שלום! אני צמח 🌿 שאל אותי כל דבר.');
+</script>
+</body>
+</html>

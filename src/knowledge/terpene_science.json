@@ -1,0 +1,405 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "sources": ["Russo 2011 (Br J Pharmacol)","Gertsch et al. 2008","Buchbauer et al. 2002","Salehi et al. 2019","Isobolographic analyses: Nuutinen 2018","Wikicells terpene DB","GW Pharma research"],
+    "note": "Terpene boiling points matter for vaporizer temperature. All concentrations are rough % of flower dry weight."
+  },
+  "terpenes": [
+    {
+      "id": "myrcene",
+      "name_en": "Myrcene",
+      "name_he": "מירסן",
+      "formula": "C10H16",
+      "boiling_point_c": 167,
+      "typical_concentration_pct": "0.1–0.5",
+      "aroma": ["earthy","musky","herbal","mango"],
+      "aroma_he": ["אדמתי","מוסקי","עשבוני","מנגו"],
+      "found_in_nature": ["mango","thyme","lemongrass","hops","bay leaves"],
+      "pharmacology": {
+        "receptors": ["CB1 (potentiation, not direct agonism)","TRPV1 (agonist)","GABA-A (allosteric modulator at high doses)","μ-opioid (potentiation)"],
+        "mechanisms": "Increases blood-brain barrier permeability for cannabinoids; sedative/hypnotic via GABA modulation; muscle relaxant via spinal cord mechanism; anti-inflammatory via inhibition of prostaglandin E2; anti-mutagenic",
+        "synergy_with": ["THC (enhances psychoactivity and sedation)","CBD (enhances anti-inflammatory)","linalool (sedative amplification)"],
+        "evidence_quality": "moderate (in vitro + animal; limited human RCT)"
+      },
+      "clinical_applications": {
+        "pain": { "strength": "moderate", "note": "Potentiates opioid and cannabinoid analgesia; reduces pain threshold in models" },
+        "sleep": { "strength": "strong", "note": "Primary sedative terpene in cannabis; induces couch-lock effect; indica high-myrcene strains classically sedating" },
+        "muscle_spasm": { "strength": "moderate", "note": "Muscle relaxant in animal studies; relevant for MS spasticity, sports injury" },
+        "inflammation": { "strength": "moderate", "note": "Inhibits PGE2 production; anti-mutagenic at high doses in cell models" },
+        "anxiety": { "strength": "low-moderate", "note": "Sedation reduces anxiety indirectly; not primary anxiolytic mechanism" }
+      },
+      "cannabis_strains_high_myrcene": ["OG Kush","Granddaddy Purple","Blue Dream","Mango Kush","Bubba Kush","Critical Mass","Wedding Cake"],
+      "vaporizer_temp_note": "Vaporize at 175–185°C to capture myrcene alongside THC/CBD without combustion",
+      "safety": "Generally recognized as safe (GRAS in food); sedation at high concentrations; avoid driving"
+    },
+    {
+      "id": "caryophyllene",
+      "name_en": "Beta-Caryophyllene",
+      "name_he": "קריופילן",
+      "formula": "C15H24",
+      "boiling_point_c": 160,
+      "typical_concentration_pct": "0.05–0.5",
+      "aroma": ["spicy","peppery","woody","clove"],
+      "aroma_he": ["תבלוני","פלפלי","עצי","ציפורן"],
+      "found_in_nature": ["black pepper","cloves","rosemary","oregano","copaiba balsam"],
+      "pharmacology": {
+        "receptors": ["CB2 (selective full agonist — unique among terpenes)","PPARγ (agonist)","NF-κB (inhibitor)","TRPV1 (partial agonist at high dose)"],
+        "mechanisms": "Only terpene classified as a dietary cannabinoid; CB2-mediated immune modulation; potent anti-inflammatory via NF-κB suppression; reduces IL-1β, IL-6, TNF-α; neuroprotective via CB2 in microglia; anti-tumor via PPARγ",
+        "synergy_with": ["THC (enhances anti-inflammatory; CB2 + CB1)","CBD (anti-inflammatory amplification)","humulene (anti-tumor synergy)"],
+        "evidence_quality": "strong (CB2 agonism confirmed; multiple animal + some human trials)"
+      },
+      "clinical_applications": {
+        "pain": { "strength": "strong", "note": "CB2-mediated pain relief without psychoactivity; particularly good for neuropathic and inflammatory pain (Bento et al. 2011)" },
+        "inflammation": { "strength": "very_strong", "note": "Reduces pro-inflammatory cytokines; IBD colitis models show significant mucosal protection" },
+        "anxiety": { "strength": "moderate", "note": "Stress-anti-inflammatory; reduces anxiety-like behavior via CB2 in animal models (Bahi et al. 2014)" },
+        "addiction": { "strength": "moderate", "note": "Reduces alcohol craving in animal models via CB2 pathway (Bahi et al. 2014)" },
+        "neuroprotection": { "strength": "moderate", "note": "CB2 in microglia reduces neuroinflammation; relevant for PD, MS, Alzheimer's models" },
+        "anti_tumor": { "strength": "low (preclinical only)", "note": "PPARγ activation inhibits tumor growth in cell lines; humulene synergy in vitro" }
+      },
+      "cannabis_strains_high_caryophyllene": ["Girl Scout Cookies","OG Kush","White Widow","Wedding Cake","Purple Punch","Gorilla Glue #4"],
+      "vaporizer_temp_note": "Boils at 160°C; present in most vaporizer sessions from 160°C upward",
+      "safety": "GRAS; no known adverse effects at normal consumption; may interact with blood thinners at very high doses (speculative)"
+    },
+    {
+      "id": "linalool",
+      "name_en": "Linalool",
+      "name_he": "לינלול",
+      "formula": "C10H18O",
+      "boiling_point_c": 198,
+      "typical_concentration_pct": "0.01–0.25",
+      "aroma": ["floral","lavender","fresh","slightly citrus"],
+      "aroma_he": ["פרחוני","לבנדר","טרי"],
+      "found_in_nature": ["lavender","coriander","bergamot","rosewood","basil"],
+      "pharmacology": {
+        "receptors": ["GABA-A (positive allosteric modulator)","5-HT1A (partial agonist)","NMDA (antagonist at high dose)","Adenosine A1 (agonist)","μ-opioid (potentiation)","TRPA1 (agonist at high dose)"],
+        "mechanisms": "Benzodiazepine-like sedation/anxiolytic WITHOUT direct BDZ binding; reduces cortisol; anti-convulsant; anti-nociceptive via adenosine A1; reduces neuroinflammation; pro-analgesic via spinal GABA",
+        "synergy_with": ["CBD (anxiolytic amplification)","myrcene (sedation)","THC (anti-nociception, reduces anxiety side effects of THC)"],
+        "evidence_quality": "moderate (animal + limited human aromatherapy; mechanism well-characterized)"
+      },
+      "clinical_applications": {
+        "anxiety": { "strength": "strong (for aromatherapy/inhalation)", "note": "GABA-A modulation; multiple human aromatherapy studies positive; reduces cortisol (Linck et al. 2009)" },
+        "sleep": { "strength": "strong", "note": "Lavender linalool extensively studied for sleep; cannabis linalool assumed similar (Salehi et al. 2019)" },
+        "pain": { "strength": "moderate", "note": "Adenosine A1 anti-hyperalgesia; spinal GABAergic pain gate modulation (Peana et al. 2003)" },
+        "ptsd": { "strength": "moderate", "note": "Reduces corticosterone stress response; reduces fear memory reconsolidation in animal models" },
+        "epilepsy": { "strength": "moderate", "note": "Anticonvulsant in pentylenetetrazol models (Elisabetsky 1999); GABA mechanism" },
+        "parkinsons": { "strength": "low-moderate", "note": "Reduces neuroinflammation; anti-Parkinsonian behavior in animal models; reduces tremor-anxiety cycle" }
+      },
+      "cannabis_strains_high_linalool": ["Lavender","Amnesia Haze (some phenotypes)","LA Confidential","Pink Kush","Eran Almog (Tikun Olam)","Zkittlez"],
+      "vaporizer_temp_note": "High boiling point (198°C); requires higher vaporizer temperatures; most active via olfactory route in inhalation",
+      "safety": "Extensively studied; GRAS; may potentiate CNS depressants (sedatives, alcohol); not for first-trimester pregnancy"
+    },
+    {
+      "id": "limonene",
+      "name_en": "Limonene",
+      "name_he": "לימונן",
+      "formula": "C10H16",
+      "boiling_point_c": 176,
+      "typical_concentration_pct": "0.5–2.0 (sativas often highest)",
+      "aroma": ["citrus","lemon","orange","fresh"],
+      "aroma_he": ["הדרים","לימון","תפוז","טרי"],
+      "found_in_nature": ["lemon peel","orange peel","juniper","peppermint"],
+      "pharmacology": {
+        "receptors": ["5-HT1A (agonist)","Adenosine A2A (agonist)","Dopamine D2 (indirect positive modulation)","TRPC5 (antagonist — relevant for fear/anxiety)","Anti-oxidant (Phase I/II detox enzyme induction)"],
+        "mechanisms": "Mood-elevating via serotonin/dopamine; anti-anxiety (TRPC5 antagonism suppresses fear conditioned responses); anti-tumor via apoptosis in breast/prostate cancer cells; anti-reflux gastroprotective; immune stimulating (d-limonene)",
+        "synergy_with": ["THC (mood enhancement)","CBD (anti-anxiety; anti-tumor)","caryophyllene (anti-inflammatory + anti-tumor)"],
+        "evidence_quality": "moderate (animal + small human trials for mood; stronger for gastric/anti-tumor)"
+      },
+      "clinical_applications": {
+        "anxiety": { "strength": "moderate", "note": "TRPC5 antagonism reduces fear response; 5-HT1A anxiolytic; but at high doses with high-THC can PARADOXICALLY worsen anxiety" },
+        "depression": { "strength": "moderate", "note": "Increases 5-HT and dopamine; mood-elevating; Japanese aromatherapy studies (Komiya et al. 2006)" },
+        "cancer": { "strength": "moderate (in vitro); low (human)", "note": "D-limonene Phase I human trials (Miller 2011): safe; anti-tumor biomarker changes in breast cancer" },
+        "gerd": { "strength": "moderate", "note": "Anti-reflux; reduces esophageal acid exposure (Sun et al. 2007)" },
+        "immune": { "strength": "moderate", "note": "Enhances immune function via NK cells (Raphael & Kuttan 2003)" }
+      },
+      "cannabis_strains_high_limonene": ["Super Lemon Haze","Lemon Skunk","Sour Diesel","Jack Herer","Berry White","Chocolope","Durban Poison"],
+      "vaporizer_temp_note": "176°C; active in standard vaporizer range; dominant in many sativa strains",
+      "caution_he": "ריכוז גבוה עם THC גבוה עלול להגביר חרדה. עדיף בשילוב עם CBD. מתאים ביותר לשימוש בוקר עם CBD-dominant."
+    },
+    {
+      "id": "pinene",
+      "name_en": "Alpha-Pinene",
+      "name_he": "פינן",
+      "formula": "C10H16",
+      "boiling_point_c": 156,
+      "typical_concentration_pct": "0.01–0.5",
+      "aroma": ["pine","fresh","outdoor","rosemary"],
+      "aroma_he": ["אורן","טרי","רוזמרין"],
+      "found_in_nature": ["pine trees","rosemary","basil","dill","parsley"],
+      "pharmacology": {
+        "receptors": ["GABA-A (inhibitor at high dose — alerting)","Acetylcholinesterase (inhibitor — like donepezil)","5-HT1A (moderate agonism)","Bronchodilator (via adrenergic mechanism)"],
+        "mechanisms": "Counteracts THC short-term memory impairment (AChE inhibition); bronchodilator at low doses; anti-inflammatory (NF-κB); anti-microbial; alerting at high doses (antagonizes adenosine-induced sedation)",
+        "synergy_with": ["THC (memory protection against THC impairment — critical)","CBD (bronchodilatory)","limonene (alerting synergy)"],
+        "evidence_quality": "moderate (human: bronchodilatory confirmed; AChE inhibition mechanism well-established)"
+      },
+      "clinical_applications": {
+        "memory_cognition": { "strength": "moderate", "note": "AChE inhibition: reduces THC-induced short-term memory impairment; potentially relevant for Alzheimer's adjunct" },
+        "copd_asthma": { "strength": "moderate", "note": "Bronchodilator (Russo 2011); alpha-pinene studied for COPD; anti-inflammatory in airways" },
+        "inflammation": { "strength": "moderate", "note": "NF-κB inhibition; anti-arthritis in animal models" },
+        "alertness": { "strength": "moderate", "note": "Counteracts cannabis sedation; good for daytime use where alertness needed" },
+        "anxiety": { "strength": "low-moderate", "note": "5-HT1A mild agonism; but HIGH pinene may be alerting/stimulating — double-edged" }
+      },
+      "cannabis_strains_high_pinene": ["Jack Herer","Blue Dream","OG Kush (some)","Island Sweet Skunk","Trainwreck","Romulan"],
+      "vaporizer_temp_note": "Very low boiling point (156°C); vaporizes first in a session; set vaporizer to 160–165°C to capture specifically"
+    },
+    {
+      "id": "terpinolene",
+      "name_en": "Terpinolene",
+      "name_he": "טרפינולן",
+      "formula": "C10H16",
+      "boiling_point_c": 186,
+      "typical_concentration_pct": "0.1–1.0 (rare; often dominant in certain sativas)",
+      "aroma": ["fresh","floral","herbaceous","slightly citrus"],
+      "aroma_he": ["טרי","פרחוני","עשבוני"],
+      "found_in_nature": ["tea tree","nutmeg","apple","cumin","lilac"],
+      "pharmacology": {
+        "receptors": ["Sedative (CNS mechanism unclear but consistent in animal models)","Anti-oxidant","Anti-proliferative (cancer cell lines)"],
+        "mechanisms": "Potent sedative in animal models (Russo 2011 review); anti-oxidant; anti-proliferative in brain cancer cell lines (Aydin et al. 2013); anti-fungal",
+        "synergy_with": ["myrcene (amplified sedation)","CBD (anti-anxiety sedation combo)"],
+        "evidence_quality": "limited (animal + in vitro; limited human data)"
+      },
+      "clinical_applications": {
+        "sleep": { "strength": "moderate (animal)", "note": "Highly sedative in mouse models; found in sleep-associated strains like OG Kush" },
+        "cancer": { "strength": "low (preclinical only)", "note": "Anti-proliferative in glioblastoma and neuroblastoma cell lines" }
+      },
+      "cannabis_strains_high_terpinolene": ["Jack Herer","Golden Goat","Ghost Train Haze","Durban Poison","Dutch Treat","Orange Cookies"],
+      "note": "Often co-dominant with ocimene in certain sativa-leaning cultivars; strains with terpinolene as primary can be unpredictably sedating despite sativa morphology"
+    },
+    {
+      "id": "humulene",
+      "name_en": "Humulene",
+      "name_he": "הומולן",
+      "formula": "C15H24",
+      "boiling_point_c": 106,
+      "typical_concentration_pct": "0.1–0.4",
+      "aroma": ["earthy","woody","hoppy","spicy"],
+      "aroma_he": ["אדמתי","עצי","כשתוני"],
+      "found_in_nature": ["hops","ginseng","coriander","basil","sage"],
+      "pharmacology": {
+        "receptors": ["CB2 (indirect; via caryophyllene synergy)","COX-1/COX-2 (inhibitor)","NF-κB (inhibitor)","Anti-proliferative (PPAR-related)"],
+        "mechanisms": "Anti-inflammatory (COX inhibition similar to ibuprofen mechanism); anti-proliferative in tumor cells; appetite-suppressing (α-humulene isomer); synergizes with caryophyllene for superior anti-tumor effect",
+        "synergy_with": ["caryophyllene (anti-tumor, anti-inflammatory — strongest pairing)","myrcene (anti-inflammatory)"],
+        "evidence_quality": "moderate (animal + in vitro; synergy with caryophyllene strongest evidence)"
+      },
+      "clinical_applications": {
+        "inflammation": { "strength": "strong (animal/in vitro)", "note": "Anti-inflammatory comparable to NSAID mechanism in cell models (Fernandes et al. 2007)" },
+        "cancer": { "strength": "moderate (preclinical)", "note": "Synergy with caryophyllene: superior cytotoxic effect vs each alone (Legault & Pichette 2007)" },
+        "crohns_ibd": { "strength": "moderate", "note": "Potent gut anti-inflammatory; synergy with caryophyllene for IBD" },
+        "appetite": { "strength": "low-moderate", "note": "α-humulene may be appetite-suppressing (could help obesity-IBD)" }
+      },
+      "cannabis_strains_high_humulene": ["White Widow","Sherbet","Headband","Original Glue (GG4)","Death Star","Skywalker OG"],
+      "vaporizer_temp_note": "Very low boiling point (106°C) but survives longer in vapor; practical extraction at standard vaporizer temps"
+    },
+    {
+      "id": "ocimene",
+      "name_en": "Ocimene",
+      "name_he": "אוסימן",
+      "formula": "C10H16",
+      "boiling_point_c": 65,
+      "typical_concentration_pct": "0.05–0.3",
+      "aroma": ["sweet","herbal","floral","tropical"],
+      "aroma_he": ["מתוק","עשבוני","פרחוני","טרופי"],
+      "found_in_nature": ["mint","parsley","basil","orchids","tarragon"],
+      "pharmacology": {
+        "receptors": ["Anti-viral","Anti-fungal","Antidiabetic (enzyme inhibition)"],
+        "mechanisms": "Anti-inflammatory; anti-viral (HSV inhibition); antidiabetic via aldose reductase + α-glucosidase inhibition; decongestant",
+        "evidence_quality": "limited (mostly in vitro)"
+      },
+      "clinical_applications": {
+        "inflammation": { "strength": "low-moderate", "note": "Anti-inflammatory supporting terpene" },
+        "antidiabetic": { "strength": "low (preclinical)", "note": "Enzyme inhibition in glucose metabolism pathways" }
+      },
+      "cannabis_strains_high_ocimene": ["Amnesia","Strawberry Cough","Golden Pineapple","Clementine"]
+    },
+    {
+      "id": "nerolidol",
+      "name_en": "Nerolidol",
+      "name_he": "נרולידול",
+      "formula": "C15H26O",
+      "boiling_point_c": 276,
+      "typical_concentration_pct": "0.01–0.1",
+      "aroma": ["floral","woody","fresh bark","slightly fruity"],
+      "aroma_he": ["פרחוני","עצי","קליפת עץ"],
+      "found_in_nature": ["jasmine","ginger","tea tree","lemon grass"],
+      "pharmacology": {
+        "receptors": ["Sedative (CNS mechanism similar to myrcene)","Skin penetration enhancer","Anti-parasitic (Trypanosoma, Malaria)"],
+        "mechanisms": "Sedative; increases skin/membrane permeability (relevant for transdermal delivery); anti-malarial; anti-fungal",
+        "evidence_quality": "limited"
+      },
+      "clinical_applications": {
+        "sleep": { "strength": "moderate (animal)", "note": "Secondary sedative terpene; found in indica-dominant sedating strains" },
+        "topical_delivery": { "strength": "moderate", "note": "Skin penetration enhancer — relevant for topical cannabis products" }
+      },
+      "cannabis_strains_high_nerolidol": ["Skywalker OG","Sweet Skunk","Chemdawg 91","Island Lady"]
+    },
+    {
+      "id": "bisabolol",
+      "name_en": "Alpha-Bisabolol",
+      "name_he": "ביסבולול",
+      "formula": "C15H26O",
+      "boiling_point_c": 153,
+      "typical_concentration_pct": "0.01–0.15",
+      "aroma": ["floral","chamomile","sweet","slightly fruity"],
+      "aroma_he": ["פרחוני","קמומיל","מתוק"],
+      "found_in_nature": ["German chamomile (Matricaria chamomilla)","candeia tree (Vanillosmopsis erythropappa)","frankincense"],
+      "pharmacology": {
+        "receptors": ["TRPA1 (agonist — anti-nociceptive)","5-HT1A (partial agonist)","COX-1/COX-2 (inhibitor)","Skin penetration enhancer (lipid bilayer disruption)"],
+        "mechanisms": "Anti-inflammatory via COX inhibition; analgesic via TRPA1 modulation; skin penetration enhancer (improves transdermal bioavailability of other compounds); anti-irritant; anti-bacterial; promotes wound healing; mild anxiolytic via 5-HT1A",
+        "synergy_with": ["caryophyllene (anti-inflammatory amplification)","linalool (anxiolytic + skin soothing)","myrcene (sedative + anti-inflammatory)"],
+        "evidence_quality": "moderate (in vitro + animal; human evidence from cosmetic/dermatology studies; limited cannabis-specific RCT)"
+      },
+      "clinical_applications": {
+        "skin_conditions": { "strength": "strong (topical)", "note": "Widely used in dermatology; reduces skin irritation, promotes healing; anti-inflammatory in atopic dermatitis models (Maurya et al. 2019)" },
+        "pain": { "strength": "moderate", "note": "TRPA1-mediated analgesic; anti-nociceptive in acute pain models; synergy with caryophyllene for neuropathic pain" },
+        "anxiety": { "strength": "low-moderate", "note": "5-HT1A partial agonism; mild anxiolytic; supports sleep onset via relaxing aroma" },
+        "inflammation": { "strength": "moderate", "note": "COX inhibition; reduces pro-inflammatory cytokines; relevant for IBD topical formulations (Rocha et al. 2011)" },
+        "neuroprotection": { "strength": "low-moderate (preclinical)", "note": "Reduces lipid peroxidation; antioxidant; potential Alzheimer's adjunct (Huang et al. 2017)" }
+      },
+      "cannabis_strains_high_bisabolol": ["Pink Kush","Headband","OG Shark","Eran Almog (Tikun Olam)","Master Kush","Death Star"],
+      "vaporizer_temp_note": "Low boiling point (153°C); vaporizes early in sessions alongside caryophyllene; most active transdermally",
+      "safety": "Extensively used in cosmetics (GRAS); no significant adverse effects at normal cannabis concentrations; pregnancy: insufficient data"
+    },
+    {
+      "id": "eucalyptol",
+      "name_en": "Eucalyptol (1,8-Cineole)",
+      "name_he": "אוקליפטול (סינאול)",
+      "formula": "C10H18O",
+      "boiling_point_c": 176,
+      "typical_concentration_pct": "0.005–0.2",
+      "aroma": ["eucalyptus","minty","camphor","fresh","clean"],
+      "aroma_he": ["אוקליפטוס","מנטה","קמפור","טרי"],
+      "found_in_nature": ["eucalyptus","rosemary","bay leaves","tea tree","cardamom","mugwort"],
+      "pharmacology": {
+        "receptors": ["TRPM8 (agonist — cooling sensation)","nAChR (nicotinic acetylcholine — cognitive enhancement)","5-LO (inhibitor — anti-inflammatory)","GABA-A (modulator)","Bronchodilator (smooth muscle relaxation)"],
+        "mechanisms": "Potent bronchodilator — clinically documented in asthma (Santos & Rao 2000); acetylcholinesterase inhibitor (memory enhancement; similar mechanism to donepezil); anti-inflammatory via 5-lipoxygenase inhibition (reduces LTB4, LTC4); anti-bacterial via membrane disruption; cognitive enhancement in aromatherapy trials",
+        "synergy_with": ["pinene (bronchodilatory + cognitive synergy — most studied pairing)","limonene (respiratory + mood)","myrcene (anti-inflammatory amplification)"],
+        "evidence_quality": "strong for respiratory (multiple human RCTs); moderate for cognitive (human aromatherapy); moderate anti-inflammatory"
+      },
+      "clinical_applications": {
+        "copd_asthma": { "strength": "strong", "note": "Reduces sputum viscosity; bronchodilator; anti-inflammatory in airways; approved in Germany as mucolytic (Soleimani et al. 2012); reduces corticosteroid requirement in asthma" },
+        "memory_cognition": { "strength": "moderate", "note": "Inhalation in human trial: improved working memory and alertness (Moss et al. 2003; Tildesley et al. 2003 — rosemary 1,8-cineole)" },
+        "inflammation": { "strength": "moderate-strong", "note": "5-LO pathway inhibition; reduces LTB4 (key inflammatory mediator in COPD, IBD, arthritis)" },
+        "pain": { "strength": "moderate", "note": "Anti-nociceptive in animal models; synergy with pinene for neuropathic pain" },
+        "antibacterial": { "strength": "moderate", "note": "Broad-spectrum antibacterial; relevant for oral/respiratory infections" }
+      },
+      "cannabis_strains_high_eucalyptol": ["Super Silver Haze","Girl Scout Cookies (some phenotypes)","Dutch Treat","Headband","Trainwreck","Bubba Kush (trace amounts)"],
+      "vaporizer_temp_note": "Boils at 176°C; co-activates with limonene at standard vaporizer temperatures (175–185°C range)",
+      "safety": "GRAS; standard concentrations safe; high oral doses toxic (avoid ingestion of concentrated essential oil); inhalation at cannabis concentrations fully safe",
+      "clinical_kill_switch_note": "Patients with eucalyptol allergy (rare; cross-reactive with rosemary/eucalyptus sensitivity) should avoid high-cineole strains"
+    },
+    {
+      "id": "geraniol",
+      "name_en": "Geraniol",
+      "name_he": "גרניול",
+      "formula": "C10H18O",
+      "boiling_point_c": 230,
+      "typical_concentration_pct": "0.01–0.1",
+      "aroma": ["rose","floral","sweet","citrus-adjacent"],
+      "aroma_he": ["וורד","פרחוני","מתוק"],
+      "found_in_nature": ["roses","geraniums","lemon balm","palmarosa grass","citronella"],
+      "pharmacology": {
+        "receptors": ["TRPV1 (agonist — analgesic at low doses)","Neuroprotective (multiple mechanisms)","Anti-tumor (apoptosis via caspase activation)","Mosquito repellent (mechanoreceptor interference)","GABA modulation (mild sedative in animal models)"],
+        "mechanisms": "Neuroprotective via reduction of oxidative stress in neuronal cells; anti-tumor via apoptosis induction (prostate, breast, colon cancer cell lines); anti-inflammatory via NF-κB and COX inhibition; TRPV1-mediated analgesia at low doses; anti-fungal; powerful insect repellent",
+        "synergy_with": ["linalool (neuroprotective + anxiolytic synergy)","caryophyllene (anti-inflammatory amplification)","limonene (anti-tumor synergy)"],
+        "evidence_quality": "moderate (in vitro dominant; some animal studies; limited human data)"
+      },
+      "clinical_applications": {
+        "neuroprotection": { "strength": "moderate (preclinical)", "note": "Protects against glutamate-induced neuronal death; potential adjunct for Parkinson's and Alzheimer's (Rekha et al. 2013)" },
+        "cancer": { "strength": "low-moderate (preclinical)", "note": "Induces apoptosis via caspase-3 in prostate, breast, pancreatic cancer cells in vitro; far from clinical application" },
+        "pain": { "strength": "moderate", "note": "TRPV1 modulation reduces thermal hyperalgesia in models; anti-inflammatory analgesic (Rao et al. 2013)" },
+        "anxiety": { "strength": "low-moderate", "note": "Rose-like aroma associated with anxiolytic response in olfactory studies; GABA modulation in animal models" },
+        "antimicrobial": { "strength": "moderate", "note": "Inhibits Candida, Aspergillus, MRSA — relevant for immunocompromised patients (Rivas da Silva et al. 2012)" }
+      },
+      "cannabis_strains_high_geraniol": ["Amnesia Haze (selected phenotypes)","Headband","Agent Orange","Master Kush","Afghani","Skunk #1"],
+      "vaporizer_temp_note": "Very high boiling point (230°C); requires maximum vaporizer temperature settings; most effective via olfactory route or in combustion; largely missed by low-temp vaping",
+      "safety": "GRAS; skin sensitizer in some individuals (allergic contact dermatitis at high concentration in cosmetics); at cannabis concentrations, no clinical risk"
+    }
+  ],
+  "terpene_interaction_matrix": {
+    "note": "Combinations with known synergistic effects based on pharmacological mechanism overlap",
+    "synergies": [
+      { "combo": ["myrcene","caryophyllene"], "effect": "Anti-inflammatory + analgesic synergy; IBD, chronic pain; both CB2 and prostaglandin pathways" },
+      { "combo": ["myrcene","linalool"], "effect": "Sedative amplification for sleep; both GABA-adjacent; best for PTSD nightmares, insomnia" },
+      { "combo": ["caryophyllene","humulene"], "effect": "Anti-tumor synergy (Legault 2007); anti-IBD; superior to either alone" },
+      { "combo": ["limonene","linalool"], "effect": "Anxiolytic combination; serotonergic + GABAergic dual mechanism; anxiety + depression" },
+      { "combo": ["pinene","limonene"], "effect": "Alerting + cognitive; counteracts THC sedation; daytime productivity; memory protection" },
+      { "combo": ["myrcene","caryophyllene","linalool"], "effect": "Triple anti-inflammatory-analgesic-sedative; chronic pain at night; PTSD sleep formula" },
+      { "combo": ["bisabolol","caryophyllene"], "effect": "Skin + systemic anti-inflammatory dual pathway (COX + CB2); topical cannabis formulations; atopic dermatitis" },
+      { "combo": ["eucalyptol","pinene"], "effect": "Strongest documented respiratory synergy: bronchodilation + anti-inflammatory in airways; COPD, asthma, exercise-induced bronchospasm" },
+      { "combo": ["geraniol","linalool"], "effect": "Neuroprotection + anxiolytic; rose-lavender olfactory-CNS axis; Parkinson's adjunct + anxiety-driven insomnia" },
+      { "combo": ["myrcene","bisabolol","linalool"], "effect": "Deep sedation-relaxation-anti-irritant stack; fibromyalgia pain + sleep; post-surgery recovery" },
+      { "combo": ["limonene","caryophyllene","geraniol"], "effect": "Anti-tumor preclinical trifecta; breast and prostate cell line apoptosis synergy; not yet clinical evidence" },
+      { "combo": ["eucalyptol","myrcene","caryophyllene"], "effect": "Respiratory + systemic anti-inflammatory; COPD exacerbations with comorbid pain; MS patients with respiratory weakness" }
+    ]
+  },
+  "clinical_kill_switch_triggers": {
+    "note": "Peer-reviewed evidence for terpene fractions that may worsen specific medical conditions at high concentrations. These inform the Clinical Kill-Switch engine in api/lib/clinicalCore.js. All thresholds are guidance-level — individual sensitivity varies.",
+    "sources": ["Russo 2011 (Br J Pharmacol)","Karadag et al. 2013 (Phytomedicine)","Satou et al. 2014 (Flavour)","Berger et al. 2022 (Front Psychiatry)","Kaplan et al. 2017 (Psychopharmacology)","Huang et al. 2012 (Fitoterapia)","Buchbauer et al. 2002 (J Pharm Pharmacol)"],
+    "triggers": [
+      {
+        "terpene": "pinene",
+        "terpene_name_en": "Alpha-Pinene",
+        "adverse_indication": "ptsd",
+        "adverse_indication_name": "PTSD / Panic Disorder",
+        "mechanism": "High alpha-pinene acts as a GABA-A *antagonist* (alerting/stimulating) at concentrations above ~15% of total terpene load. For PTSD patients, this can trigger hyperarousal, heightened sensory sensitivity, and panic episodes — the opposite of desired therapeutic effect. CB1 suppression of aversive memory extinction may also be partially blocked.",
+        "threshold_pct_of_total_terpenes": 0.15,
+        "evidence_strength": "moderate",
+        "references": ["Satou et al. 2014: alpha-pinene inhalation increased locomotor activity and anxiety-like behavior in elevated plus maze at high dose", "Russo 2011: notes pinene alerting vs. linalool/myrcene sedating polarity"],
+        "clinical_action": "Block strains where pinene fraction ≥ 15% of total terpene profile for patients with active PTSD or panic disorder indication"
+      },
+      {
+        "terpene": "terpinolene",
+        "terpene_name_en": "Terpinolene",
+        "adverse_indication": "anxiety",
+        "adverse_indication_name": "Anxiety Disorders (GAD, Panic)",
+        "mechanism": "Terpinolene, while sedating in rodent models, produces paradoxical stimulant-like effects in some human users, particularly when combined with high THC. Its mechanism of CNS effect is poorly characterized (no established receptor target). High-terpinolene strains are consistently reported by anxiety-prone patients as anxiogenic despite the sativa-leaning genetic profile.",
+        "threshold_pct_of_total_terpenes": 0.20,
+        "evidence_strength": "limited (observational + mechanistic gap)",
+        "references": ["Aydin et al. 2013: terpinolene CNS stimulant properties in HT-22 cells", "Community-level pharmacovigilance: terpinolene-dominant strains (Dutch Treat, Ghost Train Haze) frequently reported as anxiety-triggering"],
+        "clinical_action": "Flag (not block) strains where terpinolene is dominant (>20% of terpene fraction) for anxiety-primary patients; recommend only with CBD co-administration"
+      },
+      {
+        "terpene": "limonene",
+        "terpene_name_en": "Limonene",
+        "adverse_indication": "anxiety",
+        "adverse_indication_name": "Anxiety Disorders — High-THC Context",
+        "mechanism": "Limonene is anxiolytic at moderate concentrations (5-HT1A agonism, TRPC5 antagonism) but becomes dose-dependently anxiogenic at high concentrations when combined with high THC. The stimulatory dopaminergic component can exacerbate THC-induced anxiety at D2 receptors. This is a THC×limonene interaction, not limonene alone.",
+        "threshold_pct_of_total_terpenes": 0.30,
+        "applies_only_when": "THC category ≥ T15/C3 AND limonene fraction > 30% of total terpene load",
+        "evidence_strength": "moderate",
+        "references": ["Berger et al. 2022 (Front Psychiatry): CBD-dominant reduced anxiety 58%; THC-dominant strains with high limonene had highest anxiety risk", "Kaplan et al. 2017: THC increases anxiety dose-dependently; limonene does not mitigate at high THC doses"],
+        "clinical_action": "Block high-limonene (>30%) strains in T15+ categories for anxiety-primary patients; permissible in CBD-dominant formulations (T1-T3)"
+      },
+      {
+        "terpene": "caryophyllene",
+        "terpene_name_en": "Beta-Caryophyllene",
+        "adverse_indication": "anticoagulant_therapy",
+        "adverse_indication_name": "Patients on Anticoagulant Therapy (Warfarin, NOACs)",
+        "mechanism": "Beta-caryophyllene at very high oral doses (pharmacological levels, not typical cannabis inhalation) may interact with warfarin metabolism via CYP2C9 modulation. At normal cannabis inhalation concentrations, clinical significance is likely low. Caution flag for patients on narrow therapeutic index anticoagulants.",
+        "threshold_pct_of_total_terpenes": 0.50,
+        "applies_only_when": "High-dose oral cannabis (oils/edibles) with caryophyllene fraction > 50% AND patient on warfarin/anticoagulant",
+        "evidence_strength": "limited (speculative; in vitro CYP interaction; no human RCT)",
+        "references": ["Di Giacomo et al. 2020 (Molecules): caryophyllene CYP2C9 modulation in vitro"],
+        "clinical_action": "Advisory flag only for oral cannabis with very high caryophyllene in anticoagulated patients; not a hard block; recommend INR monitoring"
+      },
+      {
+        "terpene": "eucalyptol",
+        "terpene_name_en": "Eucalyptol (1,8-Cineole)",
+        "adverse_indication": "epilepsy",
+        "adverse_indication_name": "Drug-Resistant Epilepsy (Clobazam patients)",
+        "mechanism": "1,8-Cineole inhibits CYP3A4 and CYP2B6 at high concentrations, which could increase plasma levels of clobazam and N-desmethylclobazam in patients with epilepsy already at risk of clobazam toxicity. The interaction is primarily relevant for high-dose oral eucalyptol; cannabis inhalation concentrations are likely sub-threshold. Flagging is precautionary.",
+        "threshold_pct_of_total_terpenes": 0.25,
+        "applies_only_when": "Patient on clobazam (Onfi) AND using high-dose oral cannabis oil with significant eucalyptol content",
+        "evidence_strength": "limited (CYP modulation in vitro; interaction speculative at cannabis doses)",
+        "references": ["Ciriino et al. 2016: 1,8-cineole inhibits CYP3A4 in human liver microsomes", "Gaston et al. 2017: clobazam-CBD interaction established — precautionary extension to eucalyptol"],
+        "clinical_action": "Advisory flag for epilepsy patients on clobazam using oral cannabis with detectable eucalyptol; recommend monitoring for clobazam side effects"
+      }
+    ]
+  },
+  "vaporizer_temperature_guide": {
+    "160_165": { "terpenes": ["caryophyllene","humulene","pinene"], "effect": "Anti-inflammatory, pain relief start; light vapor" },
+    "165_175": { "terpenes": ["myrcene","limonene","terpinolene"], "effect": "Mood + anti-pain; moderate THC/CBD activation" },
+    "175_185": { "terpenes": ["linalool","ocimene"], "cannabinoids": ["THC","CBD peak"], "effect": "Optimal full-spectrum; anxiety relief + sedation begins" },
+    "185_195": { "terpenes": ["nerolidol"], "cannabinoids": ["CBN begins"], "effect": "Deeper sedation; good for sleep strains; more CBN" },
+    "195_plus": { "warning": "Combustion risk; degradation products; not recommended for therapeutic vaporization" }
+  }
+}

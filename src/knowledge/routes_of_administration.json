@@ -1,0 +1,251 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "sources": ["Grotenhermen 2003 (Clin Pharmacokinet)","Huestis 2007 (Chem Biodivers)","Pertwee 2014","Israeli MOH Patient Guidelines 2023","WHO 2019","MacCallum & Russo 2018 (Eur J Intern Med)"],
+    "israeli_context": "Israel MOH prescribes route alongside T/C category. Vaporizer recommended over combustion since 2017 Israeli MOH clinical guidance."
+  },
+  "routes": [
+    {
+      "id": "inhalation_vaporizer",
+      "name_en": "Vaporization (Dry Herb / Oil Cartridge)",
+      "name_he": "אידוי (ויפורייזר / קרטריג')",
+      "mechanism": "Cannabinoids/terpenes volatilize below combustion temperature (160-230°C); inhaled directly into alveolar capillaries; bypasses first-pass metabolism",
+      "pharmacokinetics": {
+        "onset_min": "1-5",
+        "peak_min": "5-20",
+        "duration_h": "2-4",
+        "bioavailability_thc_pct": "10-35",
+        "bioavailability_cbd_pct": "31 (average)",
+        "variability": "High — depends on inhalation technique, temperature, device, lung capacity"
+      },
+      "advantages": [
+        "Fastest onset — critical for breakthrough pain, acute nausea, panic attacks",
+        "Precise real-time titration — patient can stop when effect achieved",
+        "Terpene preservation at correct temperature (vs combustion which destroys most terpenes)",
+        "No combustion byproducts (vs smoking: >100 toxins from pyrolysis)",
+        "Discrete — minimal odor vs smoking",
+        "Short duration useful when effect not needed all day"
+      ],
+      "disadvantages": [
+        "Shorter duration than oral — requires redosing",
+        "Variable bioavailability — inconsistent dosing",
+        "Device cost (€80-500+ for quality vaporizer)",
+        "Requires charging/maintenance",
+        "Lung irritation possible (less than smoking but still present in COPD patients)",
+        "Not suitable for: pediatric, respiratory disease, patients who cannot inhale properly"
+      ],
+      "indications_primary": ["acute pain","breakthrough pain","nausea/CINV","PTSD acute panic","MS spasm breakthrough","sleep onset (rapid effect needed)"],
+      "indications_secondary": ["chronic pain maintenance (short-acting sessions)","anxiety episodes"],
+      "contraindications": ["pediatric patients (under 18 — absolute for vaporization)","active respiratory disease (asthma, COPD, bronchitis)","esophageal/laryngeal conditions","patients on supplemental O2"],
+      "optimal_temperatures": {
+        "160_165": "Light effects; primarily terpene activation (caryophyllene, pinene); minimal THC/CBD",
+        "170_180": "Therapeutic window — THC/CBD optimal activation; myrcene, limonene, linalool active",
+        "180_190": "Deeper effect; more CBN; linalool, nerolidol active; sedating",
+        "190_plus": "Risk of combustion at 230°C; degradation products above 210°C"
+      },
+      "device_types": {
+        "conduction": "Most affordable; heats chamber directly; hot spots; slightly more combustion risk",
+        "convection": "Heated air passes through material; superior terpene preservation; recommended for medical use",
+        "cartridge_oil": "Concentrated extract in pod; consistent dosing; terpenes may be added artificially; convenient",
+        "desktop": "Most precise temperature control (e.g., Volcano); ideal for medical sessions"
+      },
+      "israeli_context": "Israeli MOH guidelines (2017+) recommend vaporization as preferred inhalation method over smoking. Israeli pharmacies provide device guidance. Volcano vaporizer common recommendation."
+    },
+    {
+      "id": "inhalation_smoking",
+      "name_en": "Combustion (Smoking)",
+      "name_he": "עישון (בעירה)",
+      "mechanism": "Same as vaporization but cannabis burned at 600-900°C; cannabinoids survive partially; massive terpene destruction; generates >100 toxins from plant matter combustion",
+      "pharmacokinetics": {
+        "onset_min": "1-5",
+        "peak_min": "5-15",
+        "duration_h": "2-3",
+        "bioavailability_thc_pct": "2-56 (highly variable; joint vs pipe vs bong)"
+      },
+      "advantages": [
+        "Fastest method",
+        "No device required",
+        "Culturally familiar to many patients"
+      ],
+      "disadvantages": [
+        "Combustion produces CO, benzene, formaldehyde, acrolein, tar — all harmful to respiratory mucosa",
+        "Destroys majority of terpenes (loses entourage effect)",
+        "Most variable dosing of all methods",
+        "Lung/bronchial damage with chronic use",
+        "Strong odor",
+        "Israeli MOH specifically discourages smoking as administration route"
+      ],
+      "recommendation": "NOT RECOMMENDED for medical use. Vaporization superior in every therapeutic metric.",
+      "israeli_context": "Israeli MOH discourages smoking; licenses specify 'inhalation' route which should be via vaporizer. Some patients still smoke — important to educate on risk difference."
+    },
+    {
+      "id": "oil_sublingual",
+      "name_en": "Sublingual / Buccal Oil",
+      "name_he": "שמן תת-לשוני",
+      "mechanism": "Oil placed under tongue or on gum mucosa; cannabinoids absorbed directly into sublingual/buccal capillary network; partial first-pass bypass; remainder swallowed and absorbed via GI",
+      "pharmacokinetics": {
+        "onset_min": "15-45",
+        "peak_min": "30-120",
+        "duration_h": "4-8",
+        "bioavailability_thc_pct": "12-35",
+        "bioavailability_cbd_pct": "12-35",
+        "variability": "Moderate — affected by holding time under tongue, lipid medium, individual mucosal absorption"
+      },
+      "advantages": [
+        "Longer duration than inhalation — better for maintenance dosing",
+        "Predictable dosing with calibrated droppers (mg precision)",
+        "Faster than oral capsule (partial sublingual bypass)",
+        "Discrete — no odor",
+        "No respiratory irritation",
+        "Suitable for pediatric (special formulations), elderly, respiratory patients",
+        "Easier for caregivers to administer",
+        "Multiple T/C ratios available as oils"
+      ],
+      "disadvantages": [
+        "Slower onset than inhalation — not for acute symptoms",
+        "Taste can be strong/unpleasant (terpene-rich oils)",
+        "CBD bioavailability improved with fatty food (not always practical when sublingual)",
+        "First-pass metabolism reduces THC effectiveness vs inhalation (but metabolite 11-OH-THC is MORE psychoactive than THC itself — oral THC can be unexpectedly strong)",
+        "Duration variability — some patients absorb much faster/slower"
+      ],
+      "indications_primary": ["chronic pain (maintenance)","epilepsy (pediatric)","anxiety (daily)","sleep (nighttime dose 1-2h before)","IBD (twice daily)","PTSD (nighttime nightmare suppression)","Parkinson's maintenance","oncology (appetite, chronic pain)"],
+      "indications_secondary": ["MS (maintenance between vaporizer sessions)","acute nausea (slower but longer coverage)"],
+      "dosing_guidance": {
+        "start_low": "0.5-1 ml (check product mg/ml) once daily evening",
+        "titration": "Increase by 0.25ml every 3-5 days until therapeutic effect",
+        "target": "CBD-dominant: 25-100mg CBD/day typical; THC oils: 5-15mg THC typical starting (2.5mg elderly)",
+        "timing_note": "Evening dosing for THC (sedating); CBD can be morning or split morning-evening"
+      },
+      "administration_tips": [
+        "Hold under tongue 60-90 seconds before swallowing for best sublingual absorption",
+        "Take with or after food for CBD (improves bioavailability up to 4x — fatty food best)",
+        "Calibrated dropper = consistent mg dosing — key advantage over inhalation",
+        "Do NOT mix with hot beverages (degrades cannabinoids)",
+        "Store in cool, dark location (terpene and cannabinoid degradation with heat/light)"
+      ],
+      "israeli_context": "Most common prescription format in Israel 2023. T/C oils in 10ml or 30ml bottles with calibrated dropper. Israeli pharmacies: BOL Pharma, Tikun Olam, Intercure oils most prescribed."
+    },
+    {
+      "id": "oral_capsules",
+      "name_en": "Oral Capsules / Edibles",
+      "name_he": "כמוסות / אכילה",
+      "mechanism": "Swallowed; absorbed in small intestine; full first-pass liver metabolism; THC converted to 11-OH-THC (highly psychoactive, longer half-life); delayed onset",
+      "pharmacokinetics": {
+        "onset_min": "30-120",
+        "peak_min": "60-240",
+        "duration_h": "6-12",
+        "bioavailability_thc_pct": "4-20",
+        "bioavailability_cbd_pct": "6-19",
+        "variability": "Very high — gastric emptying rate, fed/fasted state, individual CYP450 variation; CBD increased 4-5x with high-fat meal"
+      },
+      "advantages": [
+        "Longest duration of all routes — ideal for all-day coverage",
+        "Most discrete delivery",
+        "Precise mg dosing with capsules",
+        "No respiratory system involved",
+        "Consistent schedule possible (BID dosing)"
+      ],
+      "disadvantages": [
+        "Slowest onset — completely unsuitable for acute/breakthrough symptoms",
+        "11-OH-THC metabolite is more potent and longer-lasting than inhaled THC — risk of unexpected overdose particularly in edibles",
+        "Very high food-effect variability",
+        "Duration too long for short therapeutic windows",
+        "Difficult to titrate — 'wait and see' required"
+      ],
+      "indications_primary": ["cancer (daily coverage)","chronic pain (constant coverage)","sleep (if taking 2-3h before bed)","IBD (daily inflammation suppression)"],
+      "caution_he": "אכילה/כמוסות — לא מתאים להתחלה. 11-OH-THC חזק מ-THC הרגיל. מינון נמוך כפול ממה שחושבים. 'אני לא מרגיש — אאכל עוד' = שגיאה קלאסית → מנת יתר בשעה 2."
+    },
+    {
+      "id": "topical",
+      "name_en": "Topical / Transdermal",
+      "name_he": "מוצר לשימוש מקומי / טרנסדרמלי",
+      "mechanism": "Cannabis-infused cream, gel, balm, or transdermal patch applied to skin; local absorption; minimal systemic absorption unless transdermal patch formulation; local CB1/CB2 receptors in skin",
+      "pharmacokinetics": {
+        "onset_min": "15-60 (topical); 60-120 (transdermal)",
+        "peak_min": "60-180",
+        "duration_h": "4-8 (topical); 8-24 (transdermal patch)",
+        "bioavailability_systemic_pct": "<1 (topical cream); up to 45 (transdermal patch with penetration enhancers)"
+      },
+      "advantages": [
+        "No psychoactivity (standard topical) — safe for driving, work, children",
+        "Local anti-inflammatory, analgesic for arthritis, muscle pain, neuropathic skin pain",
+        "Targeted delivery without systemic effects",
+        "Transdermal patches: systemic delivery without smoking — useful for dysphagic patients"
+      ],
+      "disadvantages": [
+        "Limited systemic effect for most topicals",
+        "Transdermal patches expensive, limited availability in Israel",
+        "Difficult to standardize dosing",
+        "Not for acute internal symptoms (pain, nausea)"
+      ],
+      "indications_primary": ["localized arthritis","muscle pain/soreness","neuropathic skin pain (CRPS, postherpetic neuralgia)","skin inflammation","sports recovery"],
+      "israeli_availability": "Topical CBD creams available OTC; THC topicals via prescription only; transdermal patches limited availability in Israel"
+    },
+    {
+      "id": "suppository",
+      "name_en": "Rectal / Vaginal Suppository",
+      "name_he": "נרות תיאופ / ניחוח ישכטי",
+      "mechanism": "Cannabinoids absorbed via rectal mucosa directly into hemorrhoidal veins → bypasses liver first-pass (significantly more than oral); CBD and THC well-absorbed rectally",
+      "pharmacokinetics": {
+        "onset_min": "15-30",
+        "peak_min": "30-60",
+        "duration_h": "4-8",
+        "bioavailability_thc_pct": "up to 80 (no first-pass = equivalent to IV)",
+        "variability": "Moderate; depends on formulation vehicle"
+      },
+      "advantages": [
+        "High bioavailability — similar to IV",
+        "For patients who cannot swallow or inhale (cancer, severe GI disease, pediatric)",
+        "Minimal psychoactivity relative to high bioavailability (reasons unclear)",
+        "Excellent for IBD — direct rectal delivery for distal IBD"
+      ],
+      "disadvantages": [
+        "Patient compliance poor",
+        "Limited availability in Israel",
+        "Formulation challenges (must have proper excipients)"
+      ],
+      "indications_primary": ["oncology (dysphagic/emetic patients)","severe Crohn's/colitis (distal disease)","pediatric epilepsy when oral not possible","MS with severe dysphagia"],
+      "israeli_availability": "Limited; some compounding pharmacies. Gaining recognition in pediatric epilepsy protocols."
+    }
+  ],
+  "route_comparison_matrix": {
+    "note": "Quick selection guide by clinical priority",
+    "scenarios": [
+      { "need": "Immediate pain relief", "best_route": "inhalation_vaporizer", "second": "oil_sublingual (if can wait 30 min)" },
+      { "need": "Sleep (all-night coverage)", "best_route": "oil_sublingual (1-2h before bed)", "second": "oral_capsules (3h before)" },
+      { "need": "Daily anxiety maintenance", "best_route": "oil_sublingual (morning + evening)", "second": "topical (localized tension)" },
+      { "need": "Pediatric epilepsy", "best_route": "oral_capsules or oil_sublingual", "second": "suppository (if cannot swallow)" },
+      { "need": "Nausea from chemotherapy (acute)", "best_route": "inhalation_vaporizer", "second": "oil_sublingual" },
+      { "need": "Chronic IBD maintenance", "best_route": "oil_sublingual (twice daily)", "second": "suppository (distal colitis)" },
+      { "need": "PTSD nightmares", "best_route": "oil_sublingual (1-2h before sleep)", "second": "inhalation_vaporizer (low dose, if oil not fast enough)" },
+      { "need": "Arthritis joint pain (local)", "best_route": "topical", "second": "oil_sublingual (if systemic pain)" },
+      { "need": "MS spasticity breakthrough", "best_route": "inhalation_vaporizer", "second": "oil_sublingual (Sativex-equivalent)" },
+      { "need": "Cognitive-safe daytime", "best_route": "oil_sublingual (CBD-dominant)", "second": "topical" }
+    ]
+  },
+  "special_populations": {
+    "elderly": {
+      "preferred_routes": ["oil_sublingual","topical"],
+      "start_dose_note": "Start at 25% of standard adult dose; CYP450 changes with age; polypharmacy risk high; fall risk with THC sedation",
+      "avoid": ["high-dose THC inhalation","oral edibles (overdose risk)"]
+    },
+    "pediatric": {
+      "preferred_routes": ["oil_sublingual","oral_capsules","suppository"],
+      "avoid_absolutely": ["inhalation_any","smoking"],
+      "note": "Any pediatric use requires pediatric neurologist/specialist approval; primarily for refractory epilepsy and autism spectrum (research protocol)"
+    },
+    "respiratory_disease": {
+      "preferred_routes": ["oil_sublingual","topical","oral_capsules"],
+      "avoid": ["inhalation_vaporizer (even without combustion — mucosal irritation)","inhalation_smoking (absolute contraindication)"]
+    },
+    "driving_patients": {
+      "safe_routes": ["topical (CBD only)","oil_sublingual CBD-dominant (T0-T3/C15+) — wait 4h minimum before driving"],
+      "not_safe": ["any THC-dominant inhalation or oil for at least 4-6 hours post-use"],
+      "israeli_law": "Israeli law: THC detection in blood = DUI regardless of time. CBD-only: generally not tested. Legal guidance: no THC products and driving same day."
+    },
+    "oncology": {
+      "preferred_routes": ["oil_sublingual (maintenance)","inhalation_vaporizer (acute nausea/pain)","suppository (dysphagic/emetic patients)"],
+      "note": "Often requires combination: oil daily + vaporizer PRN for breakthrough; adjust based on opioid co-medication"
+    }
+  }
+}

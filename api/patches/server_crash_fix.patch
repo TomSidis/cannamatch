@@ -1,0 +1,44 @@
+// ROOT CAUSE: pool.connect() can throw before `client` is assigned, making client.release()
+// in the finally block crash with "Cannot read properties of undefined (reading 'release')".
+// This affects every route that uses the try/finally pattern with pool.connect() outside the try.
+
+// ── APPLY THIS PATTERN to every route that calls pool.connect() ──────────
+//
+// BEFORE (crashes if pool.connect() throws):
+//
+//   const client = await pool.connect();   // ← outside try — if this throws, client is undefined
+//   try {
+//     await client.query("BEGIN");
+//     ...
+//     await client.query("COMMIT");
+//   } catch (err) {
+//     await client.query("ROLLBACK");      // ← client may be undefined here too
+//     ...
+//   } finally {
+//     client.release();                    // ← TypeError: Cannot read properties of undefined
+//   }
+//
+// AFTER (safe — connect() is inside the try, finally guards with optional chaining):
+//
+//   let client;
+//   try {
+//     client = await pool.connect();       // ← inside try; if it throws, caught below
+//     await client.query("BEGIN");
+//     ...
+//     await client.query("COMMIT");
+//   } catch (err) {
+//     if (client) {
+//       try { await client.query("ROLLBACK"); } catch {}
+//     }
+//     ...handle or re-throw...
+//   } finally {
+//     client?.release();                   // ← safe: no-op if client is undefined
+//   }
+
+// ── Affected routes in api/server.js (lines as of the analysed version): ──
+//   • PUT  /api/dna/:userId   (~line 112)
+//   • POST /api/dna/:id/checkin (~line 147) ← already patched in previous task
+//   • POST /api/reviews       (~line 300)
+//
+// The fix below shows the exact replacement for PUT /api/dna/:userId.
+// Apply the same let client / client?.release() pattern to the other two routes.

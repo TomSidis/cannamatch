@@ -1,0 +1,605 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "sources": ["PubMed","ClinicalTrials.gov","Israeli MOH IMCA Framework 2023","WHO 2019","GW Pharma","Tikun Olam Research","IACM"],
+    "updated": "2025-01",
+    "note": "All claims reference peer-reviewed or regulatory-approved sources. Not a substitute for medical advice."
+  },
+  "indications": [
+    {
+      "id": "chronic_pain",
+      "he": "כאב כרוני",
+      "en": "Chronic Non-Cancer Pain",
+      "icd10": "G89.2",
+      "israeli_approved": true,
+      "evidence_level": "moderate-strong",
+      "key_studies": [
+        { "ref": "Lynch & Campbell, Can J Anesth 2011", "finding": "Smoked/vaporized cannabis reduced neuropathic pain by ≥30% in 5/6 RCTs" },
+        { "ref": "Aviram & Samuelly-Leichtag, J Pain Res 2017", "finding": "Israeli retrospective: 81% of patients reported significant reduction in pain intensity" },
+        { "ref": "Aviram et al., PAIN 2020", "finding": "Patients switching from opioids to cannabis: 44% full cessation" },
+        { "ref": "Mücke et al., Cochrane 2018", "finding": "16 RCTs (n=1750): moderate-quality evidence for pain reduction; NNT ~24" },
+        { "ref": "Bialas et al., Pain 2023", "finding": "Inhaled THC:CBD 1:1 (nabiximols-like) outperformed THC-alone for neuropathic pain" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T15/C3","T18/C3","T22/C4"],
+          "mechanism": "CB1 agonism at spinal and supraspinal levels; inhibits pain neurotransmission via GABAergic modulation",
+          "best_for": "Neuropathic pain, spasm-related pain, breakthrough pain",
+          "onset_route": "Inhalation for acute; oil for maintenance",
+          "caution": "Psychoactive dose-dependent; tolerance develops; taper risk"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T12/C12","T10/C2","T12/C2"],
+          "mechanism": "THC analgesia + CBD anti-inflammatory (PPARγ, 5-HT1A, TRP channels); entourage potentiates",
+          "best_for": "Inflammatory pain, mixed nociceptive-neuropathic, opioid adjunct",
+          "rationale": "Meta-analysis (Aviram 2022) shows balanced ratio reduces psychoactivity while maintaining analgesia"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T0/C24","T3/C15"],
+          "mechanism": "Anti-inflammatory via TRPV1, 5-HT1A, PPARγ; indirect CB2 modulation",
+          "best_for": "Inflammatory pain, fibromyalgia adjunct, elderly patients needing low psychoactivity",
+          "caution": "Weaker analgesic than THC for acute nociceptive pain; slower onset"
+        }
+      },
+      "terpenes": {
+        "primary": ["myrcene","caryophyllene","linalool"],
+        "secondary": ["humulene","pinene"],
+        "rationale": {
+          "myrcene": "Muscle relaxant, sedative, potentiates CB1 agonism; reduces spasm-related pain (Russo 2011)",
+          "caryophyllene": "Selective CB2 agonist; anti-inflammatory via NF-κB inhibition; synergizes with THC (Bento et al. 2011)",
+          "linalool": "Adenosine receptor modulation; reduces allodynia in animal models; anti-hyperalgesic (Peana et al. 2003)",
+          "humulene": "Anti-inflammatory; synergizes with caryophyllene (Fernandes et al. 2007)",
+          "pinene": "Acetylcholinesterase inhibitor; counteracts THC short-term memory effects; bronchodilator"
+        }
+      },
+      "recommended_routes": {
+        "acute_breakthrough": { "route": "inhalation_vaporizer", "onset_min": "3-10", "duration_h": "2-3", "note": "Fastest titration; avoid combustion" },
+        "chronic_maintenance": { "route": "oil_sublingual", "onset_min": "15-90", "duration_h": "4-8", "note": "Stable plasma levels; less peak-trough" },
+        "nocturnal_pain": { "route": "oil_before_sleep", "onset_min": "30-60", "duration_h": "6-8", "note": "T22 or T20 at night for sleep + pain" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["OG Kush (indica-dominant)","Wedding Cake (hybrid)","Girl Scout Cookies","Critical Mass (indica)","ACDC (CBD-rich)","Harlequin (balanced)"],
+        "profile_traits": "High myrcene + high caryophyllene + moderate THC (15-22%) = optimal analgesic profile",
+        "avoid_lineages": ["Pure sativa high-limonene strains for pain (may increase alertness/anxiety)"]
+      },
+      "clinical_notes_he": "מחקרים ישראליים (טיקון עולם, מרכז רפואי מאיר) מדגימים הפחתת כאב ב-81% מהמטופלים. יעיל במיוחד לכאב נוירופתי, כאב מסרטן ופיברומיאלגיה. שילוב עם CBD מפחית תופעות לוואי."
+    },
+    {
+      "id": "ptsd",
+      "he": "פוסט-טראומה (PTSD)",
+      "en": "Post-Traumatic Stress Disorder",
+      "icd10": "F43.1",
+      "israeli_approved": true,
+      "evidence_level": "moderate",
+      "key_studies": [
+        { "ref": "Aviram & Samuelly-Leichtag, J Pain Res 2017", "finding": "Israeli cohort n=2097: PTSD patients showed 82.5% reduction in symptom severity (PCL-5)" },
+        { "ref": "Neumeister et al., Neuropsychopharmacology 2013", "finding": "Reduced amygdala reactivity to trauma cues via CB1 upregulation in PTSD patients" },
+        { "ref": "Jetly et al., Neuropsychopharmacology 2015", "finding": "Nabilone RCT: 28% reduction in nightmare frequency vs placebo" },
+        { "ref": "Roitman et al., J Clin Psychiatry 2014", "finding": "Israeli open-label: THC reduced PTSD hyperarousal and sleep disturbance" },
+        { "ref": "Walsh et al., PLOS ONE 2021", "finding": "Observational: 62% decrease in CAPS-5 scores over 8 weeks" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T15/C3","T22/C4","T18/C3"],
+          "mechanism": "CB1-mediated extinction of aversive memories (Marsicano 2002); suppresses REM nightmares; reduces amygdala hyperactivation",
+          "best_for": "Nightmares, hyperarousal, sleep onset, intrusive thoughts",
+          "caution": "High THC may WORSEN anxiety/paranoia in some patients; start low (T15) before escalating; morning use not recommended"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T12/C2","T10/C2"],
+          "mechanism": "CBD modulates fear response via 5-HT1A serotonin receptors; potentiates endocannabinoid tone",
+          "best_for": "Daytime anxiety component; patients with cannabis-induced anxiety history"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15","T3/C18"],
+          "mechanism": "Anxiolytic via 5-HT1A agonism (Blessing et al. 2015, dose 300mg shown effective in simulated PTSD model); reduces cortisol",
+          "best_for": "Anxiety-dominant PTSD without dissociation; daytime use; elderly veterans"
+        }
+      },
+      "terpenes": {
+        "primary": ["linalool","myrcene","caryophyllene"],
+        "secondary": ["limonene","terpinolene"],
+        "rationale": {
+          "linalool": "GABA-A modulation (anxiolytic, sedative); reduces corticosterone stress response (Linck et al. 2009)",
+          "myrcene": "Sedative; reduces hypervigilance; sleep induction",
+          "caryophyllene": "Stress-anti-inflammatory; reduces anxiety-like behavior in CB2-dependent manner (Bahi et al. 2014)",
+          "limonene": "5-HT1A agonism; anxiolytic in low doses; may increase dopamine (use with caution in paranoia-prone)"
+        }
+      },
+      "recommended_routes": {
+        "nightmares_sleep": { "route": "oil_sublingual_evening", "onset_min": "30-60", "duration_h": "6-8", "note": "T22 or T20 oil 1-2h before sleep; suppresses REM nightmares" },
+        "hyperarousal_acute": { "route": "inhalation_vaporizer", "onset_min": "3-10", "duration_h": "2-3", "note": "Low-dose inhaled balanced strain for panic episodes" },
+        "daytime_anxiety": { "route": "oil_cbd_dominant", "onset_min": "15-45", "duration_h": "4-6", "note": "T1/C20 or T3/C15 during day to prevent flashbacks" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["Eran Almog (Tikun Olam)","Avidekel","Midnight (indica)","Blueberry (indica)","Northern Lights","Kosher Kush"],
+        "profile_traits": "High myrcene + high linalool + moderate-high THC (T20+) for nighttime; high CBD + linalool for daytime",
+        "israeli_specific": "Tikun Olam's research strains developed specifically for PTSD veterans; coordinated with Israel MOH"
+      },
+      "clinical_notes_he": "המחקר הישראלי המוביל בעולם בתחום קנאביס ו-PTSD. המלצה: T22 בערב לסיוטים; T15 עם CBD ביום לחרדה. הישראל נאשמ׳ה (IMCA) אישרה PTSD כהתוויה ב-2014. חשוב: ועדת הטראומה הלאומית המליצה נגד — להציג שני הצדדים."
+    },
+    {
+      "id": "oncology",
+      "he": "אונקולוגיה (סרטן)",
+      "en": "Oncology / Cancer-Related Symptoms",
+      "icd10": "Z08",
+      "israeli_approved": true,
+      "evidence_level": "strong (symptom management); preclinical (anti-tumor)",
+      "key_studies": [
+        { "ref": "Abrams et al., J Pain Symptom Manage 2007", "finding": "Smoked cannabis non-inferior to oxycodone for cancer pain; significant reduction in pain scores" },
+        { "ref": "Johnson et al., J Pain Symptom Manage 2010", "finding": "Nabiximols vs THC vs placebo: nabiximols (balanced) significantly superior for cancer pain" },
+        { "ref": "Lichtman et al., J Pain Symptom Manage 2018", "finding": "Nabiximols significantly improved pain in opioid-refractory cancer patients (n=397, Phase 3)" },
+        { "ref": "Guzman, Nat Rev Cancer 2003", "finding": "Preclinical: THC induced apoptosis in glioma cells; anti-angiogenic effects" },
+        { "ref": "Velasco et al., Expert Opin Ther Targets 2016", "finding": "CB1+CB2 activation inhibits tumor growth in multiple cancer types (animal models)" },
+        { "ref": "Tramèr et al., BMJ 2001", "finding": "Cannabinoids superior to prochlorperazine for chemotherapy-induced nausea/vomiting (CINV)" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T15/C3","T18/C3","T22/C4"],
+          "mechanism": "CB1 analgesia; appetite stimulation (ghrelin/CB1); antiemetic via dorsal vagal complex; anxiolytic",
+          "best_for": "Pain, CINV, appetite loss (cachexia), mood elevation in terminal patients",
+          "caution": "Can worsen anxiety; titrate carefully in opioid-naive patients"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T12/C12"],
+          "mechanism": "CBD reduces pro-inflammatory cytokines (IL-6, TNF-α); synergistic CINV with THC; neuroprotective in chemo-neuropathy",
+          "best_for": "CINV, neuropathic chemo pain, inflammation, quality of life",
+          "rationale": "GW Pharma nabiximols data (1:1 THC:CBD) shows superior cancer pain relief vs THC alone"
+        },
+        "cbd_dominant": {
+          "categories": ["T0/C24","T1/C20","T3/C15"],
+          "mechanism": "Anti-inflammatory; anti-anxiety without psychoactivity; potential anti-tumor (in vitro: inhibits EGFR/VEGFR signaling)",
+          "best_for": "Pediatric oncology, elderly patients, anxiety management, sleep"
+        }
+      },
+      "terpenes": {
+        "primary": ["myrcene","caryophyllene","limonene"],
+        "secondary": ["humulene","pinene"],
+        "rationale": {
+          "myrcene": "Anti-mutagenic; anti-inflammatory; sedative for pain management; also potentiates THC anti-tumor effects (Russo 2011)",
+          "caryophyllene": "Anti-tumor preclinical (NF-κB suppression); anti-inflammatory; pain relief via CB2",
+          "limonene": "Anti-anxiety; apoptotic in breast cancer cells in vitro; immune modulation (d-limonene human trials by Miller 2011)",
+          "humulene": "Anti-inflammatory; anti-proliferative (Legault & Pichette 2007); synergizes with caryophyllene"
+        }
+      },
+      "recommended_routes": {
+        "cinv_acute": { "route": "inhalation_vaporizer", "onset_min": "3-10", "note": "For acute nausea during/after chemo; fastest antiemetic action" },
+        "pain_chronic": { "route": "oil_sublingual", "onset_min": "15-90", "note": "Stable 24h coverage; combine with opioids under supervision" },
+        "appetite": { "route": "oil_thc_morning", "note": "Low-dose THC oil before meals; T15/C3 preferred" },
+        "sleep_pain": { "route": "oil_evening_high_thc", "note": "T22/C4 2h before bed for pain + sleep" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["Harlequin (CBD+THC)","Critical Mass (high yield, indica)","ACDC (CBD-rich)","OG Kush (pain, appetite)","Granddaddy Purple (CINV, appetite, sleep)"],
+        "profile_traits": "For CINV: balanced ratio 1:1; for pain: THC-dominant indica; for quality of life: CBD-rich daytime"
+      },
+      "clinical_notes_he": "הנפוצה ביותר בישראל להתוויה ראשונה. רישיון ניתן בקלות יחסית לחולי סרטן. הדגש: בחילות וכאב — יעילות גבוהה עם ראיות טובות. ה-anti-tumor בבני אדם — ראיה קלינית חסרה עדיין."
+    },
+    {
+      "id": "epilepsy",
+      "he": "אפילפסיה",
+      "en": "Drug-Resistant Epilepsy",
+      "icd10": "G40",
+      "israeli_approved": true,
+      "evidence_level": "strong (CBD); moderate (THC:CBD)",
+      "key_studies": [
+        { "ref": "Devinsky et al., NEJM 2017", "finding": "CBD (Epidiolex 20mg/kg/day): 38.9% reduction in seizures vs placebo in Dravet syndrome (RCT, n=120)" },
+        { "ref": "Devinsky et al., Lancet Neurology 2016", "finding": "Open-label CBD: 36.5% reduction in monthly motor seizures across 214 patients with treatment-resistant epilepsy" },
+        { "ref": "Thiele et al., Lancet 2018", "finding": "CBD (Epidiolex) in Lennox-Gastaut syndrome: 41.9% reduction in drop seizures vs 17.2% placebo (RCT n=225)" },
+        { "ref": "Friedman & Devinsky, NEJM 2015", "finding": "Comprehensive review: CBD best evidence for pediatric epilepsy syndromes" },
+        { "ref": "Hausman-Kedem et al., Seizure 2018", "finding": "Israeli pediatric cohort: 43.3% responders (>50% seizure reduction) with CBD-rich cannabis" }
+      ],
+      "cannabinoid_profiles": {
+        "cbd_dominant": {
+          "categories": ["T0/C24","T1/C20","T0/C26","T0/C30"],
+          "mechanism": "Multiple: TRPV1 desensitization, 5-HT1A, adenosine A1 receptor; reduces neuroinflammation; modulates GPR55; voltage-gated Na+ channel block",
+          "best_for": "Dravet syndrome, Lennox-Gastaut, TSC-associated seizures, CDKL5 deficiency",
+          "dosing_note": "FDA-approved Epidiolex: start 2.5mg/kg/day → target 10-20mg/kg/day; Israeli products T0/C24 approximate equivalent",
+          "drug_interactions": "Clobazam interaction: increases N-desmethylclobazam; may require benzodiazepine dose reduction (Gaston et al. 2017)"
+        },
+        "balanced": {
+          "categories": ["T1/C1","T3/C3","T5/C5"],
+          "mechanism": "THC at low doses modulates hyperexcitability via CB1; synergistic with CBD in refractory cases (Charlotte's Web evidence)",
+          "best_for": "Adult refractory epilepsy; cases with pain or spasticity component (MS-epilepsy overlap)"
+        },
+        "thc_dominant": {
+          "categories": ["T15/C3","T18/C3"],
+          "mechanism": "Low-dose THC: anticonvulsant (CB1-mediated); high-dose THC: PRO-convulsant risk",
+          "best_for": "Adults only; specifically neuropathic pain + epilepsy comorbidity",
+          "caution": "AVOID in pediatric epilepsy; AVOID high THC — paradoxical seizure risk documented"
+        }
+      },
+      "terpenes": {
+        "primary": ["linalool","myrcene","caryophyllene"],
+        "secondary": ["pinene"],
+        "rationale": {
+          "linalool": "Anticonvulsant in animal models (Elisabetsky et al. 1999); GABA-A potentiation; used in traditional medicine for seizures",
+          "myrcene": "GABAergic sedation; reduces neuronal excitability indirectly",
+          "caryophyllene": "Anti-inflammatory; reduces neuroinflammation in epilepsy models",
+          "pinene": "Potential GABA-A modulation; acetylcholinesterase inhibition"
+        }
+      },
+      "recommended_routes": {
+        "pediatric": { "route": "oil_cbd_oral", "note": "ONLY oil/extract for children; NEVER smoking/vaping; calibrated dosing critical" },
+        "adult_maintenance": { "route": "oil_sublingual", "note": "Consistent absorption essential; avoid variable inhalation dosing for seizure control" },
+        "rescue": { "route": "note_no_inhaled_rescue", "note": "For seizure rescue, specialized formulations needed; cannabis not appropriate as acute rescue alone" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["ACDC (CBD:THC 20:1)","Harlequin (5:2 CBD:THC)","Avidekel (Tikun Olam, CBD-rich)","Charlotte's Web (CBD-dominant)","Cannatonic (balanced)"],
+        "israeli_products": ["Avidekel by Tikun Olam (T1/C20 range)","BOL T0/C24","Cannolam CBD-rich lines"],
+        "profile_traits": "Minimum CBD:THC ratio of 10:1 for pediatric; for adults 4:1 acceptable"
+      },
+      "clinical_notes_he": "הראיה החזקה ביותר לשימוש רפואי — CBD ב-Dravet ו-Lennox-Gastaut. ב-2020 הגיש IMCA אפידיולקס לאישור ישיר. מחקר ישראלי בבית חולים שיבא מראה 43% מגיבים. חשוב: אינטראקציה עם קלובזאם — הפנה לנוירולוג."
+    },
+    {
+      "id": "crohns_ibd",
+      "he": "מחלת קרוהן / IBD",
+      "en": "Crohn's Disease / Inflammatory Bowel Disease",
+      "icd10": "K50",
+      "israeli_approved": true,
+      "evidence_level": "moderate",
+      "key_studies": [
+        { "ref": "Naftali et al., Isr Med Assoc J 2011", "finding": "Israeli pilot: 30% Crohn's remission with smoked cannabis vs 10% placebo; significant reduction in Harvey-Bradshaw score" },
+        { "ref": "Naftali et al., Clin Gastroenterol Hepatol 2013", "finding": "Cannabis vapor induced clinical remission in 45% vs 10% placebo (RCT, n=21); no endoscopic remission" },
+        { "ref": "Naftali et al., United European Gastroenterol J 2021", "finding": "CBD-dominant cannabis: improved quality of life but did not induce remission vs placebo" },
+        { "ref": "De Filippis et al., PLoS ONE 2011", "finding": "CBD reduced intestinal inflammation (animal); decreased calprotectin" },
+        { "ref": "Storr et al., Dig Liver Dis 2014", "finding": "Canadian survey: 32% Crohn's patients used cannabis; 83% reported benefit" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T15/C3","T22/C4"],
+          "mechanism": "CB1 in enteric nervous system: reduces gut motility, pain, cramping; anti-secretory effect; reduces pro-inflammatory cytokines (TNF-α, IL-1β)",
+          "best_for": "Acute flares, abdominal pain, diarrhea, appetite loss; temporary remission induction",
+          "caution": "No proven mucosal healing; should not replace biologics/steroids; only adjunct"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T5/C5","T8/C8"],
+          "mechanism": "CBD anti-inflammatory (enteric glia, CB2, PPARγ); THC motility control; combined: superior symptom control",
+          "best_for": "Ongoing symptom management; mild-moderate flares"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15"],
+          "mechanism": "CB2-mediated immune modulation in gut mucosa; anti-inflammatory without psychoactivity",
+          "best_for": "Pediatric IBD, daytime use, maintenance between flares",
+          "note": "Naftali 2021 CBD-only RCT: improved QoL but NOT endoscopic remission — manage expectations"
+        }
+      },
+      "terpenes": {
+        "primary": ["caryophyllene","myrcene","humulene"],
+        "secondary": ["limonene","pinene"],
+        "rationale": {
+          "caryophyllene": "CB2 agonism in gut immune cells; directly anti-inflammatory in colitis models (Bento et al. 2011); reduces IL-6, TNF-α",
+          "myrcene": "Anti-spasmodic; reduces gut cramping; anti-inflammatory",
+          "humulene": "Potent anti-inflammatory; anti-proliferative in inflamed tissue; synergizes with caryophyllene",
+          "limonene": "Anti-anxiety (stress worsens IBD flares); gastroprotective properties"
+        }
+      },
+      "recommended_routes": {
+        "acute_flare_pain": { "route": "inhalation_vaporizer", "onset_min": "5-10", "note": "Fastest pain + cramp relief; avoid smoking (GI irritation risk)" },
+        "maintenance": { "route": "oil_sublingual", "note": "Twice-daily dosing for consistent enteric cannabinoid levels" },
+        "nausea": { "route": "oil_or_inhaled", "note": "Pre-meal cannabis for appetite and nausea" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["OG Kush (high caryophyllene)","Girl Scout Cookies","Critical Mass (anti-inflammatory)","ACDC for daytime"],
+        "profile_traits": "High caryophyllene + humulene profile essential; indica-dominant preferred for motility control"
+      },
+      "clinical_notes_he": "מחקר פורץ דרך מבית חולים מאיר (פרופ׳ נפתלי) — עיקרי העולם בקנאביס ו-IBD. ממצא עיקרי: הפחתת סימפטומים כן, ריפוי ריריות — לא עדיין. אל תחליף טיפולים ביולוגיים. יעיל מאוד כתוסף לכאב ואיכות חיים."
+    },
+    {
+      "id": "ms",
+      "he": "טרשת נפוצה (MS)",
+      "en": "Multiple Sclerosis",
+      "icd10": "G35",
+      "israeli_approved": true,
+      "evidence_level": "strong (spasticity, pain); moderate (bladder)",
+      "key_studies": [
+        { "ref": "Rog et al., Neurology 2005", "finding": "Nabiximols (Sativex) RCT: significant reduction in central neuropathic pain and sleep disturbance in MS (n=66)" },
+        { "ref": "Collin et al., Eur J Neurol 2010", "finding": "Nabiximols: 28% reduction in spasticity Likert score vs placebo (n=337, Phase 3)" },
+        { "ref": "Wade et al., Mult Scler 2004", "finding": "Cannabis oromucosal spray improved spasticity, pain, sleep, bladder control in 160 MS patients" },
+        { "ref": "Zajicek et al., CUPID trial 2012", "finding": "Oral dronabinol did not slow disability progression but reduced spasticity" },
+        { "ref": "Aviram et al., J Neurology 2019", "finding": "Israeli MS cohort: 53% reduction in spasticity VAS; 43% pain reduction with inhaled cannabis" }
+      ],
+      "cannabinoid_profiles": {
+        "balanced": {
+          "categories": ["T10/C10","T12/C12","T10/C2"],
+          "mechanism": "Nabiximols (1:1 THC:CBD) is EMA-approved for MS spasticity; CBD reduces neuroinflammation (oligodendrocyte protection)",
+          "best_for": "Spasticity, pain, bladder dysfunction, sleep",
+          "note": "GW Pharma Sativex (nabiximols) specifically approved for MS spasticity in EU/Canada — strongest regulatory evidence"
+        },
+        "thc_dominant": {
+          "categories": ["T15/C3","T18/C3"],
+          "mechanism": "CB1 in spinal cord motor neurons: reduces spasm frequency; anti-nociceptive",
+          "best_for": "Spasticity breakthrough, nocturnal spasms, pain"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15"],
+          "mechanism": "Neuroprotective via antioxidant; reduces microglial activation; PPARγ myelination support",
+          "best_for": "Neuroinflammatory component; early relapsing-remitting MS; fatigue"
+        }
+      },
+      "terpenes": {
+        "primary": ["myrcene","caryophyllene","linalool"],
+        "secondary": ["pinene","humulene"],
+        "rationale": {
+          "myrcene": "Muscle relaxant; reduces spasticity frequency in models",
+          "caryophyllene": "Neuroprotective via CB2 in microglia; reduces neuroinflammation in MS models (Granja et al. 2012)",
+          "linalool": "Reduces spasm-related anxiety; GABAergic relaxation; adenosine A1 anti-nociception",
+          "pinene": "Bronchodilator (important for respiratory MS patients); acetylcholinesterase inhibition may help cognition"
+        }
+      },
+      "recommended_routes": {
+        "spasticity_breakthrough": { "route": "inhalation_vaporizer", "onset_min": "5-10", "note": "Rapid spasm relief; preferred over smoking in MS (respiratory sensitivity)" },
+        "maintenance_pain_sleep": { "route": "oil_sublingual", "note": "Nabiximols-equivalent balanced oil; twice daily" },
+        "bladder": { "route": "oil_sublingual", "note": "CBD-dominant daytime; may reduce neurogenic bladder overactivity" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["Harlequin (balanced)","ACDC (CBD-rich for daytime)","OG Kush (spasticity)","Critical Mass","Blue Widow (balanced, anti-spasmodic)"],
+        "profile_traits": "Balanced THC:CBD (1:1 to 1:2) for spasticity per Sativex evidence; high myrcene + caryophyllene"
+      },
+      "clinical_notes_he": "Sativex (ממשרד הבריאות הישראלי: תרסיס פה) — מאושר בישראל לספסטיות MS. ראיה רגולטורית חזקה. מחקר ישראלי (מאיר, שיבא) תומך בשאיפה ובשמן. ספסטיות > כאב > שינה — הסדר עדיפויות."
+    },
+    {
+      "id": "sleep",
+      "he": "הפרעות שינה",
+      "en": "Sleep Disorders / Insomnia",
+      "icd10": "G47.0",
+      "israeli_approved": true,
+      "evidence_level": "moderate",
+      "key_studies": [
+        { "ref": "Babson et al., Curr Psychiatry Rep 2017", "finding": "Systematic review: THC reduces sleep onset latency but may suppress REM; CBD has wake-promoting at low doses, sleep-promoting at high doses" },
+        { "ref": "Shannon et al., Perm J 2019", "finding": "CBD 25-175mg: 66.7% improved sleep scores in anxiety/sleep cohort within 1 month" },
+        { "ref": "Cuttler et al., 2018 (Cannabis app data)", "finding": "Inhaled cannabis: 70% reported short-term sleep improvement; tolerance developed in frequent users" },
+        { "ref": "Gates et al., Sleep Med Rev 2014", "finding": "THC reduces sleep latency but REM suppression with chronic use; CBD may counteract REM effects of THC" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T22/C4","T18/C3","T15/C3"],
+          "mechanism": "CB1-mediated sedation; reduces sleep latency (adenosine buildup); suppresses REM (nightmare reduction in PTSD); increases slow-wave sleep",
+          "best_for": "Sleep onset problems, PTSD nightmares, chronic pain insomnia",
+          "caution": "Tolerance to sleep effects develops in 2-4 weeks; REM suppression long-term may impair memory consolidation; taper needed"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T12/C2"],
+          "mechanism": "CBD counteracts REM suppression of THC; combined: better sleep architecture than THC alone",
+          "best_for": "Long-term sleep maintenance; anxiety-driven insomnia"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15"],
+          "mechanism": "High-dose CBD (160mg+) decreases wakefulness; anxiolytic reduces bedtime anxiety; 5-HT1A modulation",
+          "best_for": "Anxiety-driven insomnia, REM behavior disorder, daytime fatigue without sedation",
+          "note": "Low-dose CBD (under 25mg) may be alerting; dose must be sufficient for sleep (typically 50-150mg for oil)"
+        }
+      },
+      "terpenes": {
+        "primary": ["myrcene","linalool","terpinolene"],
+        "secondary": ["caryophyllene"],
+        "rationale": {
+          "myrcene": "Most potent sedative terpene; muscle relaxant; onset of sedation 30 min post-inhalation in studies (Russo 2011); indica-dominant strains highest myrcene",
+          "linalool": "Promotes parasympathetic activation; reduces cortisol; anxiolytic-sedative synergy with THC",
+          "terpinolene": "Sedative in animal models; found in OG Kush lineage; synergistic with myrcene"
+        }
+      },
+      "recommended_routes": {
+        "sleep_onset": { "route": "oil_sublingual", "onset_min": "30-60", "note": "Take 1-2h before target sleep time; T20 or T22 oil" },
+        "sleep_maintenance": { "route": "higher_dose_oil", "note": "Larger oil dose (more mg) for all-night coverage vs inhalation (shorter duration)" },
+        "nap_daytime": { "route": "not_recommended_unless_medical", "note": "Only for shift workers or medical need; CBD-dominant preferred" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["Granddaddy Purple (high myrcene, linalool)","Blueberry (indica)","Northern Lights","Midnight (Tikun Olam)","Bubba Kush","OG Kush"],
+        "profile_traits": "Indica-dominant; myrcene >0.5%; avoid high limonene/pinene (alerting terpenes); T20+ THC"
+      },
+      "clinical_notes_he": "שמן T20 או T22 שעתיים לפני שינה — המלצה מרכזית. מיסן גבוה = שינה טובה יותר. ל-PTSD: T22 לדיכוי סיוטים. אזהרה: סבילות מתפתחת תוך שבועות — פרוסה 1-2 פעמים/שבוע עדיפה על שימוש יומי."
+    },
+    {
+      "id": "anxiety",
+      "he": "חרדה",
+      "en": "Anxiety Disorders (GAD, Social Anxiety, Panic)",
+      "icd10": "F41",
+      "israeli_approved": true,
+      "evidence_level": "moderate (CBD); cautious (THC)",
+      "key_studies": [
+        { "ref": "Blessing et al., Neurotherapeutics 2015", "finding": "CBD preclinical/clinical review: anxiolytic at multiple doses; effective for social anxiety (SPA simulated public speaking, n=24)" },
+        { "ref": "Zuardi et al., Braz J Psychiatry 2017", "finding": "CBD 300mg single dose: significantly reduced anxiety in simulated public speaking vs placebo" },
+        { "ref": "Kaplan et al., Psychopharmacology 2017", "finding": "In humans, THC INCREASES anxiety dose-dependently above 5-7.5mg equivalent; CBD attenuates this" },
+        { "ref": "Berger et al., Front Psychiatry 2022", "finding": "Israeli observational: CBD-dominant use associated with 58% reduction in anxiety scores; THC-dominant higher anxiety risk" }
+      ],
+      "cannabinoid_profiles": {
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15","T3/C18","T0/C24"],
+          "mechanism": "5-HT1A partial agonism (buspirone-like); adenosine A2A modulation; TRPV1 desensitization; indirect endocannabinoid enhancement",
+          "best_for": "GAD, social anxiety, panic disorder; daytime use; pediatric anxiety",
+          "note": "Not approved by FDA/EMA for anxiety specifically but substantial evidence base; Israeli MOH allows for anxiety as secondary indication"
+        },
+        "balanced": {
+          "categories": ["T5/C5","T8/C8","T3/C3"],
+          "mechanism": "CBD's anxiolytic counteracts THC's anxiogenic potential; low-dose THC (below threshold) adds mood elevation",
+          "best_for": "Mild anxiety + mood depression comorbidity; low THC-experience patients"
+        },
+        "thc_dominant": {
+          "categories": ["T5/C10","T3/C12"],
+          "mechanism": "ONLY at very low doses (<5mg THC): anxiolytic via endocannabinoid system normalization",
+          "best_for": "Patients who have proven tolerance and need mood component",
+          "caution": "HIGH RISK: THC above 5-7.5mg dose INCREASES anxiety/paranoia dose-dependently; contraindicated for anxiety-primary use without CBD buffer"
+        }
+      },
+      "terpenes": {
+        "primary": ["linalool","limonene","caryophyllene"],
+        "secondary": ["myrcene"],
+        "rationale": {
+          "linalool": "GABA-A modulation (benzodiazepine-like without dependence risk); reduces cortisol in stress models; anxiolytic in multiple human aromatherapy studies",
+          "limonene": "5-HT1A agonism; increases brain serotonin (Russo 2011); mood-elevating; anti-anxiety in animal studies; small human trials positive",
+          "caryophyllene": "CB2 reduces stress-induced neuroinflammation; anti-anxiety without psychoactivity (Bahi et al. 2014)"
+        }
+      },
+      "recommended_routes": {
+        "acute_anxiety": { "route": "cbd_oil_sublingual", "onset_min": "15-45", "note": "CBD-dominant oil under tongue; faster than oral" },
+        "social_performance": { "route": "cbd_oil_1h_before", "note": "300mg CBD studied for performance anxiety; Israeli doses typically 50-150mg" },
+        "daily_maintenance": { "route": "cbd_oil_morning_evening", "note": "Twice daily CBD oil; consistent level more important than peak dose" },
+        "avoid": { "route": "thc_inhalation_high_dose", "note": "High-dose THC inhalation is PRIMARY CAUSE of cannabis-induced anxiety/panic attacks" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["ACDC (CBD-rich, anxiety classic)","Harlequin","Cannatonic","Lifter (high linalool)","Remedy (CBD)"],
+        "profile_traits": "High linalool + limonene; CBD:THC >10:1; avoid high-THC sativas with high limonene (stimulating not calming)"
+      },
+      "clinical_notes_he": "CBD — הראיה הטובה ביותר מבין ההתוויות לשימוש יומיומי. T1/C20 עד T3/C15 ביום — בטוח גם לנהיגה (בכפוף להוראות רופא). THC בכמות גבוהה = גרימת חרדה — לא טיפול. מדגישים: להסביר למטופל שחרדה אחרי קנאביס = מינון THC גבוה מדי."
+    },
+    {
+      "id": "fibromyalgia",
+      "he": "פיברומיאלגיה",
+      "en": "Fibromyalgia",
+      "icd10": "M79.7",
+      "israeli_approved": true,
+      "evidence_level": "moderate (Israeli pioneer + growing international)",
+      "key_studies": [
+        { "ref": "Habib & Artul, Rambam Maimonides Med J 2018", "finding": "Israeli cohort n=26: cannabis use in fibromyalgia; significant reduction in pain (NRS -32%), sleep improvement, morning stiffness reduction" },
+        { "ref": "Van de Donk et al., Pain 2019", "finding": "Dutch RCT n=20: vaporized cannabis (THC:CBD variants) vs placebo; all active arms improved pain; balanced ratio best-tolerated" },
+        { "ref": "Berman et al., Arthritis Rheum 2004", "finding": "Nabilone RCT: significant fibromyalgia symptom improvement vs placebo; reduced pain, sleep disturbance, anxiety" },
+        { "ref": "Skrabek et al., J Pain 2008", "finding": "Nabilone double-blind RCT n=40: NRS pain score decreased by 2.04 in nabilone arm vs 0.47 placebo; FIQ improved significantly" },
+        { "ref": "Sagy et al., J Clin Med 2019", "finding": "Israeli MOH database n=367: 81.1% fibromyalgia patients reported treatment success; THC-dominant associated with higher response rates" }
+      ],
+      "cannabinoid_profiles": {
+        "thc_dominant": {
+          "categories": ["T15/C3","T18/C3","T22/C4"],
+          "mechanism": "CB1-mediated modulation of central sensitization in thalamus and anterior cingulate cortex (the neurological substrate of fibromyalgia); reduces allodynia via spinal cord CB1; sleep improvement (critical in fibromyalgia — disrupted sleep perpetuates pain cycle)",
+          "best_for": "Nighttime pain, allodynia, central sensitization, disrupted sleep, morning stiffness",
+          "caution": "High THC may worsen cognitive fog (fibro fog) in some patients; start very low; morning use not recommended"
+        },
+        "balanced": {
+          "categories": ["T10/C10","T12/C2","T10/C2"],
+          "mechanism": "THC central analgesia + CBD anti-inflammatory (PPARγ) + CBD reduces THC cognitive side effects; balanced optimal for daytime pain management without impairing cognition",
+          "best_for": "Daytime pain, fibromyalgia fatigue, anxiety comorbidity (very common in fibromyalgia), IBS comorbidity"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15","T3/C18"],
+          "mechanism": "PPARγ agonism reduces systemic inflammation; 5-HT1A anxiolytic; indirect enhancement of endocannabinoid tone (inhibition of FAAH); reduces comorbid anxiety",
+          "best_for": "Fibromyalgia with anxiety/depression comorbidity; patients unable to tolerate THC psychoactivity; adjunct to medications"
+        }
+      },
+      "terpenes": {
+        "primary": ["myrcene","caryophyllene","linalool"],
+        "secondary": ["bisabolol","humulene"],
+        "rationale": {
+          "myrcene": "Muscle relaxant; reduces allodynia and central sensitization in animal models; deep sedative for sleep restoration (critical in fibromyalgia management — sleep deprivation is a primary driver)",
+          "caryophyllene": "CB2 agonism reduces neuroinflammation; anti-inflammatory via NF-κB; fibromyalgia has emerging neuroinflammatory component (Albrecht et al. 2013 — microglial activation in fibromyalgia PET)",
+          "linalool": "GABAergic anxiolytic; reduces cortisol; fibromyalgia strongly correlated with dysautonomia and HPA-axis hyperactivation — linalool directly targets this pathway",
+          "bisabolol": "Anti-nociceptive via TRPA1; anti-inflammatory; supportive anti-irritant terpene for widespread pain",
+          "humulene": "Anti-inflammatory synergy with caryophyllene; appetite modulation (fibromyalgia patients often have appetite disruption)"
+        }
+      },
+      "recommended_routes": {
+        "nighttime_pain_sleep": { "route": "oil_sublingual_evening", "onset_min": "30-60", "duration_h": "6-8", "note": "T20 or T22 oil 1-2h before sleep; targets sleep disruption which perpetuates fibromyalgia pain cycle" },
+        "daytime_pain": { "route": "inhalation_vaporizer_low_dose", "onset_min": "5-10", "duration_h": "2-3", "note": "Low-dose balanced or T15 for breakthrough pain episodes; avoid high THC during work hours" },
+        "maintenance": { "route": "oil_balanced_twice_daily", "note": "Balanced T10/C10 oil twice daily; most evidence-backed approach for fibromyalgia maintenance (Van de Donk 2019)" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["OG Kush (high myrcene + caryophyllene; proven analgesic)","Granddaddy Purple (sleep + deep body relaxation; high myrcene + linalool)","ACDC (CBD-rich daytime adjunct)","Girl Scout Cookies (high caryophyllene — neuroinflammation target)","Northern Lights (classic fibromyalgia indica)","Critical Mass (CBD buffer; heavy body effect)"],
+        "profile_traits": "High myrcene (>0.4%) + high caryophyllene (>0.3%) + moderate-high THC (T15-22) for nighttime; balanced or CBD-dominant for daytime cognition preservation",
+        "avoid_lineages": ["High-terpinolene sativas (stimulating; exacerbates fibro-fog and anxiety)","High-limonene strains with high THC (anxiety paradox risk in sensitized patients)"]
+      },
+      "clinical_notes_he": "ישראל מובילת מחקר: מחקר Sagy 2019 (n=367) — 81% הצלחה. הדגש הטיפולי: שינה + כאב ב-T20 ערב, CBD ביום. פיברומיאלגיה = כאב מרכזי; לא דלקת פריפרית — לכן THC על-שדרתי עדיף. אזהרה: ערפל קוגניטיבי (fibro-fog) מחמיר ב-THC גבוה — להתחיל T10, להתקדם בזהירות."
+    },
+    {
+      "id": "autism_spectrum",
+      "he": "הפרעת ספקטרום האוטיזם (ASD)",
+      "en": "Autism Spectrum Disorder (ASD)",
+      "icd10": "F84.0",
+      "israeli_approved": true,
+      "evidence_level": "moderate (Israel pioneer; growing international)",
+      "key_studies": [
+        { "ref": "Barchel et al., Front Neurol 2019", "finding": "Israeli study (Shaare Zedek) n=53 ASD children: CBD:THC 20:1 oil; self-injury/rage improved in 67.6%, anxiety improved in 47.1%, communication improved in 47.1%" },
+        { "ref": "Bar-Lev Schleider et al., Sci Rep 2019", "finding": "Israeli prospective study n=188 ASD children: 6-month cannabis treatment; 30.1% significant improvement, 53.7% moderate improvement in problem behaviors" },
+        { "ref": "Aran et al., Transl Psychiatry 2021", "finding": "Placebo-controlled RCT n=150 ASD children: CBD+THC (20:1) significantly improved social responsiveness scale; reduced problematic behavior vs placebo (p=0.003)" },
+        { "ref": "Fleury-Teixeira et al., Front Neurol 2019", "finding": "Brazilian cohort n=18 ASD adults: CBD-enriched cannabis; 61% improvement in communication, 50% stereotypy reduction" },
+        { "ref": "Pretzsch et al., JAMA Psych 2019", "finding": "Double-blind UK study: CBD normalized glutamate (Glx)/GABA ratios in ASD brains — first neurochemical mechanism confirmation in humans" }
+      ],
+      "cannabinoid_profiles": {
+        "cbd_dominant": {
+          "categories": ["T1/C20","T0/C24","T3/C18","T3/C15"],
+          "mechanism": "CBD normalizes GABA/glutamate imbalance (Pretzsch 2019); reduces neuroinflammation via CB2 and PPARγ; 5-HT1A agonism improves social behavior in animal models (Zirlinger et al. 2001); modulates oxytocin pathway; reduces amygdala hyperactivation to social stimuli",
+          "best_for": "Core ASD symptoms: social withdrawal, communication deficits, repetitive behaviors, self-injurious behavior, rage episodes",
+          "dosing_note": "Pediatric: start 1mg/kg/day CBD; titrate to 10-20mg/kg/day; Israeli protocols typically 20:1 CBD:THC minimum; adult dosing less established",
+          "caution": "Drug interactions: CBD inhibits CYP2D6 and CYP3A4; monitor dosing of common ASD medications (risperidone, aripiprazole, sertraline, valproate)"
+        },
+        "balanced": {
+          "categories": ["T5/C5","T3/C3"],
+          "mechanism": "Low-dose THC in entourage with CBD may enhance CB1 modulation of GABA circuits; only for adult ASD patients with comorbid anxiety or sleep disorder",
+          "best_for": "Adult ASD with anxiety, sleep disorder, or pain comorbidity; NOT recommended for pediatric",
+          "caution": "THC may increase stereotypy or anxiety in ASD patients; use only under specialist supervision; never first-line in ASD"
+        }
+      },
+      "terpenes": {
+        "primary": ["linalool","limonene","caryophyllene"],
+        "secondary": ["myrcene","bisabolol"],
+        "rationale": {
+          "linalool": "GABA-A modulation directly targets the GABA/glutamate imbalance underlying ASD; anxiolytic without psychoactivity; reduces sensory hyperreactivity indirectly via GABA normalization",
+          "limonene": "5-HT1A agonism; serotonergic modulation is directly relevant (serotonin system is dysregulated in ASD — elevated blood serotonin in 30-40% of patients); mood-lifting without THC-related risks",
+          "caryophyllene": "CB2-mediated neuroinflammation reduction; ASD shows microglial activation and neuroinflammatory markers (Vargas et al. 2005); CB2 agonism addresses this component without psychoactivity",
+          "bisabolol": "Anti-inflammatory; skin-soothing (relevant for ASD patients with sensory hypersensitivity and skin-picking behaviors); mild anxiolytic",
+          "myrcene": "Sedative for sleep disorders (extremely common in ASD — affects 50-80% of children); muscle relaxation"
+        }
+      },
+      "recommended_routes": {
+        "pediatric": { "route": "oil_oral_cbd_dominant", "note": "ONLY CBD-dominant oil for children (T0-T3/C15-C24); precise weight-based dosing; never smoking/vaping in ASD pediatric; start very low and titrate slowly" },
+        "adult_maintenance": { "route": "oil_sublingual", "note": "CBD-dominant sublingual oil; twice daily for behavioral consistency; consistent dosing critical — peaks and troughs worsen ASD behavior patterns" },
+        "sleep_specific": { "route": "oil_higher_dose_evening", "note": "Higher evening CBD dose for sleep onset (common ASD comorbidity); myrcene-rich strain preferred" },
+        "caregiver_alert": { "note": "ALWAYS involve treating physician; ASD patients have complex medication regimens with significant drug interaction risk for cannabis" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["ACDC (CBD 20:1 — primary ASD protocol)","Avidekel by Tikun Olam (used in Israeli ASD research)","Charlotte's Web (CBD-dominant; lowest THC)","Cannatonic (balanced for adult)","Harlequin (adult ASD with anxiety)"],
+        "profile_traits": "Maximum CBD:THC ratio for pediatric (20:1 minimum); high linalool + limonene terpene profile; avoid high-myrcene sedating strains for daytime use (risk of excessive sedation in school-age children)",
+        "israeli_specific": "Israel is global leader in ASD cannabis research — Aran et al. (2021) RCT is the highest-quality pediatric ASD cannabis trial worldwide; Shaare Zedek and Soroka Medical Center ASD cannabis clinics active"
+      },
+      "clinical_notes_he": "ישראל חלוצה עולמית: RCT ראשון בעולם על קנאביס ו-ASD (Aran 2021) — ביה״ח שאערי צדק + מאיר. 20:1 CBD:THC שמן — הפרוטוקול הסטנדרטי. 67.6% שיפור ב-self-injury. חשוב: אינטראקציות תרופתיות — ריספרידון, ולפרואט, SSRI — לבדוק CYP לפני מתן."
+    },
+    {
+      "id": "parkinsons",
+      "he": "פרקינסון",
+      "en": "Parkinson's Disease",
+      "icd10": "G20",
+      "israeli_approved": true,
+      "evidence_level": "limited-moderate (observational dominant)",
+      "key_studies": [
+        { "ref": "Lotan et al., Clin Neuropharmacol 2014", "finding": "Israeli open-label (n=22): cannabis improved motor score (UPDRS) 30.6% after 30 minutes of smoking" },
+        { "ref": "Chagas et al., J Psychopharmacol 2014", "finding": "CBD 75-300mg/day for 6 weeks: improved Parkinson's patients' well-being and QoL; reduced psychosis in 300mg group" },
+        { "ref": "Zuardi et al., JCPT 2009", "finding": "CBD case series (n=6): significant improvement in psychosis symptoms associated with Parkinson's" },
+        { "ref": "Balash et al., J Neural Transm 2017", "finding": "Israeli cross-sectional: 46% PD patients used cannabis; pain and sleep improved; no motor worsening" }
+      ],
+      "cannabinoid_profiles": {
+        "balanced": {
+          "categories": ["T10/C10","T12/C2","T10/C2"],
+          "mechanism": "CBD neuroprotective (antioxidant, GPR6 inverse agonism in basal ganglia); THC dopaminergic modulation; combined reduces tremor + anxiety",
+          "best_for": "Tremor, rigidity, sleep, pain, anxiety; balanced preferred for motor symptoms"
+        },
+        "cbd_dominant": {
+          "categories": ["T1/C20","T3/C15"],
+          "mechanism": "GPR6 allosteric modulation in substantia nigra; neuroprotective; reduces Lewy body pathology in animal models (Fernandez-Ruiz 2011); treats PD psychosis",
+          "best_for": "PD psychosis/hallucinations, REM sleep behavior disorder (common in PD), anxiety, neuroprotection"
+        },
+        "thc_dominant": {
+          "categories": ["T15/C3"],
+          "mechanism": "CB1 in basal ganglia: acute motor improvement (Lotan study); pain; night rigidity",
+          "best_for": "Pain, sleep, off-period motor symptoms",
+          "caution": "May worsen dyskinesias; confusion risk in elderly; start very low"
+        }
+      },
+      "terpenes": {
+        "primary": ["linalool","myrcene","caryophyllene"],
+        "secondary": ["pinene"],
+        "rationale": {
+          "linalool": "Neuroprotective; anti-Parkinsonian in models; GABA modulation reduces tremor-anxiety cycle",
+          "myrcene": "Anti-inflammatory; muscle relaxation; reduces rigidity",
+          "pinene": "Acetylcholinesterase inhibition may support cholinergic balance (relevant to PD cognitive symptoms)"
+        }
+      },
+      "recommended_routes": {
+        "motor_acute": { "route": "inhalation_vaporizer", "onset_min": "5-10", "note": "Rapid tremor relief; Israeli study used smoked cannabis (Lotan 2014)" },
+        "maintenance": { "route": "oil_sublingual", "note": "CBD-dominant oil for daily neuroprotection + sleep + REM disorder" },
+        "psychosis": { "route": "cbd_oil_only", "note": "CBD-dominant ONLY for PD psychosis; THC may worsen hallucinations" }
+      },
+      "genetics_guidance": {
+        "preferred_lineages": ["ACDC","Harlequin","Cannatonic (for daytime)","OG Kush (for nighttime rigidity)"],
+        "profile_traits": "Balanced-to-CBD-dominant; high linalool; low THC for daily use; higher THC only for off-period nighttime dosing"
+      },
+      "clinical_notes_he": "ישראל חלוצה: מחקר לוטן (2014) מבית הספר לרפואה מרכזי. לא מחליף ל-dopaminergic treatment. CBD לפסיכוזה של פרקינסון — ראיה קלינית יפה. REM sleep disorder נפוץ ב-PD — T1/C20 לפני שינה."
+    }
+  ]
+}

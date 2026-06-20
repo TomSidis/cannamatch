@@ -1,0 +1,231 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "sources": ["WHO 2019 CBD Critical Review","Grotenhermen 2003","Mechoulam 2020","Israeli MOH 2023 IMCA Classification","Aviram & Samuelly-Leichtag 2017","McPartland & Russo 2001","Pertwee 2008 Pharmacol Rev"],
+    "israeli_category_system": "Israel uses T/C notation: T=THC%, C=CBD%. Categories: T20+/C1-5 = THC-dominant; T1/C20+ = CBD-dominant; T10-12/C10-12 = Balanced. Sub-categories validated per IMCA 2022."
+  },
+  "cannabinoids": [
+    {
+      "id": "THC",
+      "full_name": "Delta-9-Tetrahydrocannabinol",
+      "abbreviation": "THC",
+      "he": "THC - טטרהידרוקנביאול",
+      "psychoactive": true,
+      "decarboxylation_temp_c": 105,
+      "boiling_point_c": 157,
+      "receptors": {
+        "CB1": "full agonist (primary target — CNS, brain, spinal cord)",
+        "CB2": "partial agonist (immune cells, peripheral tissue)",
+        "TRPV1": "agonist at high concentrations",
+        "GPR18": "agonist (anti-inflammatory)",
+        "GPR55": "agonist"
+      },
+      "primary_effects": {
+        "positive": ["analgesia (central + peripheral)","anti-emetic","appetite stimulation","muscle relaxation","euphoria/mood elevation","anti-spasmodic","bronchodilation","REM nightmare suppression"],
+        "negative": ["psychoactivity (dose-dependent)","anxiety/paranoia (dose-dependent, individual-dependent)","short-term memory impairment","tachycardia","dependency risk with chronic use","tolerance development","dizziness","dry mouth"]
+      },
+      "dose_response": {
+        "note": "Biphasic: low doses anxiolytic, high doses anxiogenic; individual sensitivity varies widely (CYP2C9 metabolism)",
+        "low_mg_5_10": "Mild analgesia, slight mood shift, minimal psychoactivity in tolerant adults",
+        "medium_mg_10_25": "Therapeutic window for most indications; some psychoactivity",
+        "high_mg_25_plus": "Risk of anxiety, paranoia, cognitive impairment; therapeutic for severe pain/cancer with tolerance"
+      },
+      "pharmacokinetics": {
+        "inhalation": { "onset_min": "1-5", "peak_min": "10-30", "duration_h": "2-4", "bioavailability_pct": "10-35 (variable)" },
+        "oral_oil": { "onset_min": "30-90", "peak_min": "60-180", "duration_h": "4-12", "bioavailability_pct": "4-20 (first-pass metabolism)" },
+        "sublingual": { "onset_min": "15-45", "peak_min": "30-90", "duration_h": "4-8", "bioavailability_pct": "12-35" }
+      },
+      "metabolism": "CYP2C9, CYP3A4 -> 11-OH-THC (active, potent) -> THC-COOH (inactive metabolite, detected in drug testing for weeks)",
+      "half_life_h": "1-3 (plasma); 20-57 days (fat tissue depot)",
+      "drug_interactions": ["warfarin (CYP2C9 — increased anticoagulation)", "opioids (synergistic — dose reduce opioids)", "benzodiazepines (additive CNS depression)", "antidepressants (complex; SSRI + THC generally safe; MAOIs avoid)"],
+      "contraindications": ["personal or family history of schizophrenia/psychosis","active suicidal ideation","severe cardiovascular disease","pregnancy/breastfeeding","children (except seizure disorders under specialist supervision)","history of cannabis use disorder without psychiatric support"],
+      "pregnancy_note": "Strong evidence of fetal neurodevelopmental harm; NEVER use in pregnancy"
+    },
+    {
+      "id": "CBD",
+      "full_name": "Cannabidiol",
+      "abbreviation": "CBD",
+      "he": "CBD - קנבידיול",
+      "psychoactive": false,
+      "decarboxylation_temp_c": 120,
+      "boiling_point_c": 160,
+      "receptors": {
+        "5HT1A": "partial agonist (anxiolytic, anti-depressant)",
+        "TRPV1": "agonist → desensitization (anti-pain, anti-seizure)",
+        "PPARgamma": "agonist (anti-inflammatory, neuroprotective)",
+        "GPR55": "antagonist (anti-tumor, anti-seizure)",
+        "GPR18": "agonist",
+        "TRPA1": "agonist (pain, inflammation)",
+        "CB1": "negative allosteric modulator (counteracts THC psychoactivity)",
+        "CB2": "partial agonist (immune modulation)",
+        "Adenosine_A2A": "indirect enhancer (anti-inflammatory, anti-psychotic)",
+        "Voltage_gated_Na_channels": "inhibitor (anti-convulsant)"
+      },
+      "primary_effects": {
+        "positive": ["anxiolytic","anti-inflammatory","anti-convulsant (seizures)","neuroprotective","anti-nausea","improves sleep (high doses)","antipsychotic","potential anti-tumor (in vitro)","reduces THC-induced anxiety","pain relief (anti-inflammatory)"],
+        "negative": ["sedation at high doses (not all users)","diarrhea/GI upset at very high doses","dry mouth","potential liver enzyme elevation (drug-drug interaction risk at pharmaceutical doses)"]
+      },
+      "dose_response": {
+        "note": "Inverted-U dose response for some effects (anxiety: optimal ~150-300mg single dose; seizures: 10-20mg/kg/day)",
+        "low_mg_5_25": "Mild anxiolytic; may be alerting in some; anti-inflammatory support",
+        "medium_mg_25_100": "Anxiolytic, anti-inflammatory, sleep improvement; therapeutic for anxiety/sleep",
+        "high_mg_100_300": "Anti-anxiety (social phobia RCT dose); sleep induction; anti-psychotic",
+        "pharmaceutical_mg_300_1500": "Epidiolex range for epilepsy; drug interactions at this dose require medical supervision"
+      },
+      "pharmacokinetics": {
+        "inhalation": { "onset_min": "1-5", "peak_min": "3-10", "duration_h": "2-3", "bioavailability_pct": "31 average (wide range)" },
+        "oral_oil": { "onset_min": "30-120", "peak_min": "60-180", "duration_h": "4-8", "bioavailability_pct": "6-19; enhanced with high-fat food" },
+        "sublingual": { "onset_min": "15-45", "peak_min": "60-120", "duration_h": "4-6", "bioavailability_pct": "12-35 (bypasses first pass partially)" }
+      },
+      "metabolism": "CYP2C19, CYP3A4; 7-OH-CBD (minor active metabolite)",
+      "drug_interactions": ["clobazam (increases active metabolite 3x — reduce benzo dose)","valproate (additive liver toxicity risk at high CBD doses)","warfarin (CYP2C9 elevation)","tacrolimus/cyclosporine (immunosuppressant elevation)","rifampin (reduces CBD efficacy — CYP3A4 inducer)"],
+      "contraindications": ["active liver disease at pharmaceutical doses","concurrent strong CYP3A4/2C19 inhibitors without monitoring","known allergy to cannabis/CBD","pregnancy (precautionary)"],
+      "israel_approval_2023": "CBD-dominant products (T0-T3 / C15-C30) approved for: epilepsy (primary), anxiety (secondary indication), sleep, autism (under research protocol)"
+    },
+    {
+      "id": "CBN",
+      "full_name": "Cannabinol",
+      "abbreviation": "CBN",
+      "he": "CBN - קנבינול",
+      "psychoactive": "weakly (1/10th THC potency)",
+      "origin": "THC degradation product (heat, light, air exposure)",
+      "boiling_point_c": 185,
+      "receptors": { "CB1": "weak partial agonist (5-10x weaker than THC)", "CB2": "partial agonist", "TRPV2": "agonist (anti-inflammatory)" },
+      "primary_effects": ["sedative (strongest CBN effect)","mild analgesic","anti-bacterial (MRSA)","appetite stimulant","potential anti-convulsant"],
+      "clinical_relevance": {
+        "sleep": "Often present in aged/exposed cannabis; may contribute to sedative effect of older batches; Steep Hill study claimed CBN most sedative cannabinoid (disputed by Russo) — mechanism unclear but empirically observed",
+        "pain": "Analgesic in animal models; synergy with THC in rat study (Finn et al. 2004)",
+        "antibacterial": "Active against MRSA (Appendino et al. 2008)"
+      },
+      "formation_note": "Increases with storage, heat, UV exposure. Old flower = more CBN. Vaporizer high temps (185°C+) may increase CBN contribution.",
+      "israeli_product_note": "Not typically labeled separately in Israeli T/C system but present in all aged or heat-treated flower"
+    },
+    {
+      "id": "CBG",
+      "full_name": "Cannabigerol",
+      "abbreviation": "CBG",
+      "he": "CBG - קנביגרול",
+      "psychoactive": false,
+      "origin": "Precursor molecule to THC, CBD, CBC; present in highest concentration in young (immature) cannabis plants",
+      "boiling_point_c": 52,
+      "receptors": { "CB1": "weak partial agonist/antagonist", "CB2": "partial agonist", "5HT1A": "antagonist (different from CBD)", "alpha2_adrenergic": "agonist", "TRPV1": "moderate agonist", "PPARgamma": "agonist" },
+      "primary_effects": ["neuroprotective","anti-inflammatory","anti-bacterial","anti-tumor (preclinical)","appetite stimulant","analgesic (TRPV1)","bladder dysfunction improvement"],
+      "clinical_relevance": {
+        "ibd": "Reduces inflammation in IBD models (Borrelli et al. 2013, PLoS ONE — murine colitis significant reduction)",
+        "neurodegeneration": "Neuroprotective in Huntington's disease models; anti-oxidant",
+        "antibacterial": "MRSA active (Appendino et al. 2008 — same study as CBN)",
+        "glaucoma": "Reduces intraocular pressure (Colasanti et al. 1984)",
+        "bladder": "Inhibits bladder contractions; potential for OAB/MS bladder"
+      },
+      "israeli_note": "Emerging CBG-rich products appearing in Israel 2023-2024; IMCA evaluating therapeutic protocols"
+    },
+    {
+      "id": "CBC",
+      "full_name": "Cannabichromene",
+      "abbreviation": "CBC",
+      "he": "CBC - קנביכרומן",
+      "psychoactive": false,
+      "boiling_point_c": 220,
+      "receptors": { "TRP_channels": "TRPA1, TRPV1, TRPV3, TRPV4 agonist — pain transduction", "CB2": "weak agonist", "CB1": "very weak; non-psychoactive" },
+      "primary_effects": ["pain relief (TRP-mediated)","anti-inflammatory","anti-depressant (neurogenesis)","anti-fungal","anti-acne (sebostatic)","synergizes with THC and CBD"],
+      "clinical_relevance": {
+        "pain": "TRPA1/TRPV1 activation; complements CBD analgesia",
+        "depression": "Promotes neurogenesis; anti-depressant in animal models",
+        "entourage": "Part of full-spectrum superiority over isolate; synergizes with THC for analgesia (McPartland & Russo 2001)"
+      }
+    },
+    {
+      "id": "THCA",
+      "full_name": "Tetrahydrocannabinolic Acid",
+      "abbreviation": "THCA",
+      "he": "THCA - חומצה טטרהידרוקנבינולית",
+      "psychoactive": false,
+      "note": "Raw form of THC in fresh plant; converts to THC via decarboxylation (heat/time). NOT psychoactive until heated.",
+      "primary_effects": ["anti-inflammatory","neuroprotective (PPAR-mediated)","anti-nausea","anti-proliferative (in vitro)"],
+      "clinical_relevance": "Raw cannabis juice contains THCA; anti-inflammatory without psychoactivity; relevant for autoimmune applications",
+      "conversion": "THCA → THC via decarboxylation at 105°C; ~30 min in oven or immediate via vaporizer/smoke"
+    },
+    {
+      "id": "CBDA",
+      "full_name": "Cannabidiolic Acid",
+      "abbreviation": "CBDA",
+      "he": "CBDA - חומצה קנבידיולית",
+      "psychoactive": false,
+      "primary_effects": ["powerful 5-HT1A agonist (stronger than CBD)","anti-nausea (COX-2 inhibition)","anti-anxiety","anti-tumor (breast cancer COX-2 suppression)"],
+      "clinical_relevance": {
+        "nausea": "More potent anti-nausea than CBD in animal models; relevant for CINV; heat-sensitive so fresh plant only",
+        "anxiety": "5-HT1A affinity higher than CBD (Bolognini et al. 2013)",
+        "note": "Destroyed by heating → must use raw/cold-extracted cannabis products"
+      }
+    }
+  ],
+  "product_categories": {
+    "note": "Israeli MOH T/C classification as used on licensed pharmacy dispensaries",
+    "categories": [
+      {
+        "code": "T20+/C1-5",
+        "he": "THC-דומיננטי גבוה",
+        "examples_tc": ["T22/C4","T18/C3","T15/C3"],
+        "primary_use": "Chronic pain, PTSD (nighttime), sleep, appetite, advanced oncology, MS spasticity",
+        "timing": "Evening/nighttime",
+        "patient_profile": "Experienced users; high tolerance; severe indications",
+        "caution": "High psychoactivity; driving prohibited; tolerance risk"
+      },
+      {
+        "code": "T15-18/C1-4",
+        "he": "THC-דומיננטי מתון",
+        "examples_tc": ["T15/C3","T18/C3"],
+        "primary_use": "Pain (moderate), PTSD (breakthrough), sleep onset, mild-moderate spasticity",
+        "timing": "Evening or afternoon; not morning",
+        "patient_profile": "Intermediate; not first-time users",
+        "caution": "Psychoactive; driving prohibited"
+      },
+      {
+        "code": "T10-12/C10-12",
+        "he": "מאוזן 1:1",
+        "examples_tc": ["T10/C10","T12/C12"],
+        "primary_use": "Neuropathic pain, MS spasticity (Sativex-equivalent), cancer pain, anxiety with comorbid pain, daytime pain management",
+        "timing": "Flexible; morning-evening depending on dose",
+        "patient_profile": "Most appropriate starting point for naïve patients with pain+anxiety",
+        "note": "Most similar to GW Pharma Sativex (EU/Canadian approved); best evidence base for cancer pain (Johnson 2010)"
+      },
+      {
+        "code": "T1-5/C15-20",
+        "he": "CBD-דומיננטי עם קצת THC",
+        "examples_tc": ["T3/C15","T5/C15","T3/C18"],
+        "primary_use": "Anxiety, epilepsy adjunct, inflammation, IBD maintenance, autism, PTSD daytime, Parkinson's",
+        "timing": "Morning and afternoon; low impairment risk",
+        "patient_profile": "CBD seekers with mild THC entourage need; elderly, pediatric; anxiety-primary",
+        "note": "Small THC amount (T3) provides entourage effect without significant psychoactivity in most adults"
+      },
+      {
+        "code": "T0-1/C20-30",
+        "he": "CBD טהור",
+        "examples_tc": ["T0/C24","T1/C20","T0/C30"],
+        "primary_use": "Pediatric epilepsy, CBD-sensitive anxiety, anti-inflammatory, non-psychoactive maintenance, driving-permitted patients",
+        "timing": "Any time; no impairment",
+        "patient_profile": "Children, driving patients, very THC-sensitive, anxiety-only, epilepsy primary",
+        "note": "Epidiolex equivalent; highest CBD concentration products on Israeli market"
+      },
+      {
+        "code": "T10/C2-3",
+        "he": "THC בינוני, CBD נמוך",
+        "examples_tc": ["T10/C2","T12/C3"],
+        "primary_use": "Pain with moderate psychoactivity; appetite; mood; transition category",
+        "timing": "Late afternoon/evening",
+        "patient_profile": "Intermediate pain patients; not pure CBD seekers; not severe indication"
+      }
+    ]
+  },
+  "entourage_effect": {
+    "concept": "The synergistic interaction of multiple cannabinoids, terpenes, and flavonoids producing superior effects compared to isolated compounds. Most robustly evidenced by: (1) CBD reducing THC side effects; (2) terpenes modifying cannabinoid receptor pharmacology; (3) full-spectrum oils outperforming isolates in multiple studies",
+    "key_evidence": [
+      "McPartland & Russo 2001: Multiple terpenes interact with cannabinoid receptors",
+      "Gallily et al. 2015: Full-spectrum CBD extract far outperformed CBD isolate at matched doses for inflammation",
+      "Ben-Shabat et al. 1998: First description of entourage effect; CBD + CBG + CBN inactive alone but active in combination",
+      "Russo 2011: Terpene profiles predict clinical effect differences between strains beyond cannabinoid content alone"
+    ],
+    "clinical_implication": "Israeli licensed pharmacy strains (full flower or full-spectrum oil) should be preferred over CBD isolate for most indications. Pharmaceutical isolates (Epidiolex) are appropriate for pediatric epilepsy where precise dosing outweighs entourage benefit.",
+    "he": "אפקט 'הלהקה' — השלם גדול מסכום חלקיו. שמן מלא-ספקטרום > CBD בודד בעד 6x (Gallily 2015). הסיבה שזנים שונים מרגישים שונה אפילו באותם אחוזי THC."
+  }
+}

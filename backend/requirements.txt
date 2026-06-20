@@ -1,0 +1,298 @@
+// ─────────────────────────────────────────────────────────────
+//  שרת proxy קטן ל-Claude API
+//  מטרה: מפתח ה-API לעולם לא נחשף בצד הלקוח (הדפדפן).
+//  הלקוח קורא ל-/api/claude, והשרת מעביר ל-Anthropic עם המפתח.
+//  הרץ עם: npm run server  (או npm run dev:full להרצה במקביל ל-Vite)
+// ─────────────────────────────────────────────────────────────
+
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { pool } from "./db.js";
+import { calculateMatchScore, updateUserDNAProfile, applyCheckin } from "./lib/scoring.js";
+import { twinScore } from "./lib/vectorMath.js";
+import { parseMenuImageWithAI } from "./lib/ocr.js";
+import { fetchUnknownStrainGenetics } from "./lib/fallback.js";
+import { verifyClinicalSafety } from "./lib/clinicalCore.js";
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 8787;
+const API_KEY = process.env.ANTHROPIC_API_KEY;
+
+app.use(cors());
+app.use(express.json({ limit: "10mb" })); // limit גבוה כדי לאפשר תמונות base64
+
+if (!API_KEY) {
+  console.warn(
+    "\n⚠️  לא הוגדר ANTHROPIC_API_KEY בקובץ .env\n" +
+    "   הפיצ'רים מבוססי-AI (פיענוח תפריט, עוזר, שומר סף) לא יעבדו עד שתגדיר מפתח.\n" +
+    "   העתק את .env.example ל-.env והכנס את המפתח שלך.\n"
+  );
+}
+
+app.post("/api/claude", async (req, res) => {
+  if (!API_KEY) {
+    return res.status(503).json({
+      error: { message: "השרת לא הוגדר עם מפתח API. ראה README." },
+    });
+  }
+  try {
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(req.body),
+    });
+    const data = await anthropicRes.json();
+    res.status(anthropicRes.status).json(data);
+  } catch (err) {
+    console.error("שגיאה בקריאה ל-Anthropic:", err);
+    res.status(500).json({ error: { message: "שגיאת שרת בקריאה ל-API" } });
+  }
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, hasKey: !!API_KEY });
+});
+
+// ───────────────────── זנים ─────────────────────
+app.get("/api/strains", async (req, res) => {
+  const { type, q, limit = 100 } = req.query;
+  const params = [];
+  let sql = `
+    SELECT s.id, s.name, s.name_en, s.genetics, s.lineage, s.kind,
+           s.genetic_confidence, b.category, b.product_type, b.price, b.embedding
+    FROM strains s
+    LEFT JOIN LATERAL (
+      SELECT category, product_type, price, embedding FROM batches
+      WHERE strain_id = s.id AND in_stock = TRUE ORDER BY price ASC LIMIT 1
+    ) b ON TRUE WHERE 1=1`;
+  if (type) { params.push(type); sql += ` AND b.product_type = $${params.length}`; }
+  if (q) { params.push(`%${q}%`); sql += ` AND (s.name ILIKE $${params.length} OR s.genetics ILIKE $${params.length})`; }
+  params.push(Number(limit)); sql += ` LIMIT $${params.length}`;
+  try {
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error("strains error:", err);
+    res.status(500).json({ error: { message: "שגיאת DB בשליפת זנים" } });
+  }
+});
+
+// ───────────────────── פרופיל DNA ─────────────────────
+const DEFAULT_DNA = {
+  indications: [], target_genetics: {}, target_terpenes: {},
+  trigger_terpenes: {}, target_vector: new Array(12).fill(0), report_count: 0,
+};
+
+app.get("/api/dna/:userId", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT profile FROM user_dna_profiles WHERE user_id = $1`, [req.params.userId]);
+    if (!rows.length) {
+      await pool.query(
+        `INSERT INTO user_dna_profiles (user_id, profile) VALUES ($1,$2)
+         ON CONFLICT (user_id) DO NOTHING`, [req.params.userId, DEFAULT_DNA]);
+      return res.json(DEFAULT_DNA);
+    }
+    res.json(rows[0].profile);
+  } catch (err) {
+    console.error("GET dna error:", err);
+    res.status(500).json({ error: { message: "שגיאה בשליפת הפרופיל" } });
+  }
+});
+
+app.put("/api/dna/:userId", async (req, res) => {
+  const { strain_id, feedback } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [profRow] } = await client.query(
+      `SELECT profile FROM user_dna_profiles WHERE user_id=$1 FOR UPDATE`, [req.params.userId]);
+    const profile = profRow?.profile || DEFAULT_DNA;
+    const { rows: [strain] } = await client.query(
+      `SELECT s.lineage, b.embedding FROM strains s
+       LEFT JOIN LATERAL (SELECT embedding FROM batches WHERE strain_id=s.id LIMIT 1) b ON TRUE
+       WHERE s.id=$1`, [strain_id]);
+    if (!strain) { await client.query("ROLLBACK"); return res.status(404).json({ error: { message: "זן לא נמצא" } }); }
+    const updated = updateUserDNAProfile(profile, strain, feedback);
+    await client.query(
+      `INSERT INTO user_dna_profiles (user_id, profile) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE SET profile=$2, updated_at=now()`, [req.params.userId, updated]);
+    await client.query("COMMIT");
+    res.json(updated);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("PUT dna error:", err);
+    res.status(500).json({ error: { message: "שגיאה בעדכון הפרופיל" } });
+  } finally { client.release(); }
+});
+
+// צ'ק-אין יומי
+const CHECKIN_REPLIES = {
+  anxious: ["קלטתי שהראש דוהר 🏎️ העליתי לך לינלול וחסמתי טרפינולן להיום. תנשום, אני שומר עליך.",
+            "ראש עמוס היום? הגברתי את המרגיעים בפרופיל. אל תיגע בסאטיבות עכשיו — תסמוך עליי."],
+  calm: ["אהבתי, רגוע ושליו 😌 שומר על הפרופיל יציב. יום טוב, אלוף.",
+         "ראש נקי = יום טוב. לא נוגעים במה שעובד. 💚"],
+  high: ["כאב תפס אותך היום 💥 חיזקתי קריופילן ומירצן — אלה החברים שלך לכאב.",
+         "תפוס וכואב? עדכנתי את הפרופיל לכיוון משכך. בוא נטפל בזה ביחד."],
+};
+const pickReply = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+app.post("/api/dna/:id/checkin", async (req, res) => {
+  const { dimension, value } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [row] } = await client.query(
+      `SELECT profile FROM user_dna_profiles WHERE user_id=$1 FOR UPDATE`, [req.params.id]);
+    const profile = row?.profile || DEFAULT_DNA;
+    const updated = applyCheckin(profile, dimension, value);
+    await client.query(
+      `INSERT INTO user_dna_profiles (user_id, profile) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE SET profile=$2, updated_at=now()`, [req.params.id, updated]);
+    await client.query("COMMIT");
+
+    // הצעות זנים בטוחים — מסנן דרך שער הבטיחות הקליני
+    let safeTargets = [];
+    try {
+      const { rows: strains } = await client.query(
+        `SELECT s.name, s.lineage, s.category, b.embedding
+         FROM strains s
+         LEFT JOIN LATERAL (SELECT embedding FROM batches WHERE strain_id=s.id AND in_stock=TRUE LIMIT 1) b ON TRUE
+         WHERE b.embedding IS NOT NULL LIMIT 60`);
+      const inds = updated.indications || [];
+      safeTargets = strains
+        .filter((s) => verifyClinicalSafety(
+          { lineage: s.lineage, embedding: s.embedding, category: s.category },
+          { indications: inds }).safe)
+        .slice(0, 3)
+        .map((s) => ({ name: s.name, category: s.category }));
+    } catch { /* הצעות הן bonus — לא מפילות את ה-checkin */ }
+
+    res.json({
+      profile: updated,
+      message: pickReply(CHECKIN_REPLIES[value] || ["קלטתי! עדכנתי לך את הפרופיל. 🌿"]),
+      safe_targets: safeTargets,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("checkin error:", err);
+    res.status(500).json({ error: { message: "שגיאה בצ'ק-אין" } });
+  } finally { client.release(); }
+});
+
+// ───────────────────── תאומים גנטיים ─────────────────────
+app.get("/api/social/twins/:id", async (req, res) => {
+  try {
+    const { rows: [me] } = await pool.query(
+      `SELECT profile FROM user_dna_profiles WHERE user_id=$1`, [req.params.id]);
+    if (!me) return res.json([]);
+    const { rows: others } = await pool.query(
+      `SELECT u.id, u.pseudonym, p.profile FROM user_dna_profiles p
+       JOIN users u ON u.id = p.user_id WHERE p.user_id != $1`, [req.params.id]);
+    const ranked = others
+      .map((o) => ({ ...o, score: twinScore(me.profile, o.profile) }))
+      .filter((o) => o.score > 0.3).sort((a, b) => b.score - a.score).slice(0, 5);
+    if (!ranked.length) return res.json([]);
+    const { rows: reviews } = await pool.query(
+      `SELECT DISTINCT ON (r.user_id, r.strain_id) r.user_id, r.efficacy,
+              s.name, s.genetics, s.lineage, s.terpene_dist, s.target_indications
+       FROM user_reviews r JOIN strains s ON s.id = r.strain_id
+       WHERE r.user_id = ANY($1) AND r.efficacy >= 4
+       ORDER BY r.user_id, r.strain_id, r.efficacy DESC`, [ranked.map((t) => t.id)]);
+    const topTerp = (d) => { const e = Object.entries(d||{}).sort((a,b)=>b[1]-a[1])[0]; return e ? e[0] : ""; };
+    const feed = reviews.map((rv) => {
+      const twin = ranked.find((t) => t.id === rv.user_id);
+      return { similarity: Math.round((twin?.score||0)*100), city: "ישראל",
+        indication: (rv.target_indications||[])[0] || "כללי", strain: rv.name,
+        genetics: rv.genetics, lineage: rv.lineage, topTerpene: topTerp(rv.terpene_dist), rating: rv.efficacy };
+    }).sort((a,b) => b.similarity - a.similarity).slice(0, 8);
+    res.json(feed);
+  } catch (err) {
+    console.error("twins error:", err);
+    res.status(500).json({ error: { message: "שגיאה במציאת תאומים" } });
+  }
+});
+
+// ───────────────────── פענוח תפריט ─────────────────────
+async function scoreMenuNames(names, userId) {
+  const { rows: [profRow] } = await pool.query(
+    `SELECT profile FROM user_dna_profiles WHERE user_id=$1`, [userId]);
+  const dna = profRow?.profile || DEFAULT_DNA;
+  const results = [];
+  for (const name of names) {
+    let { rows } = await pool.query(
+      `SELECT s.id, s.name, s.genetics, s.lineage, b.embedding, b.confidence_score
+       FROM strains s
+       LEFT JOIN LATERAL (SELECT embedding, confidence_score FROM batches WHERE strain_id=s.id LIMIT 1) b ON TRUE
+       WHERE s.name ILIKE $1 OR s.genetics ILIKE $1 OR $2 = ANY(s.aka)
+       ORDER BY similarity(s.name, $2) DESC LIMIT 1`, [`%${name}%`, name]);
+    let strain = rows[0];
+    if (!strain) {
+      const inferred = await fetchUnknownStrainGenetics(name);
+      if (inferred) strain = { ...inferred, name, confidence_score: 0.4 };
+    }
+    if (strain && strain.embedding) {
+      results.push({ commercial: name, strain_id: strain.id, genetics: strain.genetics,
+        lineage: strain.lineage, ai_inferred: !!strain.ai_inferred,
+        match: calculateMatchScore(dna, strain, strain.confidence_score ?? 0.5) });
+    } else {
+      results.push({ commercial: name, matched: false, match: null });
+    }
+  }
+  return results.sort((a, b) => (b.match ?? -1) - (a.match ?? -1));
+}
+
+app.post("/api/parse-menu", async (req, res) => {
+  const { image_base64, media_type = "image/jpeg", text, user_id } = req.body;
+  try {
+    let names;
+    if (text) names = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    else if (image_base64) names = await parseMenuImageWithAI(image_base64, media_type);
+    else return res.status(400).json({ error: { message: "צריך image_base64 או text" } });
+    const ranked = await scoreMenuNames(names, user_id);
+    res.json({ count: ranked.length, products: ranked });
+  } catch (err) {
+    console.error("parse-menu error:", err);
+    res.status(500).json({ error: { message: "שגיאה בפענוח התפריט" } });
+  }
+});
+
+// ───────────────────── ביקורות ─────────────────────
+app.post("/api/reviews", async (req, res) => {
+  const { user_id, strain_id, efficacy, anxietyTriggered, painRelief, sleepQuality, sideEffects = [] } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const rev = await client.query(
+      `INSERT INTO user_reviews (user_id, strain_id, efficacy, anxiety_triggered, pain_relief, sleep_quality, side_effects)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [user_id, strain_id, efficacy, anxietyTriggered, painRelief, sleepQuality, sideEffects]);
+    const { rows: [profRow] } = await client.query(
+      `SELECT profile FROM user_dna_profiles WHERE user_id=$1 FOR UPDATE`, [user_id]);
+    const { rows: [strain] } = await client.query(
+      `SELECT s.lineage, b.embedding FROM strains s
+       LEFT JOIN LATERAL (SELECT embedding FROM batches WHERE strain_id=s.id LIMIT 1) b ON TRUE WHERE s.id=$1`, [strain_id]);
+    const updated = updateUserDNAProfile(profRow?.profile || DEFAULT_DNA, strain || { lineage: "", embedding: new Array(12).fill(0) },
+      { efficacy, anxietyTriggered, painRelief, sleepQuality });
+    await client.query(
+      `INSERT INTO user_dna_profiles (user_id, profile) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE SET profile=$2, updated_at=now()`, [user_id, updated]);
+    await client.query("COMMIT");
+    res.json({ status: "ok", review_id: rev.rows[0].id, profile: updated });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("review error:", err);
+    res.status(500).json({ error: { message: "שגיאה בשמירת הביקורת" } });
+  } finally { client.release(); }
+});
+
+app.listen(PORT, () => {
+  console.log(`🌿 שרת קנאמאצ׳ פועל על http://localhost:${PORT}`);
+});

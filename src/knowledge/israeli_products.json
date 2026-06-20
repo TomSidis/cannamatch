@@ -1,0 +1,1615 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "sources": ["Israeli MOH Licensed Cultivators List 2023","Tikun Olam Research Publications","BOL Pharma Product Catalog","Seach Medical Cannabis","iCan Israeli Cannabis Conference 2023","IMCA 2022 Annual Report","Pharmacy dispensing data (anonymized)"],
+    "disclaimer": "Product specifications change seasonally; batch-to-batch terpene variation of ±30-40% is common. T/C ratios are licensed ceiling concentrations — actual tested values may vary. Always verify with current pharmacy CoA.",
+    "tc_system": "Israel: T = THC%, C = CBD%. Categories per MOH: G1=CBD-dominant, G2=Balanced, G3=THC-dominant. Subtypes by concentration."
+  },
+  "cultivators": [
+    {
+      "id": "tikun_olam",
+      "name": "טיקון עולם",
+      "name_en": "Tikun Olam",
+      "founded": 2005,
+      "research_publications": 12,
+      "specialty": "Pioneer Israeli medical cannabis company; largest patient cohort research (n=40,000+); PTSD, pain, pediatric epilepsy specialization",
+      "products": [
+        {
+          "commercial_name": "Eran Almog",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Unknown proprietary (likely Afghani × Northern Lights lineage)",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","caryophyllene"],
+            "secondary": ["humulene","bisabolol"],
+            "profile_notes": "High myrcene hallmark; deeply sedating; classic 'nighttime indica'"
+          },
+          "best_indications": ["PTSD (nightmares)","chronic pain","sleep","MS spasticity"],
+          "effect_profile": "Deeply relaxing; body-heavy; sedative; mood-neutral to slightly euphoric",
+          "dosing_notes": "Evening only; start 0.1g vaporizer; Israeli most prescribed PTSD strain",
+          "tikun_research": "Primary strain in Aviram & Samuelly-Leichtag 2017 PTSD study"
+        },
+        {
+          "commercial_name": "Midnight",
+          "tc_category": "T15/C1",
+          "type": "indica",
+          "genetics": "Northern Lights phenotype selection",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","terpinolene"],
+            "secondary": ["caryophyllene"],
+            "profile_notes": "Similar to Eran Almog but less potent; strong sedative terpene stack"
+          },
+          "best_indications": ["sleep","mild-moderate pain","anxiety reduction","Parkinson's REM disorder"],
+          "effect_profile": "Sedating; body relaxation; mild euphoria; less psychoactive than Eran Almog",
+          "dosing_notes": "Evening; suitable for moderate tolerance patients; also available as T15 oil"
+        },
+        {
+          "commercial_name": "Avidekel",
+          "tc_category": "T1/C20",
+          "type": "CBD-dominant",
+          "genetics": "Developed from Charlotte's Web-adjacent lineage; proprietary",
+          "terpene_profile": {
+            "primary": ["caryophyllene","myrcene","linalool"],
+            "secondary": ["humulene"],
+            "profile_notes": "Non-psychoactive; earthy-spicy aroma"
+          },
+          "best_indications": ["epilepsy (pediatric)","anxiety","IBD (daytime)","Parkinson's psychosis","autism","elderly patients"],
+          "effect_profile": "No psychoactivity; anti-inflammatory; anxiolytic; alertness-neutral",
+          "dosing_notes": "Can be used throughout day; no driving restriction (T1 below threshold)",
+          "tikun_research": "Used in Hausman-Kedem 2018 pediatric epilepsy Israeli study"
+        },
+        {
+          "commercial_name": "Ana",
+          "tc_category": "T20/C1",
+          "type": "sativa-dominant",
+          "genetics": "Haze × Israeli proprietary",
+          "terpene_profile": {
+            "primary": ["limonene","pinene","caryophyllene"],
+            "secondary": ["myrcene"],
+            "profile_notes": "Energizing terpene profile; unusual for THC-dominant; citrus-forward"
+          },
+          "best_indications": ["cancer (daytime)","depression","fatigue","appetite (daytime)"],
+          "effect_profile": "Energizing; uplifting; functional; less sedating than Eran Almog",
+          "dosing_notes": "Morning/afternoon ONLY; not for sleep or anxiety",
+          "caution": "High limonene + THC: anxiety risk in sensitive patients"
+        }
+      ]
+    },
+    {
+      "id": "bol_pharma",
+      "name": "BOL פארמה",
+      "name_en": "BOL Pharma (Breath of Life)",
+      "specialty": "GMP-certified; largest Israeli pharmaceutical cannabis producer; rigorous batch testing; multiple T/C categories",
+      "products": [
+        {
+          "commercial_name": "BOL T20/C4",
+          "tc_category": "T22/C4",
+          "type": "indica-hybrid",
+          "genetics": "OG Kush × Pakistani Kush (tested, confirmed by BOL CoA)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","linalool"],
+            "secondary": ["humulene","limonene"],
+            "concentration_typical": { "myrcene_pct": 0.45, "caryophyllene_pct": 0.28, "linalool_pct": 0.15 }
+          },
+          "best_indications": ["chronic pain","PTSD","sleep","cancer pain"],
+          "effect_profile": "Balanced sedation-analgesia; OG Kush lineage clarity without pure sativa anxiety",
+          "dosing_notes": "Most pharmacies stock; well-documented CoA; consistent batch-to-batch",
+          "israel_market_share": "Among top 3 prescribed THC-dominant strains nationally"
+        },
+        {
+          "commercial_name": "BOL T0/C24",
+          "tc_category": "T0/C24",
+          "type": "CBD-dominant flower",
+          "genetics": "CBD-enriched hemp × medical cannabis cross; proprietary",
+          "terpene_profile": {
+            "primary": ["caryophyllene","myrcene","linalool"],
+            "profile_notes": "Non-psychoactive; highest CBD flower on Israeli market"
+          },
+          "best_indications": ["epilepsy","anxiety","inflammation","pediatric","Parkinson's neuroprotection"],
+          "effect_profile": "No psychoactivity; anti-inflammatory; anxiolytic",
+          "availability": "Flower and oil formats"
+        },
+        {
+          "commercial_name": "BOL T10/C10",
+          "tc_category": "T10/C10",
+          "type": "balanced hybrid",
+          "genetics": "ACDC × OG Kush (balanced lineage cross)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","limonene"],
+            "secondary": ["linalool","pinene"]
+          },
+          "best_indications": ["neuropathic pain","MS","cancer pain","anxiety with pain"],
+          "effect_profile": "Moderate psychoactivity; analgesic; anti-anxiety; most 'medical' feel",
+          "dosing_notes": "Nabiximols-like profile; evidence-backed ratio for pain; best daytime pain option"
+        },
+        {
+          "commercial_name": "BOL T22/C4",
+          "tc_category": "T22/C4",
+          "type": "indica",
+          "genetics": "Zkittlez × Wedding Cake",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","limonene"],
+            "secondary": ["caryophyllene"],
+            "profile_notes": "Sweet-fruity aroma; high myrcene + linalool = strong sedation"
+          },
+          "best_indications": ["severe chronic pain","end-of-life care","refractory insomnia","PTSD severe"],
+          "effect_profile": "Very sedating; potent; long-lasting; possible anxiety in THC-naive"
+        }
+      ]
+    },
+    {
+      "id": "seach",
+      "name": "סיאח - מרפאות קנאביס",
+      "name_en": "Seach Medical Cannabis",
+      "specialty": "Research-oriented; strong genetics database; terpene-forward product development",
+      "products": [
+        {
+          "commercial_name": "Seach Indica 20",
+          "tc_category": "T20/C3",
+          "type": "indica",
+          "genetics": "Bubba Kush × Granddaddy Purple",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","linalool"],
+            "secondary": ["terpinolene"],
+            "aroma": "Earthy, grape, pine"
+          },
+          "best_indications": ["sleep","pain","muscle spasm","PTSD"],
+          "effect_profile": "Heavy-body relaxation; deeply sedating; grape-earthy taste"
+        },
+        {
+          "commercial_name": "Seach Balanced",
+          "tc_category": "T12/C12",
+          "type": "hybrid",
+          "genetics": "Harlequin × OG Kush",
+          "terpene_profile": {
+            "primary": ["myrcene","limonene","caryophyllene"],
+            "secondary": ["pinene","linalool"]
+          },
+          "best_indications": ["pain","MS","cancer","anxiety with pain comorbidity"],
+          "effect_profile": "Mild euphoria; functional; pain relief without heavy sedation"
+        }
+      ]
+    },
+    {
+      "id": "cannolam",
+      "name": "קנולם",
+      "name_en": "Cannolam",
+      "specialty": "Boutique cultivator; artisan terpene profiles; emerging Israeli market share",
+      "products": [
+        {
+          "commercial_name": "Cannolam High CBD",
+          "tc_category": "T3/C18",
+          "type": "CBD-dominant",
+          "genetics": "Charlotte's Web × Israeli landrace",
+          "terpene_profile": {
+            "primary": ["linalool","caryophyllene","myrcene"],
+            "aroma": "Lavender, earth, mild citrus"
+          },
+          "best_indications": ["anxiety","epilepsy adjunct","PTSD daytime","sleep (mild)"],
+          "effect_profile": "Gently relaxing; anxiolytic; 3% THC provides entourage without significant psychoactivity"
+        }
+      ]
+    },
+    {
+      "id": "intercure",
+      "name": "אינטרקיור",
+      "name_en": "Intercure (Canndoc)",
+      "specialty": "Large-scale; international genetics; well-priced; widest dispensary network",
+      "products": [
+        {
+          "commercial_name": "Canndoc T20/C4 Indica",
+          "tc_category": "T22/C4",
+          "type": "indica",
+          "genetics": "Hindu Kush × Northern Lights",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","caryophyllene"],
+            "profile_notes": "Classic indica stack; similar to many Israeli T20 formulas"
+          },
+          "best_indications": ["pain","sleep","PTSD"],
+          "effect_profile": "Standard clinical indica; widely available; affordable"
+        },
+        {
+          "commercial_name": "Canndoc T15/C3 Hybrid",
+          "tc_category": "T15/C3",
+          "type": "sativa-hybrid",
+          "genetics": "Durban Poison × OG Kush",
+          "terpene_profile": {
+            "primary": ["limonene","caryophyllene","myrcene"],
+            "secondary": ["pinene"]
+          },
+          "best_indications": ["daytime pain","fatigue","depression","appetite"],
+          "effect_profile": "Functional; uplifting; mild body relaxation; work-friendly at low dose"
+        }
+      ]
+    },
+    {
+      "id": "psagot",
+      "name": "פסגות",
+      "name_en": "Psagot Cannabis",
+      "specialty": "Agricultural excellence; West Bank cultivation; known for consistent myrcene-dominant strains",
+      "products": [
+        {
+          "commercial_name": "Psagot Purple",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Purple Kush lineage",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","caryophyllene"],
+            "aroma": "Grape, earthy, floral"
+          },
+          "best_indications": ["severe pain","sleep","PTSD","cancer"],
+          "effect_profile": "Very potent; euphoric onset then deep relaxation; pronounced body effect"
+        }
+      ]
+    },
+    {
+      "id": "trichome",
+      "name": "טריכום",
+      "name_en": "Trichome",
+      "specialty": "Premium Israeli indoor; known for named phenotype hunting and transparent genetics disclosure",
+      "products": [
+        {
+          "commercial_name": "P&Z",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Purple Zkittlez",
+          "lineage": "Purple Punch × Zkittlez",
+          "terpene_profile": {
+            "primary": ["limonene","myrcene","caryophyllene"],
+            "aroma": "Tropical fruit, berry, candy"
+          },
+          "best_indications": ["sleep","pain","mood","anxiety"],
+          "effect_profile": "Sweet fruity onset, deep relaxation; heavy body but clear-headed euphoria before sedation"
+        },
+        {
+          "commercial_name": "Carbo",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Carbon Fiber",
+          "lineage": "(Grape Pie × Biscotti) × Cookies and Cream",
+          "terpene_profile": {
+            "primary": ["humulene","limonene","caryophyllene"],
+            "aroma": "Dark berry, cookies, earthy grape"
+          },
+          "best_indications": ["pain","sleep","appetite"],
+          "effect_profile": "Relaxing, heavy body; appetite stimulant; long-lasting sedation"
+        }
+      ]
+    },
+    {
+      "id": "together",
+      "name": "טוגדר פארמה",
+      "name_en": "Together Pharma",
+      "specialty": "Vertically integrated Israeli cultivator; extensive product range covering full T/C spectrum",
+      "products": [
+        {
+          "commercial_name": "Together T20/C4",
+          "tc_category": "T20/C4",
+          "type": "indica-dominant",
+          "genetics": "Northern Lights × Skunk lineage",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","linalool"],
+            "aroma": "Earthy, spicy, woody"
+          },
+          "best_indications": ["pain","sleep","PTSD"],
+          "effect_profile": "Classic Israeli indica; pain relief + sleep induction; night-use formulation"
+        },
+        {
+          "commercial_name": "Together Balance T10/C10",
+          "tc_category": "T10/C10",
+          "type": "balanced",
+          "genetics": "Balanced hybrid (proprietary)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","pinene"],
+            "aroma": "Earthy, mild spice, herbal"
+          },
+          "best_indications": ["MS","pain","anxiety","IBD"],
+          "effect_profile": "1:1 THC:CBD; Sativex-adjacent; daytime to evening; spasticity + pain + anxiety"
+        }
+      ]
+    },
+    {
+      "id": "bazelet",
+      "name": "בזלת",
+      "name_en": "Bazelet",
+      "specialty": "Major Israeli cultivator with pharmaceutical-grade GMP facilities; large patient base; broad spectrum",
+      "products": [
+        {
+          "commercial_name": "Bazelet G",
+          "tc_category": "T22/C4",
+          "type": "sativa-dominant",
+          "genetics": "Amnesia Haze lineage",
+          "terpene_profile": {
+            "primary": ["limonene","myrcene","terpinolene"],
+            "aroma": "Citrus, earthy, fresh"
+          },
+          "best_indications": ["daytime pain","fatigue","depression","MS"],
+          "effect_profile": "Energizing, uplifting; functional daytime sativa; mood elevation; not for anxiety-prone patients"
+        },
+        {
+          "commercial_name": "Bazelet N",
+          "tc_category": "T20/C4",
+          "type": "indica-dominant",
+          "genetics": "OG Kush × Afghani",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","humulene"],
+            "aroma": "Earthy, pine, spicy kush"
+          },
+          "best_indications": ["pain","sleep","appetite","PTSD"],
+          "effect_profile": "Classic OG Kush body effect; deep relaxation; appetite stimulant; night formulation"
+        },
+        {
+          "commercial_name": "Bazelet High CBD",
+          "tc_category": "T3/C15",
+          "type": "cbd-dominant",
+          "genetics": "CBD-rich Cannatonic derivative",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","linalool"],
+            "aroma": "Mild earthy, herbal"
+          },
+          "best_indications": ["epilepsy","anxiety","autism","inflammation"],
+          "effect_profile": "Minimal psychoactivity; anti-inflammatory; anxiolytic; pediatric-safe at T3/C15"
+        }
+      ]
+    },
+    {
+      "id": "better",
+      "name": "בטר",
+      "name_en": "Better",
+      "specialty": "Premium imported genetics + Israeli cultivation; focus on terpene-forward phenotypes and consumer transparency",
+      "products": [
+        {
+          "commercial_name": "Better GMO",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "GMO (Garlic Cookies)",
+          "lineage": "Girl Scout Cookies × Chemdawg",
+          "terpene_profile": {
+            "primary": ["caryophyllene","myrcene","limonene"],
+            "aroma": "Garlic, diesel, chemical, coffee"
+          },
+          "best_indications": ["severe pain","sleep","PTSD","appetite"],
+          "effect_profile": "Very heavy; one of highest-potency profiles; body sedation; not for daytime; chronic pain veterans"
+        },
+        {
+          "commercial_name": "Better Gelato",
+          "tc_category": "T20/C4",
+          "type": "balanced-indica",
+          "genetics": "Gelato #33",
+          "lineage": "Sunset Sherbet × Thin Mint GSC",
+          "terpene_profile": {
+            "primary": ["caryophyllene","linalool","limonene"],
+            "aroma": "Sweet cream, berry, citrus"
+          },
+          "best_indications": ["pain","anxiety","sleep","mood"],
+          "effect_profile": "Euphoric, relaxing; sweet dessert profile; evening-to-night; anxiety + pain dual profile"
+        }
+      ]
+    },
+    {
+      "id": "imc",
+      "name": "IMC - ישראל מדיקל קנאביס",
+      "name_en": "IMC (International Medical Cannabis / iCAN)",
+      "founded": 2016,
+      "stock_exchange": "TASE (Tel Aviv Stock Exchange) — IMCA",
+      "specialty": "Vertically integrated: Israeli indoor cultivation (IMC-GAL) + international cultivation subsidiaries + import distribution. One of only a few Israeli operators with both domestic growing license and active foreign import channel.",
+      "subsidiary_operations": {
+        "imc_israel": "Licensed domestic cultivator (IMC-GAL Ltd.); indoor facility; serves Israeli patient base",
+        "imc_portugal": "Joint venture with Casa Leão (Portugal); EU GMP certified; exports flower to Israel and EU markets — a reverse-integrated import: Israeli company grows in EU, re-imports",
+        "medigrow_africa": "Partnership in Africa for low-cost cultivation destined for export markets",
+        "imc_germany": "European distribution hub; medical cannabis import/export to German pharmacy market"
+      },
+      "import_partnerships": [
+        {
+          "foreign_producer": "Organigram Holdings (New Brunswick, Canada)",
+          "agreement_type": "Distribution and import",
+          "agreement_year": 2021,
+          "brands_imported": ["EDISON Cannabis Company"],
+          "confidence": "high",
+          "source": "Public press release: Organigram-IMC distribution agreement, March 2021"
+        }
+      ],
+      "products": [
+        {
+          "commercial_name": "IMC Select T22",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Proprietary premium indoor cultivar",
+          "terpene_profile": {
+            "primary": ["caryophyllene","myrcene","limonene"],
+            "aroma": "Earthy, spicy, piney"
+          },
+          "best_indications": ["pain","sleep","PTSD"],
+          "effect_profile": "Potent indica; body-heavy relaxation; evening use"
+        },
+        {
+          "commercial_name": "IMC Balance T10/C10",
+          "tc_category": "T10/C10",
+          "type": "balanced",
+          "genetics": "Balanced hybrid (proprietary IMC-GAL breeding)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","pinene"],
+            "aroma": "Earthy herbal"
+          },
+          "best_indications": ["MS","pain","IBD","anxiety with comorbid pain"],
+          "effect_profile": "1:1 THC:CBD functional daytime-to-evening profile"
+        },
+        {
+          "commercial_name": "IMC CBD T1/C20",
+          "tc_category": "T1/C20",
+          "type": "cbd-dominant",
+          "genetics": "CBD-rich cultivar (ACDC lineage — IMC Portugal origin)",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","caryophyllene"],
+            "aroma": "Mild herbal, earthy"
+          },
+          "best_indications": ["epilepsy","anxiety","autism","inflammation"],
+          "effect_profile": "Non-psychoactive; daily CBD dosing; neuroprotective"
+        }
+      ]
+    },
+    {
+      "id": "pharmocann",
+      "name": "פארמוקן",
+      "name_en": "Pharmocann",
+      "founded": 2014,
+      "specialty": "One of Israel's largest licensed cultivators by physical growing area; mix of greenhouse and indoor operations; broad product range covering full T/C spectrum; supplies major pharmacy chains",
+      "products": [
+        {
+          "commercial_name": "Pharmocann Indica T20",
+          "tc_category": "T20/C4",
+          "type": "indica-dominant",
+          "genetics": "OG Kush × Afghani lineage (Pharmocann proprietary)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","linalool"],
+            "aroma": "Earthy, kush, pine"
+          },
+          "best_indications": ["pain","sleep","PTSD"],
+          "effect_profile": "Classic kush body effect; reliable sleep induction; one of market's most prescribed standard indicas"
+        },
+        {
+          "commercial_name": "Pharmocann Sativa T18",
+          "tc_category": "T18/C3",
+          "type": "sativa-dominant",
+          "genetics": "Jack Herer × Durban Poison lineage",
+          "terpene_profile": {
+            "primary": ["terpinolene","limonene","myrcene"],
+            "aroma": "Citrus, spice, earthy"
+          },
+          "best_indications": ["daytime pain","fatigue","depression","MS daytime"],
+          "effect_profile": "Uplifting, functional; energy without anxiety (moderate terpinolene); mood-elevating"
+        },
+        {
+          "commercial_name": "Pharmocann Balance T10/C10",
+          "tc_category": "T10/C10",
+          "type": "balanced",
+          "genetics": "Balanced hybrid (Pharmocann breeding program)",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","pinene"],
+            "aroma": "Earthy, herbal"
+          },
+          "best_indications": ["MS","chronic pain","IBD","spasticity"],
+          "effect_profile": "Balanced therapeutic; broad patient compatibility; entry-point for new patients"
+        }
+      ]
+    },
+    {
+      "id": "cannassure",
+      "name": "קנאשור תרפיוטיקס",
+      "name_en": "Cannassure Therapeutics",
+      "founded": 2018,
+      "specialty": "Pharmaceutical-grade precision cannabis; proprietary GRAS-certified formulations; focus on novel delivery mechanisms and ultra-precise dosing for clinical trials and pharmaceutical partnerships; one of few Israeli operators with both cannabis cultivation license and pharmaceutical manufacturing authorization",
+      "products": [
+        {
+          "commercial_name": "Cannassure T22 Premium",
+          "tc_category": "T22/C4",
+          "type": "indica-dominant",
+          "genetics": "Select premium phenotype (proprietary)",
+          "terpene_profile": {
+            "primary": ["caryophyllene","myrcene","limonene"],
+            "aroma": "Complex earthy-spicy-sweet"
+          },
+          "best_indications": ["treatment-resistant pain","PTSD","sleep disorders"],
+          "effect_profile": "Pharmaceutical-consistency indica; batch-to-batch CoA-matched; used in clinical observation programs"
+        },
+        {
+          "commercial_name": "Cannassure CBD T3/C18",
+          "tc_category": "T3/C18",
+          "type": "cbd-dominant",
+          "genetics": "Proprietary CBD-rich cultivar",
+          "terpene_profile": {
+            "primary": ["myrcene","linalool","caryophyllene"],
+            "aroma": "Mild herbal"
+          },
+          "best_indications": ["epilepsy","autism","anxiety","neurological"],
+          "effect_profile": "Low psychoactivity; high CBD consistency; pharmaceutical-grade batch uniformity"
+        }
+      ]
+    },
+    {
+      "id": "green_fields",
+      "name": "גרין פילדס",
+      "name_en": "Green Fields",
+      "specialty": "Israeli outdoor and controlled greenhouse cultivation; priority on scalable, price-accessible product for broader patient access; standard T/C categories; lower price point relative to premium indoor brands",
+      "products": [
+        {
+          "commercial_name": "Green Fields Indica T20",
+          "tc_category": "T20/C4",
+          "type": "indica",
+          "genetics": "Afghani × Northern Lights outdoor-adapted lineage",
+          "terpene_profile": {
+            "primary": ["myrcene","caryophyllene","humulene"],
+            "aroma": "Earthy, woody, herbal"
+          },
+          "best_indications": ["pain","sleep","appetite"],
+          "effect_profile": "Accessible price-point indica; reliable sedative effect; entry-level sleep support"
+        }
+      ]
+    },
+    {
+      "id": "canonic",
+      "name": "קאנוניק",
+      "name_en": "Canonic",
+      "specialty": "Israeli cannabis company; known for daytime/nighttime combo-pack concept and hybrid-effect products; aimed at patients wanting a single prescription covering dual use-cases",
+      "products": [
+        {
+          "commercial_name": "Combo",
+          "tc_category": "T20/C4",
+          "type": "balanced-hybrid",
+          "genetics": "Day + night blend proprietary",
+          "terpene_profile": {
+            "primary": ["limonene","myrcene","caryophyllene"],
+            "aroma": "Mixed citrus-earthy"
+          },
+          "best_indications": ["pain (day and night)","mood","MS"],
+          "effect_profile": "Designed for 24h pain management; day component: energizing; night component: sedating. Dispensed as single box with two labeled compartments."
+        }
+      ]
+    }
+  ],
+  "genetics_to_tc_guide": {
+    "note": "International strain lineages and their typical Israeli T/C category mapping",
+    "mappings": [
+      { "lineage": "OG Kush (pure)", "typical_tc": "T20-22/C3-5", "terpene_dominants": ["myrcene","limonene","caryophyllene"], "effect": "Pain, sleep, appetite", "he_notes": "בסיס לרוב הזנים הישראלים. מירסן+לימונן גבוה." },
+      { "lineage": "Girl Scout Cookies (GSC)", "typical_tc": "T20-25/C2-4", "terpene_dominants": ["caryophyllene","limonene","myrcene"], "effect": "Euphoric pain relief, appetite", "he_notes": "קריופילן גבוה = אנטי-דלקתי חזק. כאב ו-IBD." },
+      { "lineage": "Harlequin", "typical_tc": "T5-8/C8-14", "terpene_dominants": ["myrcene","pinene","caryophyllene"], "effect": "Balanced pain/anxiety, functional", "he_notes": "מאוזן קלאסי. כאב + חרדה. בטוח לשעות יום." },
+      { "lineage": "ACDC", "typical_tc": "T0-1/C20-24", "terpene_dominants": ["myrcene","caryophyllene","linalool"], "effect": "Pure CBD effects; non-psychoactive", "he_notes": "הזן הקנאביס עם CBD הגבוה ביותר. אפילפסיה, חרדה." },
+      { "lineage": "Granddaddy Purple (GDP)", "typical_tc": "T20-23/C2-4", "terpene_dominants": ["myrcene","linalool","ocimene"], "effect": "Sleep, nausea, appetite, pain", "he_notes": "לינלול גבוה + מירסן = שינה עמוקה. בחילות אונקולוגיה." },
+      { "lineage": "Sour Diesel", "typical_tc": "T20-26/C2-5", "terpene_dominants": ["limonene","caryophyllene","myrcene"], "effect": "Energy, focus, mood, daytime pain", "he_notes": "לימונן גבוה = מרים. לא לחרדה. בוקר/יום בלבד." },
+      { "lineage": "Jack Herer", "typical_tc": "T18-22/C1-3", "terpene_dominants": ["terpinolene","limonene","caryophyllene"], "effect": "Creative, focused, mild pain relief", "he_notes": "טרפינולן + לימונן = אנרגטי. מדכאי-כאב תפקודיים." },
+      { "lineage": "Blue Dream", "typical_tc": "T18-22/C1-2", "terpene_dominants": ["myrcene","caryophyllene","pinene"], "effect": "Balanced body-mind; mild euphoria; pain", "he_notes": "פופולרי בישראל. מאוזן התחשות בין סטיבה לאינדיקה." },
+      { "lineage": "Wedding Cake", "typical_tc": "T22-26/C3-5", "terpene_dominants": ["caryophyllene","limonene","myrcene"], "effect": "Relaxation, euphoria, pain, appetite", "he_notes": "קריופילן גבוה. כאב + מצב רוח. ערב בלבד." },
+      { "lineage": "Northern Lights", "typical_tc": "T18-22/C2-4", "terpene_dominants": ["myrcene","caryophyllene","linalool"], "effect": "Classic sleep, pain, relaxation indica", "he_notes": "הזן הישן-קלאסי של PTSD + שינה. ניחוח עשבוני-אדמתי." },
+      { "lineage": "Zkittlez", "typical_tc": "T20-24/C2-4", "terpene_dominants": ["linalool","caryophyllene","limonene"], "effect": "Relaxation, mood, mild pain, sleep onset", "he_notes": "לינלול גבוה = חרדה + שינה. פרי-מתוק. פופולרי בישראל." },
+      { "lineage": "Cannatonic", "typical_tc": "T6-8/C8-10", "terpene_dominants": ["myrcene","caryophyllene","pinene"], "effect": "Mild pain, anxiety, muscle tension", "he_notes": "קרוב למאוזן. חרדה + כאב בינוני. פחות מחקר ישראלי." },
+      { "lineage": "Charlotte's Web", "typical_tc": "T0/C17-20", "terpene_dominants": ["myrcene","caryophyllene","linalool"], "effect": "CBD-dominant; seizure, anxiety, inflammation", "he_notes": "המקור לרוב ה-CBD strains בעולם. שמש ע״ש פרחן האפילפסיה." },
+      { "lineage": "Critical Mass", "typical_tc": "T18-22/C4-8", "terpene_dominants": ["myrcene","caryophyllene","pinene"], "effect": "Heavy body relaxation, pain, sedation", "he_notes": "כאב גבוה מ-THC + CBD מעט. קרוהן, MS, כאב כרוני." },
+      { "lineage": "Ice Cream Cake", "typical_tc": "T22-26/C3-5", "terpene_dominants": ["limonene","linalool","caryophyllene"], "effect": "Deep relaxation, euphoria, pain, insomnia", "he_notes": "לינלול + לימונן גבוה. שינה עמוקה + כאב. לילה בלבד. פנוטיפ קרם-וניל." },
+      { "lineage": "Gelato #33", "typical_tc": "T20-24/C2-4", "terpene_dominants": ["caryophyllene","linalool","limonene"], "effect": "Pain, euphoria, relaxation, anxiety", "he_notes": "ג'לאטו 33 = ה-Sweet-Indica הפופולרי בעולם. פנוטיפ ייחודי-מגדל." },
+      { "lineage": "Gorilla Glue #4 (GG4)", "typical_tc": "T25-30/C2-4", "terpene_dominants": ["myrcene","caryophyllene","limonene"], "effect": "Heavy sedation, pain, appetite, PTSD", "he_notes": "THC בין הגבוהים בעולם. גלו = מרוסק. כאב עיקש, PTSD, אונקולוגיה." },
+      { "lineage": "GMO / Garlic Cookies", "typical_tc": "T25-30/C2-4", "terpene_dominants": ["caryophyllene","myrcene","limonene"], "effect": "Potent analgesia, sedation, appetite, PTSD", "he_notes": "GMO = GSC × Chemdawg. ניחוח שום/כימי. אחד הפנוטיפים המעוצבים ביותר בעולם." },
+      { "lineage": "Purple Punch", "typical_tc": "T20-23/C2-4", "terpene_dominants": ["linalool","myrcene","caryophyllene"], "effect": "Sleep, pain, nausea, mood", "he_notes": "לינלול גבוה ביותר בין הזנים. ניחוח פירות יער/ענבים. שינה + בחילה." },
+      { "lineage": "Amnesia Haze", "typical_tc": "T20-24/C1-3", "terpene_dominants": ["terpinolene","myrcene","limonene"], "effect": "Euphoria, creativity, focus, daytime", "he_notes": "ארוך טווח. סאטיבה קלאסית. יצירתיות. לא למי שנוטה לחרדה." },
+      { "lineage": "Wedding Crasher", "typical_tc": "T22-26/C3-5", "terpene_dominants": ["caryophyllene","limonene","linalool"], "effect": "Relaxation, euphoria, balanced pain, mood", "he_notes": "Wedding Cake × Purple Punch. שילוב בין הורשת-כאב לשינה." },
+      { "lineage": "Purple Zkittlez", "typical_tc": "T20-24/C2-4", "terpene_dominants": ["limonene","myrcene","caryophyllene"], "effect": "Euphoric relaxation, pain, mood, sleep onset", "he_notes": "Purple Punch × Zkittlez. פירות טרופיים + אינדיקה. שיח-תחיבה בישראל." },
+      { "lineage": "Carbon Fiber", "typical_tc": "T22-26/C3-5", "terpene_dominants": ["humulene","limonene","caryophyllene"], "effect": "Deep relaxation, appetite, pain, sleep", "he_notes": "(Grape Pie × Biscotti) × Cookies and Cream. עוצמתי + שינה. פרוטאין אינדיקה." },
+      { "lineage": "Biscotti", "typical_tc": "T22-26/C2-4", "terpene_dominants": ["caryophyllene","limonene","myrcene"], "effect": "Relaxation, cerebral euphoria, pain", "he_notes": "Gelato #25 × South Florida OG. קוקיס-עוגה. היברידי-אינדיקה עמוק." }
+    ]
+  },
+  "indication_to_product_quickmap": {
+    "note": "Quick clinical reference: indication → best Israeli product categories",
+    "quickmap": {
+      "ptsd": {
+        "primary": ["Eran Almog (Tikun Olam T20/C4)","BOL T20/C4","Psagot Purple T22/C4"],
+        "secondary": ["Avidekel T1/C20 (daytime)","Midnight T15/C1"],
+        "reasoning": "High THC indica + high myrcene/linalool for nightmare suppression (evening); CBD-dominant for daytime anxiety"
+      },
+      "chronic_pain": {
+        "primary": ["BOL T20/C4","BOL T10/C10","Canndoc T20/C4"],
+        "secondary": ["BOL T22/C4 (severe pain)","Seach Balanced T12/C12"],
+        "reasoning": "THC-dominant for neuropathic/severe; balanced for inflammatory/moderate; start with balanced then titrate up"
+      },
+      "epilepsy": {
+        "primary": ["Avidekel T1/C20 (Tikun Olam)","BOL T0/C24","Cannolam High CBD T3/C18"],
+        "secondary": ["BOL T10/C10 (adults with comorbid pain)"],
+        "reasoning": "Highest CBD:THC ratio first; pediatric = T0/C24 or T1/C20 only"
+      },
+      "crohns_ibd": {
+        "primary": ["BOL T10/C10","BOL T20/C4 (acute flare)","GSC-lineage products (high caryophyllene)"],
+        "secondary": ["Avidekel T1/C20 (maintenance, daytime)"],
+        "reasoning": "High caryophyllene for CB2-mediated gut anti-inflammation; THC for acute pain + motility"
+      },
+      "sleep": {
+        "primary": ["Eran Almog T20/C4","BOL T22/C4","Psagot Purple T22/C4","GDP-lineage strains"],
+        "secondary": ["Midnight T15/C1","Seach Indica 20"],
+        "reasoning": "Maximum myrcene + linalool; indica-dominant; highest THC (T20+) for deepest sleep effect"
+      },
+      "anxiety": {
+        "primary": ["Avidekel T1/C20","BOL T0/C24","Cannolam High CBD T3/C18"],
+        "secondary": ["BOL T10/C10 (pain comorbidity)"],
+        "reasoning": "CBD-dominant mandatory for anxiety; THC-dominant CONTRAINDICATED as primary anxiety treatment; T3 with C18 safest threshold with entourage"
+      },
+      "oncology": {
+        "primary": ["BOL T20/C4 (pain + appetite)","BOL T10/C10 (CINV)","Eran Almog (sleep + pain)"],
+        "secondary": ["Avidekel (daytime quality-of-life without psychoactivity)"],
+        "reasoning": "Combination approach: THC-dominant for pain/appetite; balanced for CINV; CBD-dominant for daytime"
+      },
+      "ms": {
+        "primary": ["BOL T10/C10","Seach Balanced T12/C12","BOL T20/C4 (spasm breakthrough)"],
+        "secondary": ["Avidekel (bladder, neuroprotection)"],
+        "reasoning": "Balanced 1:1 per Sativex evidence for spasticity; THC-dominant for breakthrough; CBD for neuroprotection"
+      },
+      "parkinsons": {
+        "primary": ["Avidekel T1/C20 (daily)","BOL T10/C10 (tremor/pain)"],
+        "secondary": ["Eran Almog (evening rigidity + sleep)"],
+        "reasoning": "CBD-dominant for neuroprotection + psychosis; balanced for tremor + pain; THC at night only, start very low"
+      },
+      "fibromyalgia": {
+        "primary": ["BOL T20/C4 (nighttime pain)","Eran Almog T20/C4 (sleep)","Trichome P&Z T22/C4"],
+        "secondary": ["BOL T10/C10 (daytime functional)","Bazelet Balance"],
+        "reasoning": "Nighttime: T20+ indica with myrcene+linalool for sleep restoration (critical — disrupted sleep perpetuates fibromyalgia pain cycle); Daytime: balanced 1:1 for pain without cognitive impairment (fibro-fog risk with high THC)"
+      },
+      "autism_spectrum": {
+        "primary": ["Avidekel T1/C20 (pediatric + adult)","BOL T0/C24 (pediatric)","Bazelet High CBD T3/C15"],
+        "secondary": ["Cannolam High CBD T3/C18 (adult with comorbid anxiety)"],
+        "reasoning": "Israeli MOH ASD protocol: 20:1 CBD:THC minimum; high linalool + limonene for GABA normalization and serotonergic modulation; NEVER THC-dominant for ASD children; adult balanced only under specialist supervision"
+      }
+    }
+  },
+  "genetic_identity_registry": {
+    "note": "Canonical global genetic identities mapped to Israeli commercial products. This is the core of CannaMatch's commercial-name → genetics decoder. Each entry is the authoritative genetic_identity entity; commercial products reference genetic_id. Evidence sources: Health Canada Licensed Producer Product Reports, SC Labs California COA database, Leafly Verified Lab aggregation, academic literature.",
+    "last_updated": "2026-06-18",
+    "identities": [
+      {
+        "genetic_id": "wedding-cake",
+        "display_name": "Wedding Cake",
+        "aliases": ["Pink Cookies","Triangle Mints #23","Birthday Cake"],
+        "parents": ["Triangle Kush","Animal Mints"],
+        "breeder_origin": "Seed Junky Genetics (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [22, 27],
+        "typical_cbd_range_pct": [0.05, 0.5],
+        "typical_terpene_profile": {
+          "caryophyllene": 0.52,
+          "limonene": 0.38,
+          "myrcene": 0.28,
+          "linalool": 0.14,
+          "humulene": 0.11
+        },
+        "phenotype_notes": "Two main phenotypes: Triangle Kush × Animal Mints (Seed Junky original) and Triangle Mints × Kush Mints × White Tahoe Cookies (Peace Naturals / Cronos variant). Both sold as 'Wedding Cake' — this is a cultivar-level distinction, not a naming error.",
+        "israeli_commercial_names": ["Wedding CK (Cronos/Peace Naturals)","The Wedding Cake (Canndoc Humboldt)"],
+        "evidence_sources": ["SC Labs California COA 2022 — average of 47 Wedding Cake samples","Health Canada Cronos Group Product Report 2023","Seed Junky Genetics breeder records"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "ice-cream-cake",
+        "display_name": "Ice Cream Cake",
+        "aliases": ["ICC"],
+        "parents": ["Wedding Cake","Gelato #33"],
+        "breeder_origin": "Seed Junky Genetics (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [22, 26],
+        "typical_cbd_range_pct": [0.05, 0.4],
+        "typical_terpene_profile": {
+          "limonene": 0.55,
+          "linalool": 0.40,
+          "caryophyllene": 0.35,
+          "myrcene": 0.20,
+          "humulene": 0.10
+        },
+        "phenotype_notes": "Exceptionally high linalool relative to typical indica cultivars; this is a defining fingerprint of ICC. Some phenotypes express vanilla/cream aroma from high linalool + geraniol interaction.",
+        "israeli_commercial_names": ["Ice Cream Cake (Canndoc Cali)"],
+        "evidence_sources": ["SC Labs California COA 2022 — average of 31 ICC samples","Leafly Verified Lab aggregation 2023 (n=14 dispensaries)"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "granddaddy-purple",
+        "display_name": "Granddaddy Purple (GDP)",
+        "aliases": ["Grand Daddy Purp","GDP","Granddaddy Purps"],
+        "parents": ["Purple Urkle","Big Bud"],
+        "breeder_origin": "Ken Estes (California, USA, 2003)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [17, 23],
+        "typical_cbd_range_pct": [0.1, 0.5],
+        "typical_terpene_profile": {
+          "myrcene": 0.58,
+          "linalool": 0.44,
+          "ocimene": 0.22,
+          "caryophyllene": 0.18,
+          "pinene": 0.10
+        },
+        "phenotype_notes": "Distinctive deep purple coloration from high anthocyanin expression when grown in cold temperatures; myrcene + linalool synergy produces the most studied terpene sleep formula in cannabis.",
+        "israeli_commercial_names": ["BOL T20/C4 (GDP phenotype)","Psagot Purple T22/C4 (Purple Kush × GDP cross)","Eran Almog (Tikun Olam — shares GDP lineage traits)"],
+        "evidence_sources": ["Steep Hill Labs California GDP COA aggregation 2021","Leafly Verified 2023 (n=22 samples)"],
+        "confidence": "high"
+      },
+      {
+        "genetic_id": "og-kush",
+        "display_name": "OG Kush",
+        "aliases": ["OG","Original Kush","Premium OG"],
+        "parents": ["Chemdawg","Hindu Kush (landrace)"],
+        "breeder_origin": "Florida/California crossover, early 1990s; exact origin debated",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [19, 24],
+        "typical_cbd_range_pct": [0.05, 0.3],
+        "typical_terpene_profile": {
+          "myrcene": 0.48,
+          "limonene": 0.38,
+          "caryophyllene": 0.30,
+          "linalool": 0.12,
+          "pinene": 0.10
+        },
+        "phenotype_notes": "The most cloned cultivar in history; basis for OG Kush derivatives (Fire OG, Tahoe OG, SFV OG, Larry OG). Israeli market heavily influenced by OG lineage — most cultivators have OG Kush or OG-derivative in their catalog.",
+        "israeli_commercial_names": ["Multiple — OG-lineage is the most common foundation in Israeli indica catalog"],
+        "evidence_sources": ["SC Labs historical COA database 2019-2023","Phylos Bioscience genetic clustering 2020"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "girl-scout-cookies",
+        "display_name": "Girl Scout Cookies (GSC)",
+        "aliases": ["GSC","Cookies","Forum Cut","Thin Mint"],
+        "parents": ["OG Kush","Durban Poison"],
+        "breeder_origin": "Cookie Family (California, USA, ~2012)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [19, 28],
+        "typical_cbd_range_pct": [0.09, 0.3],
+        "typical_terpene_profile": {
+          "caryophyllene": 0.58,
+          "limonene": 0.42,
+          "myrcene": 0.30,
+          "linalool": 0.15,
+          "humulene": 0.12
+        },
+        "phenotype_notes": "Two dominant cuts: Forum Cut (higher THC, sweeter) and Thin Mint (higher caryophyllene, more medicinal; better for IBD). Israeli market has both phenotypes under various commercial names.",
+        "israeli_commercial_names": ["GSC-lineage products from multiple cultivators — basis for Cookies and Cream, Biscotti, Gelato, and Carbon Fiber lineages in Israel"],
+        "evidence_sources": ["SC Labs California COA aggregation 2022 (n=61 samples)","Leafly Verified 2023"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "gelato-33",
+        "display_name": "Gelato #33",
+        "aliases": ["Gelato 33","Larry Bird","Gelato"],
+        "parents": ["Sunset Sherbet","Thin Mint Girl Scout Cookies"],
+        "breeder_origin": "Cookie Family / Sherbinskis (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [20, 25],
+        "typical_cbd_range_pct": [0.05, 0.3],
+        "typical_terpene_profile": {
+          "caryophyllene": 0.48,
+          "linalool": 0.38,
+          "limonene": 0.32,
+          "myrcene": 0.22,
+          "ocimene": 0.10
+        },
+        "phenotype_notes": "One of ~7 numbered Gelato phenotypes; #33 ('Larry Bird') became the most widely distributed. Flavor profile: sweet cream, berry, citrus. Parent of Ice Cream Cake and a major Israeli market strain.",
+        "israeli_commercial_names": ["Better Gelato T20/C4","Component of Ice Cream Cake (Canndoc)"],
+        "evidence_sources": ["Sherbinskis San Francisco lab verification 2021","SC Labs California COA 2022 (n=18 Gelato #33 samples)"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "gmo-garlic-cookies",
+        "display_name": "GMO (Garlic Cookies)",
+        "aliases": ["Garlic Cookies","GMO Cookies","Garlic Mushroom Onion"],
+        "parents": ["Girl Scout Cookies","Chemdawg"],
+        "breeder_origin": "Mamiko Seeds (initial); popularized by Divine Genetics",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [24, 30],
+        "typical_cbd_range_pct": [0.04, 0.2],
+        "typical_terpene_profile": {
+          "caryophyllene": 0.62,
+          "myrcene": 0.50,
+          "limonene": 0.22,
+          "linalool": 0.16,
+          "humulene": 0.14
+        },
+        "phenotype_notes": "Highest caryophyllene expression among Israeli market strains; THC in 24-30% range in verified COAs. The 'garlic/diesel/chemical' aroma is produced by the sulfur compound interaction with caryophyllene. One of the most potent pain-relief profiles available.",
+        "israeli_commercial_names": ["Better GMO T22/C4"],
+        "evidence_sources": ["Confident Cannabis COA aggregation 2022 (n=9 GMO verified samples)","Leafly Verified 2023 (n=6)"],
+        "confidence": "high"
+      },
+      {
+        "genetic_id": "purple-punch",
+        "display_name": "Purple Punch",
+        "aliases": ["Purple Punch #1","Larry OG × GDP"],
+        "parents": ["Larry OG","Granddaddy Purple"],
+        "breeder_origin": "Supernova Gardens (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [18, 22],
+        "typical_cbd_range_pct": [0.1, 0.5],
+        "typical_terpene_profile": {
+          "linalool": 0.60,
+          "myrcene": 0.48,
+          "caryophyllene": 0.24,
+          "ocimene": 0.16,
+          "humulene": 0.08
+        },
+        "phenotype_notes": "Highest linalool among commercially available indica cultivars; linalool fraction frequently exceeds 0.5% by weight. Classic sedating indica for sleep and nausea. Parent of Wedding Crasher and Purple Zkittlez.",
+        "israeli_commercial_names": ["Parent of Wedding K (Seach) via Wedding Crasher","Parent of P&Z (Trichome) via Purple Zkittlez"],
+        "evidence_sources": ["SC Labs California 2022 (n=12 Purple Punch verified COAs)","MCR Labs Massachusetts 2021"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "purple-zkittlez",
+        "display_name": "Purple Zkittlez",
+        "aliases": ["Purple Skittles"],
+        "parents": ["Purple Punch","Zkittlez"],
+        "breeder_origin": "3rd Coast Genetics (Michigan, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [20, 24],
+        "typical_cbd_range_pct": [0.05, 0.3],
+        "typical_terpene_profile": {
+          "limonene": 0.48,
+          "myrcene": 0.38,
+          "caryophyllene": 0.28,
+          "linalool": 0.22,
+          "ocimene": 0.12
+        },
+        "phenotype_notes": "Combines Zkittlez tropical candy aroma with Purple Punch grape/berry relaxation; very popular in Israeli import market due to aroma profile and consistent effect.",
+        "israeli_commercial_names": ["P&Z (Trichome)"],
+        "evidence_sources": ["Confidence Cannabis aggregation 2023 (n=5)","Leafly Verified 2023"],
+        "confidence": "high"
+      },
+      {
+        "genetic_id": "carbon-fiber",
+        "display_name": "Carbon Fiber",
+        "aliases": ["Carbon Fiber OG"],
+        "parents": ["Grape Pie × Biscotti","Cookies and Cream"],
+        "breeder_origin": "Compound Genetics (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [22, 27],
+        "typical_cbd_range_pct": [0.04, 0.2],
+        "typical_terpene_profile": {
+          "humulene": 0.44,
+          "limonene": 0.38,
+          "caryophyllene": 0.32,
+          "linalool": 0.18,
+          "myrcene": 0.14
+        },
+        "phenotype_notes": "Distinctive humulene-dominant terpene profile; unusual earthy-hoppy aroma distinct from typical cookie/dessert strains. Anti-inflammatory profile via humulene + caryophyllene dual pathway.",
+        "israeli_commercial_names": ["Carbo (Trichome)"],
+        "evidence_sources": ["Compound Genetics breeder verification 2022","SC Labs California COA (n=4)"],
+        "confidence": "high"
+      },
+      {
+        "genetic_id": "gorilla-glue-4",
+        "display_name": "Gorilla Glue #4 (GG4)",
+        "aliases": ["GG4","Original Glue","Gorilla Glue"],
+        "parents": ["Chem Sister","Sour Dubb","Chocolate Diesel"],
+        "breeder_origin": "GG Strains (USA, 2014 High Times Cannabis Cup winner)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [25, 30],
+        "typical_cbd_range_pct": [0.05, 0.2],
+        "typical_terpene_profile": {
+          "myrcene": 0.62,
+          "caryophyllene": 0.40,
+          "limonene": 0.28,
+          "humulene": 0.16,
+          "linalool": 0.10
+        },
+        "phenotype_notes": "One of the highest-THC cultivars in the global market; myrcene-dominant with diesel notes from Chemdawg lineage. 'Glue' refers to the extreme resin production. Used in Israeli market for treatment-resistant pain cases.",
+        "israeli_commercial_names": ["Various — typically listed as high-potency THC product; GG4 genetics available through multiple Israeli cultivators"],
+        "evidence_sources": ["SC Labs California COA 2022 (n=22 GG4 samples)","Phylos Bioscience genetic mapping 2020"],
+        "confidence": "high"
+      },
+      {
+        "genetic_id": "amnesia-haze",
+        "display_name": "Amnesia Haze",
+        "aliases": ["Amnesia","AM Haze"],
+        "parents": ["South Asian × Jamaican × Laos × Hawaiian landrace mix"],
+        "breeder_origin": "Amsterdam (Netherlands) underground breeding, early 2000s; popularized by Soma Seeds and Barney's Farm",
+        "chemotype": "THC-dominant sativa",
+        "typical_thc_range_pct": [20, 25],
+        "typical_cbd_range_pct": [0.1, 0.4],
+        "typical_terpene_profile": {
+          "terpinolene": 0.52,
+          "myrcene": 0.36,
+          "limonene": 0.30,
+          "caryophyllene": 0.18,
+          "ocimene": 0.14
+        },
+        "phenotype_notes": "Terpinolene-dominant — one of few commercially significant cannabis strains where terpinolene is the leading terpene. Classic Amsterdam sativa landrace hybrid; long (10-12 week) flowering time. NOT for anxiety-prone patients due to terpinolene stimulatory risk.",
+        "israeli_commercial_names": ["Bazelet G T22/C4 (Amnesia Haze lineage)","JU (Medicane — classified as sativa-daytime)"],
+        "evidence_sources": ["Bedrocan Netherlands COA (Amnesia Haze is one of Bedrocan's registered products)","Leafly Verified 2023 (n=9)"],
+        "confidence": "verified"
+      },
+      {
+        "genetic_id": "wedding-crasher",
+        "display_name": "Wedding Crasher",
+        "aliases": ["Wedding Crasher OG"],
+        "parents": ["Wedding Cake","Purple Punch"],
+        "breeder_origin": "Symbiotic Genetics (California, USA)",
+        "chemotype": "THC-dominant",
+        "typical_thc_range_pct": [20, 25],
+        "typical_cbd_range_pct": [0.05, 0.3],
+        "typical_terpene_profile": {
+          "caryophyllene": 0.44,
+          "limonene": 0.38,
+          "linalool": 0.32,
+          "myrcene": 0.24,
+          "ocimene": 0.10
+        },
+        "phenotype_notes": "Combines Wedding Cake's caryophyllene-dominant pain profile with Purple Punch's high linalool sedative signature. Balanced hybrid trending toward indica in effect. Popular in Israeli select lineup (Seach).",
+        "israeli_commercial_names": ["Wedding K (Seach Selected)"],
+        "evidence_sources": ["Symbiotic Genetics breeder records","SC Labs California COA 2022 (n=7)"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "commercial_product_registry": {
+    "note": "Israeli commercial products with resolved genetic_id pointers. Links the commercial name (what patients see on the box) to the canonical global genetic identity. This is the core decoder engine for CannaMatch's name-disambiguation feature.",
+    "last_updated": "2026-06-18",
+    "products": [
+      {
+        "product_id": "wedding-ck-cronos-001",
+        "producer": "Cronos Group / Peace Naturals",
+        "brand_label": "Peace Naturals",
+        "commercial_name": "Wedding CK",
+        "commercial_name_norm": "wedding ck",
+        "tc_category": "T22/C4",
+        "genetic_id": "wedding-cake",
+        "lineage_variant": "Triangle Mints × Kush Mints × White Tahoe Cookies (Peace Naturals phenotype — distinct from Seed Junky original)",
+        "confidence": "high",
+        "source": "Public Peace Naturals product catalog 2023"
+      },
+      {
+        "product_id": "the-wedding-cake-canndoc-001",
+        "producer": "Canndoc",
+        "brand_label": "Canndoc Humboldt",
+        "commercial_name": "The Wedding Cake",
+        "commercial_name_norm": "the wedding cake",
+        "tc_category": "T20/C4",
+        "genetic_id": "wedding-cake",
+        "lineage_variant": "Triangle Kush × Animal Mints (Seed Junky original lineage)",
+        "confidence": "high",
+        "source": "Canndoc Humboldt product catalog 2023"
+      },
+      {
+        "product_id": "wedding-k-seach-001",
+        "producer": "Seach",
+        "brand_label": "Seach Selected",
+        "commercial_name": "Wedding K",
+        "commercial_name_norm": "wedding k",
+        "tc_category": "T22/C4",
+        "genetic_id": "wedding-crasher",
+        "lineage_variant": "Wedding Cake × Purple Punch (Symbiotic Genetics Wedding Crasher)",
+        "confidence": "high",
+        "source": "Seach Selected product catalog 2023"
+      },
+      {
+        "product_id": "ice-cream-cake-canndoc-001",
+        "producer": "Canndoc",
+        "brand_label": "Canndoc Cali",
+        "commercial_name": "Ice Cream Cake",
+        "commercial_name_norm": "ice cream cake",
+        "tc_category": "T20/C4",
+        "genetic_id": "ice-cream-cake",
+        "lineage_variant": "Wedding Cake × Gelato #33 (standard ICC)",
+        "confidence": "high",
+        "source": "Canndoc Cali product catalog 2023"
+      },
+      {
+        "product_id": "pz-trichome-001",
+        "producer": "Trichome",
+        "brand_label": "Trichome",
+        "commercial_name": "P&Z",
+        "commercial_name_norm": "p&z",
+        "tc_category": "T22/C4",
+        "genetic_id": "purple-zkittlez",
+        "lineage_variant": "Purple Punch × Zkittlez (3rd Coast Genetics)",
+        "confidence": "high",
+        "source": "Trichome product catalog and public genetics disclosure 2023"
+      },
+      {
+        "product_id": "carbo-trichome-001",
+        "producer": "Trichome",
+        "brand_label": "Trichome",
+        "commercial_name": "Carbo",
+        "commercial_name_norm": "carbo",
+        "tc_category": "T22/C4",
+        "genetic_id": "carbon-fiber",
+        "lineage_variant": "(Grape Pie × Biscotti) × Cookies and Cream (Compound Genetics Carbon Fiber)",
+        "confidence": "high",
+        "source": "Trichome product catalog and public genetics disclosure 2023"
+      },
+      {
+        "product_id": "gmo-better-001",
+        "producer": "Better",
+        "brand_label": "Better",
+        "commercial_name": "Better GMO",
+        "commercial_name_norm": "better gmo",
+        "tc_category": "T22/C4",
+        "genetic_id": "gmo-garlic-cookies",
+        "lineage_variant": "Girl Scout Cookies × Chemdawg (Divine Genetics GMO)",
+        "confidence": "high",
+        "source": "Better brand public catalog 2023"
+      },
+      {
+        "product_id": "gelato-better-001",
+        "producer": "Better",
+        "brand_label": "Better",
+        "commercial_name": "Better Gelato",
+        "commercial_name_norm": "better gelato",
+        "tc_category": "T20/C4",
+        "genetic_id": "gelato-33",
+        "lineage_variant": "Sunset Sherbet × Thin Mint GSC (Gelato #33 — Larry Bird cut)",
+        "confidence": "high",
+        "source": "Better brand public catalog 2023"
+      },
+      {
+        "product_id": "eran-almog-tikun-001",
+        "producer": "Tikun Olam",
+        "brand_label": "Tikun Olam",
+        "commercial_name": "Eran Almog",
+        "commercial_name_norm": "eran almog",
+        "tc_category": "T20/C4",
+        "genetic_id": "granddaddy-purple",
+        "lineage_variant": "GDP-lineage Israeli phenotype — stabilized over multiple generations by Tikun Olam breeding program",
+        "confidence": "moderate",
+        "note": "Exact genetic lineage is proprietary to Tikun Olam; GDP lineage inferred from terpene profile (myrcene + linalool dominant), effect profile, and phenotypic traits",
+        "source": "Tikun Olam strain library; peer-reviewed studies on Eran Almog: Bar-Lev Schleider et al. 2016"
+      },
+      {
+        "product_id": "alaska-tikun-001",
+        "producer": "Tikun Olam",
+        "brand_label": "Tikun Olam",
+        "commercial_name": "Alaska",
+        "commercial_name_norm": "alaska",
+        "tc_category": "T20/C4",
+        "genetic_id": "og-kush",
+        "lineage_variant": "OG Kush × Sativa hybrid — Tikun Olam daytime sativa selection; high limonene expression",
+        "confidence": "moderate",
+        "note": "Sativa-dominant counterpart to Eran Almog; limonene-dominant terpene profile (vs myrcene-dominant in Eran Almog); confirms OG-lineage basis inferred from chemical profile",
+        "source": "Tikun Olam strain library; published Tikun Olam COA data"
+      },
+      {
+        "product_id": "avidekel-tikun-001",
+        "producer": "Tikun Olam",
+        "brand_label": "Tikun Olam",
+        "commercial_name": "Avidekel",
+        "commercial_name_norm": "avidekel",
+        "tc_category": "T1/C20",
+        "genetic_id": "acdc",
+        "lineage_variant": "ACDC-lineage high-CBD cultivar; Tikun Olam proprietary CBD selection developed in partnership with Israeli MOH epilepsy trials",
+        "confidence": "moderate",
+        "note": "Avidekel is one of Israel's oldest licensed high-CBD strains; used in Tikun Olam's published pediatric epilepsy studies (Tzadok et al. 2016)",
+        "source": "Tzadok et al. 2016 (Epilepsy Behav); Tikun Olam public product library"
+      },
+      {
+        "product_id": "bol-t20-001",
+        "producer": "BOL Pharma (Breath of Life)",
+        "brand_label": "BOL Pharma",
+        "commercial_name": "BOL T20/C4",
+        "commercial_name_norm": "bol t20",
+        "tc_category": "T20/C4",
+        "genetic_id": "og-kush",
+        "lineage_variant": "OG Kush × Afghani indica selection — BOL Pharma's primary T20 clinical product; used in BOL-sponsored PTSD and pain clinical trials",
+        "confidence": "moderate",
+        "source": "BOL Pharma product catalog; BOL clinical trial registrations (ClinicalTrials.gov)"
+      },
+      {
+        "product_id": "bol-t0-c24-001",
+        "producer": "BOL Pharma (Breath of Life)",
+        "brand_label": "BOL Pharma",
+        "commercial_name": "BOL T0/C24",
+        "commercial_name_norm": "bol t0 c24",
+        "tc_category": "T0/C24",
+        "genetic_id": "acdc",
+        "lineage_variant": "Ultra-high CBD ACDC/Charlotte's Web cross — BOL's pure-CBD pharmaceutical product; near-zero THC; used for pediatric epilepsy and ASD protocols",
+        "confidence": "high",
+        "source": "BOL Pharma product catalog; pediatric epilepsy clinical usage documentation"
+      },
+      {
+        "product_id": "midnight-tikun-001",
+        "producer": "Tikun Olam",
+        "brand_label": "Tikun Olam",
+        "commercial_name": "Midnight",
+        "commercial_name_norm": "midnight",
+        "tc_category": "T15/C1",
+        "genetic_id": "northern-lights",
+        "lineage_variant": "Northern Lights phenotype selection — lower-potency companion to Eran Almog; T15 for patients who need sleep support without T20+ intensity",
+        "confidence": "high",
+        "source": "Tikun Olam strain library; published clinical data referencing Midnight for PTSD sleep"
+      },
+      {
+        "product_id": "seach-indica20-001",
+        "producer": "Seach",
+        "brand_label": "Seach",
+        "commercial_name": "Seach Indica 20",
+        "commercial_name_norm": "seach indica 20",
+        "tc_category": "T20/C4",
+        "genetic_id": "og-kush",
+        "lineage_variant": "OG Kush × Northern Lights indica — Seach standard line (non-Selected); more accessible price point than Seach Selected line",
+        "confidence": "moderate",
+        "source": "Seach product catalog 2023"
+      },
+      {
+        "product_id": "tehelet-seach-001",
+        "producer": "Seach",
+        "brand_label": "Seach",
+        "commercial_name": "Tehelet",
+        "commercial_name_norm": "tehelet",
+        "tc_category": "T20/C4",
+        "genetic_id": "amnesia-haze",
+        "lineage_variant": "Sativa-dominant (likely Haze derivative); daytime product; Seach describes as 'energizing and uplifting day strain'",
+        "confidence": "moderate",
+        "source": "Seach catalog 2023; terpene profile (limonene-dominant) consistent with Haze lineage"
+      },
+      {
+        "product_id": "imc-select-t22-001",
+        "producer": "IMC (International Medical Cannabis)",
+        "brand_label": "IMC Select",
+        "commercial_name": "IMC Select T22",
+        "commercial_name_norm": "imc select t22",
+        "tc_category": "T22/C4",
+        "genetic_id": "og-kush",
+        "lineage_variant": "Premium indoor OG-derivative; IMC-GAL proprietary phenotype",
+        "confidence": "moderate",
+        "source": "IMC product catalog; IMCA TASE filings 2023"
+      }
+    ]
+  },
+  "rwe_layer_schema": {
+    "note": "Real-World Evidence (RWE) patient reporting layer. Defines how aggregated, anonymized patient reports flow from individual ratings into community-level insights visible in the app. This is the spec the backend cron job and the frontend community_stats display must implement.",
+    "source_spec_section": "product-specification.md §3.4, §3.5, §4 (community_stats table)",
+    "privacy_guarantee": "Individual reports are NEVER surfaced. Only aggregate community_stats with k-anonymity threshold n≥20. RLS (Row Level Security) on all tables. No cross-user queries client-side.",
+    "data_flow": {
+      "step_1_capture": "User submits a rating (1–10) for a specific batch_id with optional indication_id context → stored in `ratings` table",
+      "step_2_aggregate": "Cron job (scheduled, not real-time) aggregates ratings per (batch_id, indication_id, region) → computes avg_score, n_reports, helped_pct → writes to `community_stats`",
+      "step_3_serve": "GET /api/community-stats?strain_id=X&indication_id=Y → returns community_stats row if n_reports ≥ 20, else returns null",
+      "step_4_display": "Frontend renders community_stats as 'trusted friend' card in strain detail panel — never as clinical evidence"
+    },
+    "community_stats_entity": {
+      "fields": {
+        "batch_id": "UUID — links to specific batch (batch-centric per spec §4)",
+        "strain_id": "UUID — denormalized for query convenience (joins to strains table)",
+        "indication_id": "string — one of the indication ids (ptsd, pain, sleep, etc.) or null for overall",
+        "region": "string — optional regional segmentation (north/center/south/other)",
+        "avg_score": "float 1.0–10.0 — weighted average of patient ratings for this batch×indication",
+        "helped_pct": "float 0–100 — percentage of reporters who gave score ≥ 7 (binary helped/not proxy)",
+        "n_reports": "integer — total reports; displayed only when ≥ 20 (k-anonymity threshold)",
+        "updated_at": "timestamp — last cron update; frontend should show 'freshness' badge if older than 30 days"
+      },
+      "api_response_shape": {
+        "strain_id": "string",
+        "indication_id": "string or null",
+        "avg_score": 7.4,
+        "helped_pct": 74,
+        "n_reports": 47,
+        "indication_note": "Optional human-readable note generated by AI from the aggregate pattern (e.g., 'patients with sleep issues reported best results with evening oil use')",
+        "updated_at": "2026-06-10T08:00:00Z"
+      },
+      "null_response": "If n_reports < 20 OR no data exists, API returns null. Frontend shows nothing — never fabricate community data."
+    },
+    "trusted_friend_tone_framework": {
+      "principle": "Patients want to know what worked for people like them — not clinical promises. The 'trusted friend' framing delivers real community knowledge with radical honesty about what it is.",
+      "display_rules": {
+        "always_use": [
+          "מטופלים שדיווחו על כך — לא הוכחה קלינית",
+          "X% מהמדווחים ציינו...",
+          "מה שמטופלים דומים לך מספרים מהשטח",
+          "הדאטה שלנו מראה — אבל כל מטופל שונה",
+          "מבוסס על [N] דיווחים אנונימיים"
+        ],
+        "never_use": [
+          "מוכח",
+          "מחקרים הראו (when citing patient reports, not peer-reviewed studies)",
+          "יעיל ל... (without qualification)",
+          "מבטיח",
+          "100% (for patient-reported outcomes)"
+        ]
+      },
+      "ui_component_spec": {
+        "trigger": "Displayed only when community_stats.n_reports ≥ 20",
+        "heading": "🤝 מה מטופלים דומים לך מדווחים",
+        "score_badge": "[avg_score]/10 — shown in green accent color",
+        "progress_bar": "helped_pct as a filled green bar with percentage label",
+        "body_text": "indication_note from API, or fallback: 'מבוסס על [n] דיווחים אנונימיים של מטופלים — לא הוכחה קלינית, אבל חוכמה אמיתית מהשטח.'",
+        "footer": "כל הדאטה מצטבר ואנונימי. מוצג רק כשיש ≥20 דיווחים.",
+        "background": "rgba(46,107,83,0.06) with 1px border rgba(46,107,83,0.18)"
+      },
+      "ai_agent_rules": {
+        "rule_10": "כלל החבר המהימן — RWE: כשמציג נתוני קהילה, השתמש תמיד בניסוח 'מטופלים שדיווחו' לא 'מחקרים'. לעולם לא 'מוכח'.",
+        "community_signal_weight": "Community data is contextual signal, not override. If community_stats contradicts clinical indication data, present both: 'המחקר מצביע על X, ומטופלים מהקהילה שלנו מדווחים Y — שתיהן תובנות ערכיות.'"
+      }
+    }
+  },
+  "three_layer_producer_model": {
+    "note": "The Israeli medical cannabis market operates on a three-layer commercial resolution. Every product on a patient's prescription can be decomposed into these three distinct entities. CannaMatch uses this model to resolve commercial names → genetics and to flag cases where the same genetic identity is sold under different names by different producers.",
+    "layers": {
+      "layer_1_producer": {
+        "definition": "The entity holding the Israeli MOH cannabis cultivation license (domestic) or import license (foreign flower). This is the legal responsible party. May or may not appear on the patient box.",
+        "examples": ["BOL Pharma (Breath of Life)","Tikun Olam","IMC-GAL","Cronos Group","Pharmocann","Seach","Bazelet","Together Pharma","Trichome","Better","Cannassure","Green Fields","Canonic"]
+      },
+      "layer_2_brand": {
+        "definition": "The marketing and labeling entity. For domestic producers, this often equals Layer 1. For imported/white-labeled products, the brand is Israeli but the producer is foreign. The brand name appears on the box and in pharmacy systems.",
+        "examples": {
+          "domestic_equals_brand": ["Tikun Olam (producer = brand)","BOL Pharma (producer = brand)","Seach (producer = brand)"],
+          "brand_over_foreign_producer": ["Peace Naturals (brand) over Cronos Group Canada (producer)","Canndoc Humboldt (brand) over Humboldt Seed Organization genetics","EDISON (brand) over Organigram Canada (producer) via IMC import"]
+        }
+      },
+      "layer_3_sku": {
+        "definition": "The specific commercial name printed on the prescription box — the product the patient and pharmacist work with. This is the string in pharmacy inventory systems and what patients search. Example: 'Wedding CK', 'P&Z', 'Eran Almog', 'Carbo'.",
+        "pharmacy_system_note": "Israeli pharmacy dispensing systems (Katom, etc.) use the commercial name as the primary identifier. The same commercial name from different pharmacies may reference different production batches with different terpene profiles — this is the core problem CannaMatch solves."
+      }
+    },
+    "resolved_examples": [
+      {
+        "layer_1_producer": "Cronos Group (Toronto, Canada)",
+        "layer_2_brand": "Peace Naturals",
+        "layer_3_sku": "Wedding CK",
+        "genetic_id": "wedding-cake",
+        "patient_sees": "Wedding CK (T22/C4) on prescription box",
+        "cannamatch_decodes_to": "Wedding Cake genetics = Triangle Mints × Kush Mints × White Tahoe Cookies (Peace Naturals phenotype)"
+      },
+      {
+        "layer_1_producer": "Trichome (Israel)",
+        "layer_2_brand": "Trichome",
+        "layer_3_sku": "P&Z",
+        "genetic_id": "purple-zkittlez",
+        "patient_sees": "P&Z (T22/C4) on prescription box",
+        "cannamatch_decodes_to": "Purple Zkittlez genetics = Purple Punch × Zkittlez"
+      },
+      {
+        "layer_1_producer": "IMC-GAL Ltd. (Israel, importer of Organigram products)",
+        "layer_2_brand": "EDISON Cannabis Company (via IMC import)",
+        "layer_3_sku": "EDISON product SKU",
+        "genetic_id": "various-canadian-genetics",
+        "patient_sees": "EDISON [product name] on prescription box",
+        "cannamatch_decodes_to": "Canadian-bred genetics (Organigram); genetics depend on specific SKU"
+      },
+      {
+        "layer_1_producer": "Seach (Israel)",
+        "layer_2_brand": "Seach Selected",
+        "layer_3_sku": "Wedding K",
+        "genetic_id": "wedding-crasher",
+        "patient_sees": "Wedding K (T22/C4) on prescription box",
+        "cannamatch_decodes_to": "Wedding Crasher genetics = Wedding Cake × Purple Punch — NOT Wedding Cake despite the name similarity"
+      }
+    ],
+    "cannamatch_core_value": "Without CannaMatch, a patient who receives 'Wedding CK' (Cronos) and 'The Wedding Cake' (Canndoc) and 'Wedding K' (Seach) has no way to know they are receiving three related but distinct genetic products. CannaMatch maps all three to the same genetic_identity_registry family (wedding-cake / wedding-crasher) and decodes the actual lineage differences."
+  },
+  "import_supply_chain": {
+    "note": "Foreign-to-Israeli supply chain mappings. Documented import pathways from international producers into the Israeli medical cannabis market. All entries based on public information: press releases, regulatory filings, and licensed producer reports. Confidence ratings applied per entry.",
+    "last_updated": "2026-06-18",
+    "regulatory_framework": "Israeli MOH Import License Framework: foreign flower must be GMP-certified (EU-GMP or equivalent). Importer holds Israeli MOH import license. All foreign products must pass Israeli MOH quality control on arrival. T/C categorization is assigned by Israeli laboratory testing — original foreign label may differ.",
+    "pathways": [
+      {
+        "pathway_id": "cronos-peacenaturals-israel",
+        "foreign_producer": "Cronos Group Inc.",
+        "producer_country": "Canada (Ontario)",
+        "producer_gmp_status": "Health Canada EU-GMP equivalent",
+        "israeli_importer_brand": "Peace Naturals",
+        "import_vehicle": "Cronos Israel subsidiary",
+        "known_products_in_israel": ["Wedding CK T22/C4","Various Spinach brand products"],
+        "confidence": "high",
+        "source": "Cronos Group annual reports; public Israeli pharmacy listings; Cronos Group press releases 2019-2023"
+      },
+      {
+        "pathway_id": "organigram-imc-israel",
+        "foreign_producer": "Organigram Holdings Inc.",
+        "producer_country": "Canada (New Brunswick)",
+        "producer_gmp_status": "Health Canada licensed; EU-GMP certification",
+        "israeli_importer_brand": "EDISON Cannabis Company (via IMC-GAL)",
+        "import_vehicle": "IMC-GAL Ltd. distribution agreement",
+        "agreement_announced": "March 2021",
+        "known_products_in_israel": ["EDISON Cannabis branded flower products"],
+        "confidence": "high",
+        "source": "Organigram Holdings press release March 2021; IMC-GAL TASE filings"
+      },
+      {
+        "pathway_id": "imc-portugal-israel",
+        "foreign_producer": "IMC Portugal (Casa Leão JV)",
+        "producer_country": "Portugal",
+        "producer_gmp_status": "EU GMP certified (INFARMED licensed)",
+        "israeli_importer_brand": "IMC",
+        "import_vehicle": "IMC-GAL vertically integrated reverse-import (Israeli company owns foreign cultivation)",
+        "known_products_in_israel": ["IMC-sourced EU GMP flower products; IMC CBD T1/C20"],
+        "confidence": "high",
+        "source": "IMC-GAL TASE annual reports 2021-2023; IMC investor presentations"
+      },
+      {
+        "pathway_id": "bedrocan-netherlands-israel",
+        "foreign_producer": "Bedrocan International BV",
+        "producer_country": "Netherlands",
+        "producer_gmp_status": "Dutch Office for Medicinal Cannabis (OMC) licensed; EU GMP",
+        "israeli_importer_brand": "Bedrocan (direct label — pharmaceutical cannabis)",
+        "import_vehicle": "Pharmaceutical import license (hospitals and specialized pharmacies)",
+        "known_products_in_israel": [
+          "Bedrocan (22% THC, <1% CBD, flos — granulate or flos form)",
+          "Bediol (6.3% THC, 8% CBD — granulate)",
+          "Bedrolite (<1% THC, 9% CBD — granulate)"
+        ],
+        "note": "Bedrocan products are standardized pharmacopoeia cannabis — the most precisely characterized cannabis available. Available in Israel through specialized hospital pharmacy dispensing for specific patient groups.",
+        "confidence": "high",
+        "source": "Bedrocan International product catalog; Dutch OMC records; Israeli MOH import approvals"
+      },
+      {
+        "pathway_id": "aurora-cannabis-israel",
+        "foreign_producer": "Aurora Cannabis Inc.",
+        "producer_country": "Canada (Alberta)",
+        "producer_gmp_status": "Health Canada licensed; EU-GMP via Aurora Nordic",
+        "israeli_importer_brand": "Various (Aurora brand; historical MedReleaf partnerships)",
+        "import_vehicle": "Aurora international division; historical MedReleaf Israel relationship (pre-2018 acquisition)",
+        "known_products_in_israel": ["Various Aurora-branded T/C category products"],
+        "confidence": "moderate",
+        "source": "Aurora Cannabis international market filings; industry conference disclosures iCAN 2022"
+      },
+      {
+        "pathway_id": "tilray-aphria-israel",
+        "foreign_producer": "Tilray Brands Inc. (formerly Aphria / Nuuvera)",
+        "producer_country": "Canada; Portugal (Tilray Portugal operations)",
+        "producer_gmp_status": "Health Canada licensed; EU GMP (Tilray Portugal)",
+        "israeli_importer_brand": "Various (Nuuvera was Tilray's international distribution arm before integration)",
+        "import_vehicle": "Nuuvera international operations (now integrated into Tilray Brands)",
+        "known_products_in_israel": ["Various Tilray/Aphria branded products"],
+        "confidence": "moderate",
+        "source": "Nuuvera international operations reports 2017-2019; Tilray investor filings"
+      }
+    ]
+  },
+  "fuzzy_match_alias_matrix": {
+    "note": "Comprehensive alias and normalization table for Israeli pharmacy menu parsing. Covers: (1) Hebrew phonetic transliterations of English strain names, (2) common typos and spelling variants, (3) abbreviations used in pharmacy dispensing systems, (4) legacy pre-regulation slang from Israeli Telegrass/street culture, (5) partial names and truncations. Used by the menu-parse endpoint (api/routes/menu.js) and the normalization engine (api/lib/normalization.js).",
+    "normalization_rules": {
+      "step_1": "Lowercase and strip diacritics/geresh from Hebrew input",
+      "step_2": "Strip common prefixes: 'the', 'ה', 'דה', 'סדרת', 'מבית', 'selected', 'סלקטד'",
+      "step_3": "Match against canonical_norm field using trigram similarity (threshold 0.65)",
+      "step_4": "Fall back to Levenshtein distance ≤ 2 on normalized token set",
+      "step_5": "If still unmatched, send to ai-genetics-inference.js for LLM fallback"
+    },
+    "aliases": [
+      {
+        "canonical_name": "Eran Almog",
+        "canonical_norm": "eran almog",
+        "producer_hint": "tikun_olam",
+        "variants": [
+          "eran almon", "iran almog", "eran", "ea", "e.a", "אלמוג", "ערן אלמוג", "ע.א", "EA T20", "almog"
+        ]
+      },
+      {
+        "canonical_name": "Avidekel",
+        "canonical_norm": "avidekel",
+        "producer_hint": "tikun_olam",
+        "variants": [
+          "avide", "avidelel", "avid", "avidekel cbd", "אבידקל", "אוידקל", "AVID", "AV", "avi", "avidekel 20:1"
+        ]
+      },
+      {
+        "canonical_name": "Midnight",
+        "canonical_norm": "midnight",
+        "producer_hint": "tikun_olam",
+        "variants": [
+          "midnigh", "mid night", "T15 midnight", "מידנייט", "חצות", "MN", "MID"
+        ]
+      },
+      {
+        "canonical_name": "Alaska",
+        "canonical_norm": "alaska",
+        "producer_hint": "tikun_olam",
+        "variants": [
+          "alasca", "alaaska", "אלסקה", "TKO alaska", "alaska sativa", "ALS"
+        ]
+      },
+      {
+        "canonical_name": "Wedding CK",
+        "canonical_norm": "wedding ck",
+        "producer_hint": "cronos_peace_naturals",
+        "variants": [
+          "WCK", "wedding cake cronos", "wedding c.k", "ויינדינג סי קיי", "ויינדינג CK", "WC", "wedding cake (cronos)",
+          "wedding ck t22", "peace naturals wedding", "wcake"
+        ]
+      },
+      {
+        "canonical_name": "The Wedding Cake",
+        "canonical_norm": "the wedding cake",
+        "producer_hint": "canndoc",
+        "variants": [
+          "wedding cake humboldt", "wedding cake canndoc", "וודינג קייק", "ויינדינג קיק", "weddingcake",
+          "the weddig cake", "wedding cake t20", "humboldt wedding cake", "WC humboldt"
+        ]
+      },
+      {
+        "canonical_name": "Wedding K",
+        "canonical_norm": "wedding k",
+        "producer_hint": "seach",
+        "variants": [
+          "WK", "wedding k seach", "wedding crasher seach", "ויינדינג קיי", "וודינג קיי",
+          "wedding k selected", "seach wedding"
+        ]
+      },
+      {
+        "canonical_name": "P&Z",
+        "canonical_norm": "p&z",
+        "producer_hint": "trichome",
+        "variants": [
+          "pz", "p & z", "p and z", "פי אנד זד", "פי & זד", "P Z", "P&Z T22",
+          "purple zkittlez trichome", "pz trichome"
+        ]
+      },
+      {
+        "canonical_name": "Carbo",
+        "canonical_norm": "carbo",
+        "producer_hint": "trichome",
+        "variants": [
+          "carbon", "carbo t22", "קארבו", "carbon fiber trichome", "קרבו", "CARBO", "carb"
+        ]
+      },
+      {
+        "canonical_name": "Ice Cream Cake",
+        "canonical_norm": "ice cream cake",
+        "producer_hint": "canndoc",
+        "variants": [
+          "ICC", "ICK", "ice cream", "אייס קרים קייק", "אייס קרים", "I.C.C", "ice cream cake t20",
+          "canndoc icc", "IC cake", "icecream cake", "icecreamcake"
+        ]
+      },
+      {
+        "canonical_name": "OG Kush",
+        "canonical_norm": "og kush",
+        "variants": [
+          "OG", "og", "original kush", "אוג קוש", "אוג' קוש", "OG קוש", "O.G Kush",
+          "premium og", "OGK", "og kushm", "original OG"
+        ]
+      },
+      {
+        "canonical_name": "Girl Scout Cookies",
+        "canonical_norm": "girl scout cookies",
+        "variants": [
+          "GSC", "G.S.C", "gsc cookies", "ג'יאס סי", "ג'יאס סי קוקיז", "ג'יי אס סי",
+          "cookies", "Girl Scouts", "thin mint", "forum cut", "GSC T22", "cookies strain"
+        ]
+      },
+      {
+        "canonical_name": "Gorilla Glue #4",
+        "canonical_norm": "gorilla glue 4",
+        "variants": [
+          "GG4", "GG", "gg #4", "gorilla glue", "גורילה גלו", "גורילה גלואי", "original glue",
+          "gorilla #4", "GG4 T22", "glue", "gorilla", "GG 4"
+        ]
+      },
+      {
+        "canonical_name": "Granddaddy Purple",
+        "canonical_norm": "granddaddy purple",
+        "variants": [
+          "GDP", "Grand Daddy", "grand daddy purple", "גרנד דאדי", "גרנדאדי פרפל", "GDP T20",
+          "grand daddy purp", "granddaddy purps", "purple grand", "GD Purple"
+        ]
+      },
+      {
+        "canonical_name": "Amnesia Haze",
+        "canonical_norm": "amnesia haze",
+        "variants": [
+          "amnesia", "amnezia", "amerzia", "ameziya", "ammesia", "am haze",
+          "אמנזיה", "אמנסיה", "אמנזיא", "AMH", "AM", "amnesia t22", "haze amnesia"
+        ]
+      },
+      {
+        "canonical_name": "Northern Lights",
+        "canonical_norm": "northern lights",
+        "variants": [
+          "NL", "N.L", "NL #5", "northern light", "נורת'רן לייטס", "נורת'ן לייטס",
+          "northern lights t20", "NL5", "north lights", "northernlights"
+        ]
+      },
+      {
+        "canonical_name": "Blue Dream",
+        "canonical_norm": "blue dream",
+        "variants": [
+          "BD", "blue dream t20", "bleu dream", "blue dreem", "בלו דרים", "חלום כחול",
+          "blue d", "blue dream sativa", "BD T20"
+        ]
+      },
+      {
+        "canonical_name": "Sour Diesel",
+        "canonical_norm": "sour diesel",
+        "variants": [
+          "SD", "sour d", "sourdiesel", "שאר דיזל", "שאר דיסל", "שאוור דיזל",
+          "sour diese", "S.D", "sourD", "sour diesel sativa"
+        ]
+      },
+      {
+        "canonical_name": "Jack Herer",
+        "canonical_norm": "jack herer",
+        "variants": [
+          "jack", "JH", "J.H", "jack h", "ג'ק הרר", "ג'ק הרה", "ג'ק ה",
+          "jackherer", "jack herer t20", "jack sativa", "JH T18"
+        ]
+      },
+      {
+        "canonical_name": "Gelato #33",
+        "canonical_norm": "gelato 33",
+        "variants": [
+          "gelato", "ג'לאטו", "גלאטו", "גלטו", "gelato 33", "larry bird",
+          "gelato #33", "gelato33", "gel 33", "G33", "gelato t20", "better gelato"
+        ]
+      },
+      {
+        "canonical_name": "GMO (Garlic Cookies)",
+        "canonical_norm": "gmo",
+        "variants": [
+          "garlic cookies", "garlic", "gmo cookies", "better gmo", "GMO T22",
+          "גארליק קוקיז", "גמו", "garlic mushroom onion", "G.M.O"
+        ]
+      },
+      {
+        "canonical_name": "Zkittlez",
+        "canonical_norm": "zkittlez",
+        "variants": [
+          "skittles", "skittlez", "zkittles", "סקיטלס", "זקיטלס", "zkittles",
+          "Z", "Z strain", "zkittlez t20", "zskittlez"
+        ]
+      },
+      {
+        "canonical_name": "Critical Mass",
+        "canonical_norm": "critical mass",
+        "variants": [
+          "CM", "critical", "crit mass", "קריטיקל", "קריטיקל מס", "critical mass t20",
+          "C Mass", "CM T20", "crit"
+        ]
+      },
+      {
+        "canonical_name": "Bubba Kush",
+        "canonical_norm": "bubba kush",
+        "variants": [
+          "BK", "bubba", "בובה קוש", "bubba k", "bubba kush t20", "B Kush",
+          "bubbakush", "BB Kush"
+        ]
+      },
+      {
+        "canonical_name": "Chemdawg",
+        "canonical_norm": "chemdawg",
+        "variants": [
+          "chem", "chemdog", "צ'ים", "צ'ם", "חמד", "chem dawg",
+          "Chem D", "chemd", "chemdog 91", "chem 91", "CHEM"
+        ]
+      },
+      {
+        "canonical_name": "Tehelet",
+        "canonical_norm": "tehelet",
+        "producer_hint": "seach",
+        "variants": [
+          "תכלת", "תחלת", "tehelet seach", "seach tehelet", "tehlet", "T20 tehelet"
+        ]
+      },
+      {
+        "canonical_name": "Canndoc T20",
+        "canonical_norm": "canndoc t20",
+        "producer_hint": "canndoc",
+        "variants": [
+          "כנדוק T20", "canndoc", "canndoc indica", "canndoc t20 c4"
+        ]
+      },
+      {
+        "canonical_name": "Harlequin",
+        "canonical_norm": "harlequin",
+        "variants": [
+          "harlekin", "harlecuin", "הארלקין", "harle", "HARL", "harlequin t5",
+          "harlequin balanced", "harlekin cbd"
+        ]
+      },
+      {
+        "canonical_name": "ACDC",
+        "canonical_norm": "acdc",
+        "variants": [
+          "ac/dc", "ac dc", "A.C.D.C", "אסי דסי", "acdc cbd", "ACDC T1",
+          "acdc t0", "aced", "acdcc"
+        ]
+      }
+    ],
+    "israeli_slang_legacy_table": {
+      "note": "Pre-regulation Telegrass-era and Israeli street slang names that still appear in patient conversations and older pharmacy record systems. Not used as canonical names; mapped to nearest genetic identity for the scoring engine.",
+      "mappings": [
+        { "slang": "חמש כוכבים", "slang_en": "Five Stars", "maps_to_genetic": "og-kush", "context": "OG Kush was commonly referred to as 'Five Stars' in pre-regulation Israeli market" },
+        { "slang": "לבנה", "slang_en": "White / Blonde", "maps_to_genetic": "acdc", "context": "Any high-CBD, lightly colored strain; approximate match only" },
+        { "slang": "חלב", "slang_en": "Milk", "maps_to_genetic": "acdc", "context": "High-CBD strain slang; 'white and mild'" },
+        { "slang": "ורד", "slang_en": "Rose", "maps_to_genetic": "purple-punch", "context": "Floral, high-linalool strain; most often Purple Punch or similar" },
+        { "slang": "אפגן", "slang_en": "Afghan", "maps_to_genetic": "og-kush", "context": "Afghani landrace or Afghani-derived heavy indica" },
+        { "slang": "חבש", "slang_en": "Habash (colloquial for African)", "maps_to_genetic": "og-kush", "context": "Heavy indica, Afghani-origin; archaic Israeli slang" },
+        { "slang": "רוסי", "slang_en": "Russian", "maps_to_genetic": "northern-lights", "context": "Northern Lights or similar European-bred indica; cold-climate association" },
+        { "slang": "לימון", "slang_en": "Lemon", "maps_to_genetic": "amnesia-haze", "context": "High-limonene sativa; often Amnesia Haze or Lemon Haze" },
+        { "slang": "פינק", "slang_en": "Pink", "maps_to_genetic": "wedding-cake", "context": "Pink Cookies / Wedding Cake — 'pink' associated with its alternate name Pink Cookies" },
+        { "slang": "גלידה", "slang_en": "Ice Cream", "maps_to_genetic": "ice-cream-cake", "context": "Ice Cream Cake — direct Hebrew translation used by patients" },
+        { "slang": "חתונה", "slang_en": "Wedding", "maps_to_genetic": "wedding-cake", "context": "Any Wedding-lineage strain — Wedding Cake, Wedding Crasher, Wedding K; disambiguation requires producer context" }
+      ]
+    }
+  }
+}
