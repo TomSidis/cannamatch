@@ -431,6 +431,12 @@ function Stage2_Sensory({ payload, errors, updatePayload }) {
           })}
         </div>
         <FieldError msg={errors.scents} />
+        <motion.p variants={FADE_UP} style={{
+          textAlign: "center", marginTop: 12, fontSize: 12,
+          color: "rgba(187,247,208,0.45)", cursor: "default",
+        }}>
+          לא בטוח? לחץ ״המשך״ למטה — טעם הוא אופציונלי 🌿
+        </motion.p>
       </motion.div>
     </motion.div>
   );

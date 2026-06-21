@@ -27,8 +27,7 @@ function validateStage(stageIdx, payload) {
       if (!payload.thcTolerance)             errs.thcTolerance = "שדה חובה";
       break;
     case 1:
-      if (Object.keys(payload.scentSelections).length === 0)
-        errs.scents = "בחר לפחות ניחוח אחד";
+      // Flavor is optional — user can skip without selecting any scent
       break;
     case 2:
       if (payload.usageTiming.length === 0)  errs.timing   = "בחר זמן שימוש אחד לפחות";
