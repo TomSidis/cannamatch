@@ -6,6 +6,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore, STAGE_NAMES } from "../hooks/useOnboardingStore.js";
 import { api } from "../services/api.js";
+import {
+  PHARMARY_STRAINS,
+  PHARMARY_STRAINS_2,
+  PHARMARY_STRAINS_3,
+  PHARMARY_STRAINS_4,
+} from "../data/israeli-pharmacy-catalog.js";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -970,61 +976,129 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
   );
 }
 
-// ── Stage 5: Real Market Products ─────────────────────────────────────────────
-// Real Israeli pharmacy product names filtered by consumption form.
-// Scored by: עזר (helped) / לא עזר (didn't help) — same UI as original genetics stage.
+// ── Stage 5: Full Catalog Products ────────────────────────────────────────────
+// 300+ real Israeli pharmacy products: quick-picks + instant search + kind filter.
 
-const REAL_PRODUCTS = {
-  flower: [
-    { id: "pz_t22",     name: "פי&זד T22/C4",           icon: "🌸", sub: "אינדיקה · THC גבוה",      mood: "מרגיע עמוק לערב" },
-    { id: "vector_t18", name: "וקטור T18/C3",           icon: "💜", sub: "אינדיקה · THC בינוני-גבוה", mood: "מרגיע ומסייע לשינה" },
-    { id: "or_t15",     name: "אור T15/C3",             icon: "✨", sub: "אינדיקה · THC בינוני",      mood: "מאוזן ומרגיע" },
-    { id: "gal_t10",    name: "גל T10/C10",             icon: "🌊", sub: "היברידי · מאוזן",           mood: "מאוזן יום וערב" },
-    { id: "shoham",     name: "שוהם T10/C2",            icon: "💎", sub: "אינדיקה · T10",             mood: "מרגיע ולשינה" },
-    { id: "techelet",   name: "תכלת T22/C4",            icon: "💙", sub: "סאטיבה · THC גבוה",         mood: "מרים ואנרגטי ביום" },
-    { id: "yellow_sf",  name: "ילו סאנפלאוור T15/C3",  icon: "🌻", sub: "סאטיבה · T15",              mood: "עירני ומרוכז ביום" },
-    { id: "green_cl",   name: "גרין קלובר T10/C2",     icon: "🍀", sub: "היברידי · T10",             mood: "מאוזן ויציב" },
-    { id: "special",    name: "ספיישל טי T10/C10",     icon: "⭐", sub: "היברידי · מאוזן",            mood: "מאוזן לכל שעה" },
-    { id: "tranquila",  name: "טרנקילה T3/C15",        icon: "💚", sub: "היברידי · CBD גבוה",         mood: "CBD דומיננטי ליום" },
-    { id: "ninio",      name: "ניניה T15/C3",           icon: "🌺", sub: "אינדיקה · T15",             mood: "מרגיע ולשינה" },
-    { id: "ari",        name: "ארי T3/C15",             icon: "🦁", sub: "סאטיבה · CBD גבוה",          mood: "CBD גבוה, עדין" },
-  ],
-  oil: [
-    { id: "oil_120",    name: "שמן 1/20",               icon: "💧", sub: "T1/C20 · CBD גבוה מאוד",    mood: "CBD טהור כמעט" },
-    { id: "oil_110",    name: "שמן 1/10",               icon: "🌊", sub: "T2/C20 · CBD דומיננטי",     mood: "CBD עם מעט THC" },
-    { id: "oil_11",     name: "שמן 1/1 T10/C10",        icon: "⚖️", sub: "T10/C10 · מאוזן",          mood: "THC ו-CBD שווים" },
-    { id: "oil_t15",    name: "שמן T15/C3",             icon: "🌿", sub: "T15/C3 · THC בינוני",        mood: "THC בינוני, מאוזן" },
-    { id: "oil_t20",    name: "שמן T20/C4",             icon: "💎", sub: "T20/C4 · THC גבוה",          mood: "THC דומיננטי לערב" },
-    { id: "oil_cbd",    name: "שמן T3/C15",             icon: "💚", sub: "T3/C15 · CBD גבוה",           mood: "CBD גבוה ליום" },
-  ],
-  vape: [
-    { id: "vape_pz",    name: "קרטרידג' פי&זד T22",    icon: "💨", sub: "אינדיקה · T22",             mood: "מרגיע עמוק" },
-    { id: "vape_tech",  name: "קרטרידג' תכלת T22",     icon: "💙", sub: "סאטיבה · T22",              mood: "מרים ואנרגטי" },
-    { id: "vape_or",    name: "מאדה אור T15",           icon: "✨", sub: "אינדיקה · T15",             mood: "מאוזן" },
-    { id: "vape_yellow",name: "מאדה ילו T15",          icon: "🌻", sub: "סאטיבה · T15",              mood: "עירני ביום" },
-    { id: "vape_gal",   name: "מאדה גל T10/C10",       icon: "🌊", sub: "היברידי · מאוזן",           mood: "מאוזן יום וערב" },
-    { id: "vape_green", name: "מאדה גרין קלובר T10",   icon: "🍀", sub: "היברידי · T10",             mood: "מאוזן ויציב" },
-  ],
-};
-REAL_PRODUCTS.mixed = [
-  ...REAL_PRODUCTS.flower.slice(0, 4),
-  ...REAL_PRODUCTS.oil.slice(0, 3),
-  ...REAL_PRODUCTS.vape.slice(0, 3),
+const ALL_CATALOG = [
+  ...(PHARMARY_STRAINS   || []),
+  ...(PHARMARY_STRAINS_2 || []),
+  ...(PHARMARY_STRAINS_3 || []),
+  ...(PHARMARY_STRAINS_4 || []),
 ];
 
+// Icon by kind — no per-product icon needed
+const KIND_ICON = { "אינדיקה": "🌙", "סאטיבה": "☀️", "היברידי": "🔀" };
+
 const ZEMACH_PRODUCTS = {
-  default: "איזה מוצרים ניסית? מה שעזר — חיזק את המפה. מה שלא — נסנן אותו. 🗺️",
-  loved:   "מצוין! נרשם ✅ אנחנו נחפש מוצרים בעלי פרופיל דומה.",
-  hated:   "הבנתי 🚫 סיננתי את הפרופיל הזה מהמלצות שלך.",
+  default: "איזה קופסאות מכירים מהמדף? מה שעזר — מחזק את המפה. מה שלא — נסנן. 🗺️",
+  loved:   "מצוין! ✅ אנחנו נחפש מוצרים בעלי פרופיל דומה לך.",
+  hated:   "קיבלתי 🚫 סיננתי את הפרופיל הזה מהמלצות שלך.",
 };
 
-function Stage5_Products({ payload, updatePayload }) {
-  const [q, setQ]     = useState("");
-  const loved  = payload.lovedStrains  || [];
-  const hated  = payload.hatedStrains  || [];
-  const form   = payload.consumptionForm || "flower";
+function ProductCard({ s, isLoved, isHated, onLove, onHate }) {
+  const col  = isLoved ? T.accent : isHated ? T.danger : T.border;
+  const icon = KIND_ICON[s.kind] || "🌿";
+  return (
+    <motion.div
+      variants={FADE_UP}
+      style={{
+        padding:     "9px",
+        borderRadius: 12,
+        background:  isLoved ? "rgba(57,255,133,0.08)"
+                    : isHated ? "rgba(255,69,96,0.08)"
+                    : "rgba(255,255,255,0.03)",
+        border:      `1.5px solid ${col}`,
+        boxShadow:   (isLoved || isHated) ? `0 0 10px ${col}33` : "none",
+        transition:  "all 0.18s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 3 }}>
+        <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1,
+                       filter: (isLoved || isHated) ? `drop-shadow(0 0 4px ${col})` : "none" }}>
+          {icon}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{
+            fontSize: 11, fontWeight: 700, margin: 0, lineHeight: 1.3,
+            color: isLoved ? T.accent : isHated ? T.danger : T.text,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+            {s.name}
+          </p>
+          <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>
+            {s.cat} · {s.kind}{s.grower ? ` · ${s.grower}` : ""}
+          </p>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 5 }}>
+        <button
+          onClick={onLove}
+          style={{
+            flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
+            background: isLoved ? T.accent : "rgba(57,255,133,0.08)",
+            color:      isLoved ? "#061006" : T.accent,
+            border:     `1px solid ${isLoved ? T.accent : "rgba(57,255,133,0.3)"}`,
+            cursor:     "pointer",
+          }}
+        >
+          {isLoved ? "✓ עזר" : "❤️ עזר"}
+        </button>
+        <button
+          onClick={onHate}
+          style={{
+            flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
+            background: isHated ? T.danger : "rgba(255,69,96,0.08)",
+            color:      isHated ? "#fff" : T.danger,
+            border:     `1px solid ${isHated ? T.danger : "rgba(255,69,96,0.3)"}`,
+            cursor:     "pointer",
+          }}
+        >
+          {isHated ? "✕ לא עזר" : "💔 לא עזר"}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
-  const products = REAL_PRODUCTS[form] || REAL_PRODUCTS.flower;
+function Stage5_Products({ payload, updatePayload }) {
+  const [q, setQ]           = useState("");
+  const [kindFilter, setKindFilter] = useState(null); // null | "אינדיקה" | "סאטיבה" | "היברידי"
+
+  const loved = payload.lovedStrains || [];
+  const hated = payload.hatedStrains || [];
+  const licCats = payload.licenseCategories || [];
+
+  // Filter catalog by license categories if the user provided them
+  const eligibleCatalog = useMemo(() => {
+    if (licCats.length === 0) return ALL_CATALOG;
+    return ALL_CATALOG.filter((s) => licCats.includes(s.cat));
+  }, [licCats]);
+
+  // Quick picks: top 12 by nReviews (most-recognised at the pharmacy)
+  const quickPicks = useMemo(() =>
+    [...eligibleCatalog]
+      .sort((a, b) => (b.nReviews || 0) - (a.nReviews || 0))
+      .slice(0, 12),
+  [eligibleCatalog]);
+
+  // Search results — client-side across all eligible products
+  const searchResults = useMemo(() => {
+    if (!q.trim()) return [];
+    const lq = q.trim().toLowerCase();
+    return eligibleCatalog.filter((s) =>
+      s.name.toLowerCase().includes(lq) ||
+      (s.en || "").toLowerCase().includes(lq) ||
+      (s.grower || "").toLowerCase().includes(lq) ||
+      (s.cat || "").toLowerCase().includes(lq),
+    ).slice(0, 20);
+  }, [q, eligibleCatalog]);
+
+  // Decide what to show in the grid
+  const displayProducts = useMemo(() => {
+    let list = q.trim() ? searchResults : quickPicks;
+    if (kindFilter) list = list.filter((s) => s.kind === kindFilter);
+    return list;
+  }, [q, searchResults, quickPicks, kindFilter]);
 
   const zemachMsg = useMemo(() => {
     if (hated.length > 0) return ZEMACH_PRODUCTS.hated;
@@ -1033,23 +1107,15 @@ function Stage5_Products({ payload, updatePayload }) {
   }, [loved, hated]);
 
   const setLoved = (id) => {
-    if (loved.includes(id)) {
-      updatePayload({ lovedStrains: loved.filter((x) => x !== id) });
-    } else {
-      updatePayload({ lovedStrains: [...loved, id], hatedStrains: hated.filter((x) => x !== id) });
-    }
+    if (loved.includes(id)) updatePayload({ lovedStrains: loved.filter((x) => x !== id) });
+    else updatePayload({ lovedStrains: [...loved, id], hatedStrains: hated.filter((x) => x !== id) });
   };
   const setHated = (id) => {
-    if (hated.includes(id)) {
-      updatePayload({ hatedStrains: hated.filter((x) => x !== id) });
-    } else {
-      updatePayload({ hatedStrains: [...hated, id], lovedStrains: loved.filter((x) => x !== id) });
-    }
+    if (hated.includes(id)) updatePayload({ hatedStrains: hated.filter((x) => x !== id) });
+    else updatePayload({ hatedStrains: [...hated, id], lovedStrains: loved.filter((x) => x !== id) });
   };
 
-  const filtered = products.filter(
-    (s) => !q || s.name.includes(q) || s.mood.includes(q) || s.sub.includes(q),
-  );
+  const KINDS = ["אינדיקה", "סאטיבה", "היברידי"];
 
   return (
     <motion.div variants={STAGGER} initial="hidden" animate="show">
@@ -1060,76 +1126,97 @@ function Stage5_Products({ payload, updatePayload }) {
       </motion.div>
 
       <motion.div variants={FADE_UP}>
-        <SectionLabel>מוצרים שכבר ניסית — מה עבד ומה לא?</SectionLabel>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="לא מצאת? חפש מתוך כל המוצרים..."
-          style={{
-            width: "100%", marginBottom: 12, padding: "9px 14px", borderRadius: 12,
-            background: "rgba(255,255,255,0.05)", border: `1.5px solid ${T.border}`,
-            color: T.text, fontSize: 13, outline: "none",
-          }}
-        />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {filtered.map((s) => {
-            const isLoved = loved.includes(s.id);
-            const isHated = hated.includes(s.id);
-            const col     = isLoved ? T.accent : isHated ? T.danger : T.border;
-            return (
-              <motion.div
-                key={s.id}
-                variants={FADE_UP}
-                style={{
-                  padding:     "9px",
-                  borderRadius: 12,
-                  background:  isLoved ? "rgba(57,255,133,0.08)"
-                              : isHated ? "rgba(255,69,96,0.08)"
-                              : "rgba(255,255,255,0.03)",
-                  border:      `1.5px solid ${col}`,
-                  boxShadow:   (isLoved || isHated) ? `0 0 10px ${col}33` : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 18, filter: `drop-shadow(0 0 5px ${col}88)`, flexShrink: 0 }}>{s.icon}</span>
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: isLoved ? T.accent : isHated ? T.danger : T.text, margin: 0, lineHeight: 1.3 }}>
-                      {s.name}
-                    </p>
-                    <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{s.sub}</p>
-                  </div>
-                </div>
-                <p style={{ fontSize: 9, color: T.muted, marginBottom: 6 }}>{s.mood}</p>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    onClick={() => setLoved(s.id)}
-                    style={{
-                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                      background:  isLoved ? T.accent : "rgba(57,255,133,0.08)",
-                      color:       isLoved ? "#061006" : T.accent,
-                      border:      `1px solid ${isLoved ? T.accent : "rgba(57,255,133,0.3)"}`,
-                      cursor:      "pointer",
-                    }}
-                  >
-                    {isLoved ? "✓ עזר" : "❤️ עזר"}
-                  </button>
-                  <button
-                    onClick={() => setHated(s.id)}
-                    style={{
-                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                      background:  isHated ? T.danger : "rgba(255,69,96,0.08)",
-                      color:       isHated ? "#fff" : T.danger,
-                      border:      `1px solid ${isHated ? T.danger : "rgba(255,69,96,0.3)"}`,
-                      cursor:      "pointer",
-                    }}
-                  >
-                    {isHated ? "✕ לא עזר" : "💔 לא עזר"}
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
+        {/* Search */}
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="חפש מתוך 300+ מוצרים — שם, מגדל, קטגוריה..."
+            style={{
+              width: "100%", padding: "10px 14px 10px 36px", borderRadius: 12,
+              background: "rgba(255,255,255,0.06)", border: `1.5px solid ${q ? T.accent : T.border}`,
+              color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box",
+              transition: "border-color 0.18s",
+            }}
+          />
+          <span style={{
+            position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+            fontSize: 14, pointerEvents: "none", color: T.muted,
+          }}>🔍</span>
+          {q && (
+            <button
+              onClick={() => setQ("")}
+              style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 12, color: T.muted, background: "none", border: "none",
+                cursor: "pointer", padding: "2px 6px",
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
+
+        {/* Kind filter chips */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <button
+            onClick={() => setKindFilter(null)}
+            style={{
+              padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+              background: !kindFilter ? T.accent : "rgba(255,255,255,0.06)",
+              color:      !kindFilter ? "#061006" : T.muted,
+              border:     `1px solid ${!kindFilter ? T.accent : T.border}`,
+              cursor:     "pointer",
+            }}
+          >הכל</button>
+          {KINDS.map((k) => (
+            <button
+              key={k}
+              onClick={() => setKindFilter(kindFilter === k ? null : k)}
+              style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+                background: kindFilter === k ? T.accent : "rgba(255,255,255,0.06)",
+                color:      kindFilter === k ? "#061006" : T.muted,
+                border:     `1px solid ${kindFilter === k ? T.accent : T.border}`,
+                cursor:     "pointer",
+              }}
+            >
+              {KIND_ICON[k]} {k}
+            </button>
+          ))}
+        </div>
+
+        {/* Section label */}
+        <SectionLabel>
+          {q.trim()
+            ? `${displayProducts.length} תוצאות עבור "${q}"`
+            : `הנפוצים ביותר${kindFilter ? ` · ${kindFilter}` : ""}${licCats.length > 0 ? ` (מסונן לקטגוריות שלך)` : ""}`}
+        </SectionLabel>
+
+        {/* Product grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {displayProducts.length === 0 ? (
+            <motion.p
+              variants={FADE_UP}
+              style={{ gridColumn: "1/-1", textAlign: "center", color: T.muted, fontSize: 12, padding: "24px 0" }}
+            >
+              לא מצאנו מוצר בשם זה 🤷 נסה לחפש בשם אחר
+            </motion.p>
+          ) : (
+            displayProducts.map((s) => (
+              <ProductCard
+                key={s.id}
+                s={s}
+                isLoved={loved.includes(s.id)}
+                isHated={hated.includes(s.id)}
+                onLove={() => setLoved(s.id)}
+                onHate={() => setHated(s.id)}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Summary of selections */}
         {(loved.length > 0 || hated.length > 0) && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -1138,13 +1225,13 @@ function Stage5_Products({ payload, updatePayload }) {
                      background: "rgba(57,255,133,0.06)", border: `1px solid ${T.border}` }}
           >
             {loved.length > 0 && (
-              <p style={{ fontSize: 12, color: T.accent, marginBottom: 2 }}>
-                ❤️ עזר: {loved.map((id) => products.find((s) => s.id === id)?.name).filter(Boolean).join(", ")}
+              <p style={{ fontSize: 11, color: T.accent, marginBottom: 2 }}>
+                ❤️ עזר ({loved.length}): {loved.map((id) => ALL_CATALOG.find((s) => s.id === id)?.name).filter(Boolean).join(", ")}
               </p>
             )}
             {hated.length > 0 && (
-              <p style={{ fontSize: 12, color: T.danger }}>
-                💔 לא עזר: {hated.map((id) => products.find((s) => s.id === id)?.name).filter(Boolean).join(", ")}
+              <p style={{ fontSize: 11, color: T.danger }}>
+                💔 לא עזר ({hated.length}): {hated.map((id) => ALL_CATALOG.find((s) => s.id === id)?.name).filter(Boolean).join(", ")}
               </p>
             )}
           </motion.div>
