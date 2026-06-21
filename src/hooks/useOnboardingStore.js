@@ -23,7 +23,7 @@ export const INITIAL_PAYLOAD = {
 
   // Stage 4 — Circadian
   usageTiming:       [],     // multi-select: "morning","noon","afternoon","evening","night"
-  primaryGoal:       null,
+  primaryGoals:      [],     // multi-select: replaces single primaryGoal
   deliveryMethods:   [],     // auto-derived from consumptionForm in handleComplete
 
   // Stage 5 — Products (replaced lineage names with real market names)
@@ -49,7 +49,7 @@ function validateStage(stageIdx, payload) {
       break;
     case 4:
       if (payload.usageTiming.length === 0) errs.timing = "בחר/י זמן שימוש אחד לפחות";
-      if (!payload.primaryGoal)             errs.goal   = "בחר/י מטרה ראשית";
+      // primaryGoals is multi-select and optional — no error
       break;
     default:
       break;
@@ -121,14 +121,21 @@ function computeLiveVector(payload) {
     for (const [terp, weight] of Object.entries(lean)) add(terp, weight);
   }
 
-  const goalBoost = {
+  const GOAL_BOOST_MAP = {
     focus:      { pinene: 0.9, limonene: 0.7 },
     relax:      { linalool: 0.9, myrcene: 0.7 },
     sleep:      { myrcene: 1.1, linalool: 0.9 },
     pain_relief:{ caryophyllene: 1.1, myrcene: 0.8 },
     mood:       { limonene: 1.1, linalool: 0.6 },
-  }[payload.primaryGoal] || {};
-  for (const [t, w] of Object.entries(goalBoost)) add(t, w);
+  };
+  // primaryGoals is multi-select — scale weight down when multiple selected
+  const goals = payload.primaryGoals || [];
+  const scale = goals.length > 1 ? 0.65 : 1.0;
+  for (const g of goals) {
+    const boost = GOAL_BOOST_MAP[g];
+    if (!boost) continue;
+    for (const [t, w] of Object.entries(boost)) add(t, w * scale);
+  }
 
   // From products (real market names mapped through LEGACY_GENETICS for backward compat)
   for (const sid of (payload.lovedStrains || [])) {

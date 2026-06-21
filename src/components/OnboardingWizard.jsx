@@ -847,11 +847,11 @@ function Stage3_Sensory({ payload, errors, updatePayload }) {
 
 // ── Stage 4: Circadian — 5-part day + primary goal ───────────────────────────
 const TIME_SLOTS = [
-  { id: "morning",   label: "בוקר",   icon: "🌅", sub: "06:00–11:00" },
-  { id: "noon",      label: "צהריים", icon: "☀️", sub: "11:00–14:00" },
-  { id: "afternoon", label: "אחה\"צ", icon: "🌤️", sub: "14:00–18:00" },
-  { id: "evening",   label: "ערב",    icon: "🌆", sub: "18:00–22:00" },
-  { id: "night",     label: "לילה",   icon: "🌙", sub: "22:00+" },
+  { id: "morning",   label: "בוקר",   icon: "🌅" },
+  { id: "noon",      label: "צהריים", icon: "☀️" },
+  { id: "afternoon", label: "אחה\"צ", icon: "🌤️" },
+  { id: "evening",   label: "ערב",    icon: "🌆" },
+  { id: "night",     label: "לילה",   icon: "🌙" },
 ];
 
 const GOALS = [
@@ -870,14 +870,19 @@ const ZEMACH_CIRCADIAN = {
 };
 
 function Stage4_Circadian({ payload, errors, updatePayload }) {
-  const timing = payload.usageTiming || [];
+  const timing      = payload.usageTiming  || [];
+  const selGoals    = payload.primaryGoals || [];
 
   const toggleTiming = (id) => {
     const next = timing.includes(id) ? timing.filter((x) => x !== id) : [...timing, id];
     updatePayload({ usageTiming: next });
   };
+  const toggleGoal = (id) => {
+    const next = selGoals.includes(id) ? selGoals.filter((x) => x !== id) : [...selGoals, id];
+    updatePayload({ primaryGoals: next });
+  };
 
-  const hasNight  = timing.some((t) => t === "night" || t === "evening");
+  const hasNight   = timing.some((t) => t === "night" || t === "evening");
   const hasMorning = timing.some((t) => t === "morning" || t === "noon" || t === "afternoon");
 
   const zemachMsg = useMemo(() => {
@@ -895,7 +900,7 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
         </AnimatePresence>
       </motion.div>
 
-      {/* 5-part time picker */}
+      {/* 5-part time picker — no hour ranges */}
       <motion.div variants={FADE_UP}>
         <SectionLabel>מתי בעיקר אתה/את צורכ/ת? (ניתן לבחור כמה)</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
@@ -908,20 +913,19 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
                 whileHover={{ scale: 1.05, boxShadow: `0 0 12px ${T.accent}33` }}
                 whileTap={{ scale: 0.94 }}
                 style={{
-                  padding: "10px 4px", borderRadius: 12, textAlign: "center",
+                  padding: "12px 4px", borderRadius: 12, textAlign: "center",
                   background: on ? "rgba(57,255,133,0.1)" : "rgba(255,255,255,0.04)",
                   border:     `1.5px solid ${on ? T.accent : T.border}`,
                   cursor:     "pointer",
                   boxShadow:  on ? T.glow(T.accent, 8) : "none",
-                  minHeight:  64,
+                  minHeight:  60,
                   transition: "all 0.18s",
                 }}
               >
-                <p style={{ fontSize: 18, marginBottom: 2 }}>{slot.icon}</p>
+                <p style={{ fontSize: 20, marginBottom: 4 }}>{slot.icon}</p>
                 <p style={{ fontSize: 10, fontWeight: on ? 700 : 500, color: on ? T.accent : T.text, margin: 0 }}>
                   {slot.label}
                 </p>
-                <p style={{ fontSize: 8, color: T.muted, margin: "2px 0 0" }}>{slot.sub}</p>
               </motion.button>
             );
           })}
@@ -929,16 +933,16 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
         <FieldError msg={errors.timing} />
       </motion.div>
 
-      {/* Primary goal */}
+      {/* Goals — now multi-select */}
       <motion.div variants={FADE_UP} style={{ marginTop: 12 }}>
-        <SectionLabel>מה המטרה העיקרית?</SectionLabel>
+        <SectionLabel>מה הכי חשוב לך? (ניתן לבחור כמה)</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7 }}>
           {GOALS.map((g) => {
-            const on = payload.primaryGoal === g.id;
+            const on = selGoals.includes(g.id);
             return (
               <motion.button
                 key={g.id}
-                onClick={() => updatePayload({ primaryGoal: g.id })}
+                onClick={() => toggleGoal(g.id)}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.95 }}
                 style={{
@@ -950,6 +954,7 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
                   cursor:       "pointer",
                   boxShadow:    on ? T.glow(T.accent, 6) : "none",
                   minHeight:    50,
+                  transition:   "all 0.18s",
                 }}
               >
                 <span style={{ fontSize: 17, display: "block", marginBottom: 2 }}>{g.icon}</span>
@@ -960,7 +965,6 @@ function Stage4_Circadian({ payload, errors, updatePayload }) {
             );
           })}
         </div>
-        <FieldError msg={errors.goal} />
       </motion.div>
     </motion.div>
   );
@@ -1432,10 +1436,11 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       flavors:   Object.entries(payload.scentSelections || {})
                   .filter(([, v]) => v !== "disliked")
                   .map(([id]) => FLAVOR_TO_LOCAL[id] || id),
-      oilEffects: payload.oilEffects || [],
-      helped:    payload.lovedStrains  || [],
-      notHelped: payload.hatedStrains  || [],
-      current:   [],
+      oilEffects:   payload.oilEffects    || [],
+      primaryGoals: payload.primaryGoals  || [],
+      helped:       payload.lovedStrains  || [],
+      notHelped:    payload.hatedStrains  || [],
+      current:      [],
       licenseVerified: payload.licenseVerified || false,
       licenseExpiry:   payload.licenseExpiry   || null,
     };
@@ -1468,7 +1473,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     payload.consumptionForm === "oil"
       ? "מה עוזר לך — מה אתה/את מרגיש/ה?"
       : "אילו ריחות אתה/את אוהב/ת ולא אוהב/ת",
-    "מתי ואיך אתה/את משתמש/ת",
+    "מתי צורכ/ת ומה הכי חשוב לך?",
     "מוצרים שכבר ניסית — מה עבד ומה לא",
     "הפרופיל שלך מוכן לסריקת התפריט",
   ];
