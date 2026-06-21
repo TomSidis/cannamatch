@@ -7527,10 +7527,16 @@ export default function CannaMatch() {
                 setAns((prev) => ({
                   ...prev,
                   ...localAns,
-                  cats: (prev.cats || []).length > 0 ? prev.cats : ["T18/C3","T15/C3","T10/C10","T1/C22"],
+                  cats: (localAns?.cats || []).length > 0
+                    ? localAns.cats
+                    : (prev.cats || []).length > 0 ? prev.cats : ["T18/C3","T15/C3","T10/C10","T1/C22"],
                   reasons: (localAns?.reasons || []).length > 0 ? localAns.reasons : (prev.reasons || []),
                   flavors: (localAns?.flavors || []).length > 0 ? localAns.flavors : (prev.flavors || []),
                 }));
+                if (localAns?.licenseVerified) {
+                  setLicenseVerified(true);
+                  localStorage.setItem("cm_license", "1");
+                }
                 setScreen("app");
               }}
               onSkip={() => setScreen("app")}
