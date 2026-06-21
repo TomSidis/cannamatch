@@ -212,19 +212,16 @@ Wedding CK T22/C4 — 280₪
         ? { type: "document", source: { type: "base64", media_type: "application/pdf",  data: base64 } }
         : { type: "image",    source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 } };
 
-      const response = await fetch("/api/claude", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 1500,
+          max_tokens: 1500,
           messages: [{ role: "user", content: [mediaBlock, { type: "text", text: PROMPT }] }],
         }),
       });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.error?.message || `שגיאת שרת (${response.status})`);
-      }
       const data = await response.json();
+      if (!response.ok) throw new Error(data?.error?.message || `שגיאת שרת (${response.status})`);
       if (data.error) throw new Error(data.error.message || "שגיאה מהשרת");
       const extracted = (data.content || []).map((b) => b.text || "").join("\n").trim();
       if (extracted) { setText(extracted); setResults(parseMenu(extracted, ans, scored)); }

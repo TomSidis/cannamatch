@@ -11,14 +11,16 @@ import express from "express";
 import cors    from "cors";
 import dotenv  from "dotenv";
 
-import authRouter     from "./routes/auth.js";
-import dnaRouter      from "./routes/dna.js";
-import catalogRouter  from "./routes/catalog.js";
-import menuRouter     from "./routes/menu.js";
-import socialRouter   from "./routes/social.js";
-import journalRouter  from "./routes/journal.js";
-import productsRouter from "./routes/products.js";
-import aiRouter       from "./routes/ai.js";
+import authRouter       from "./routes/auth.js";
+import dnaRouter        from "./routes/dna.js";
+import catalogRouter    from "./routes/catalog.js";
+import menuRouter       from "./routes/menu.js";
+import socialRouter     from "./routes/social.js";
+import journalRouter    from "./routes/journal.js";
+import productsRouter   from "./routes/products.js";
+import aiRouter         from "./routes/ai.js";
+import chatRouter       from "./routes/chat.js";
+import pharmaciesRouter from "./routes/pharmacies.js";
 
 dotenv.config();
 
@@ -29,6 +31,10 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 // ── Route domains ─────────────────────────────────────────────
+// pharmacies.js — must mount BEFORE catalogRouter so /:id/menu etc. take priority
+// over the plain GET /pharmacies in catalog.js (which becomes fallback dead code)
+app.use("/api/pharmacies", pharmaciesRouter);
+
 // auth.js  defines /send-otp, /verify-otp           → /api/auth/*
 app.use("/api/auth",    authRouter);
 
@@ -58,6 +64,10 @@ app.use("/api",         productsRouter);
 
 // ai.js    defines /health, /claude, /zemach-chat   → /api/health, /api/claude, /api/zemach-chat
 app.use("/api",         aiRouter);
+
+// chat.js  defines POST /                           → /api/chat
+// Server-side Anthropic proxy — ANTHROPIC_API_KEY never leaves the server
+app.use("/api/chat",    chatRouter);
 
 app.listen(PORT, () => {
   console.log(`🌿 שרת קנאמאצ׳ פועל על http://localhost:${PORT}`);

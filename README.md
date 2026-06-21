@@ -1,177 +1,146 @@
-# CannaMatch 🌿
+# 🌿 CannaMatch — שוק הקנאביס הרפואי הישראלי
 
-> **The precision cannabis matching platform built for verified medical patients in Israel.**
-> Powered by a proprietary botanical intelligence engine — not commercial names.
-
----
-
-## What Is CannaMatch?
-
-The Israeli cannabis market offers hundreds of strains, each sold under marketing names that reveal nothing about actual effect, chemistry, or personal fit. Patients aged 21 to 80 walk into a pharmacy with a valid prescription and are handed a catalogue of brand names with no meaningful guidance.
-
-**CannaMatch cuts through this entirely.**
-
-Rather than searching by strain name, users complete a gentle, non-intrusive preference flow — then receive a ranked list of strains from every licensed pharmacy in Israel, each scored against their personal botanical fingerprint. The system calculates a live **DNA Match %** for each product, derived purely from the patient's expressed cannabis preferences and sensory profile.
-
-No medical questionnaires. No clinical diagnoses. No stigma. Just precise, personalized guidance grounded in published terpene and cannabinoid science.
+> **הפלטפורמה הראשונה בישראל שמחברת בין מטופלי קנאביס רפואי לזנים ולבתי מרקחת המתאימים ביותר עבורם.**
 
 ---
 
-## The Premium Disruption
+## מה זה CannaMatch?
 
-Commercial strain names — OG Kush, Blue Dream, Amnesia — communicate lineage to connoisseurs but nothing to the average patient. A first-time user or a 72-year-old with a chronic pain prescription has no idea what these names mean or which one is right for them.
+שוק הקנאביס הרפואי הישראלי מציע מאות זנים, הנמכרים תחת שמות שיווקיים שלא מספרים כלום על האפקט הצפוי, הכימיה שמאחוריהם, או ההתאמה האישית לכל מטופל. מטופל בן 40 עם רישיון תקף נכנס לבית מרקחת ומקבל קטלוג שמות ללא הסבר.
 
-CannaMatch replaces the confusion with a **visual, calm, and guided journey**:
+**CannaMatch פותרת את הבעיה הזו מהיסוד.**
 
-- A multi-step cannabis-preference wizard captures what the patient *actually wants* — better sleep, pain relief, focus, creativity, appetite, relaxation, or mood uplift
-- The platform derives a personal botanical signature under the hood — invisible to the user
-- Every strain in the CannaMatch database is scored against that signature in real time
-- The result is a **ranked, personalized pharmacy menu** — the right strains, at the right dispensaries, at the best available prices
+במקום לחפש לפי שם מותג, המשתמש מגדיר פרופיל אישי קצר — ומיד מקבל רשימה מדורגת של זנים מכל בתי המרקחת המורשים בישראל, כשכל זן מקבל **אחוז התאמה** המחושב לפי הפרופיל הבוטני האישי שלו.
 
-The matching engine is entirely blackboxed from the interface. Users never encounter formulas, weights, or algorithms. They experience a premium, calming lifestyle product.
+ללא שאלונים רפואיים. ללא טפסים. ללא סטיגמה.
 
 ---
 
-## UX Manifesto: No-Scroll, Full-Viewport Design
+## תכונות מרכזיות
 
-CannaMatch is engineered on a strict **zero-scroll architecture** across every auth and onboarding screen:
+### 🧬 התאמה אישית
+- פרופיל מטופל מבוסס על התוויות, העדפות חושיות ושגרת צריכה
+- מנוע התאמה מחשב דירוג אחוזי לכל זן מול הפרופיל הבוטני האישי
+- ציין זנים שניסית — המערכת לומדת ומשפרת את ההמלצות
+
+### 🏥 בתי מרקחת בזמן אמת
+- רשימה מלאה של בתי מרקחת קנאביס רפואי מורשים בישראל
+- שעות פתיחה מחושבות בזמן אמת לפי ימי שבוע ושבת
+- מרחק מהמיקום הנוכחי
+- אפשרויות משלוח
+- דיווח קהילתי על מלאי ("האם עדיין זמין?")
+
+### 🌿 צמח — העוזר האישי
+עוזר AI בעברית שמספק מידע חינוכי בשפה אנושית וחמה:
+- מידע על טרפנים, קנבינואידים ואינטראקציות
+- שעות בתי מרקחת ומלאי חי
+- ניתוח תמונות של תפריטים (דורש Groq API Key חינמי)
+- מדריכי אחסון ושיטות צריכה
+- **זמין לכל משתמש — ללא צורך בהתחברות**
+
+### 📊 ניהול אישי
+- יומן מעקב יומי — מצב רוח, עוצמת אפקט, מינון
+- תכנון סל קניות מסודר מול מכסת הרישיון החודשי
+- ניתוח מגמות אישיות לאורך זמן
+
+### 🌐 קהילה מאומתת
+- פיד קהילה Twitter-style למטופלים מורשים בלבד
+- שיתוף חוויות אמיתיות ללא מידע מסחרי
+- סטטיסטיקות עדות קהילתית (k-anonymity, n≥20)
+
+---
+
+## ארכיטקטורה טכנית
 
 ```
-height: 100dvh   →  dynamic viewport lock — Safari-safe
-overflow: hidden  →  eliminates all outer-page scroll axes
+cannamatch/
+├── api/                        # Node.js + Express backend
+│   ├── server.js
+│   ├── routes/
+│   │   ├── ai.js               # /api/zemach-chat (ציבורי, ללא auth)
+│   │   ├── pharmacies.js       # /api/pharmacies (מלאי + דיווח קהילתי)
+│   │   └── ...
+│   └── lib/
+│       ├── localBot.js         # מנוע שיחה מקומי — intent routing A/B/C
+│       ├── groqAdapter.js      # Groq free-tier (llama-3.1-8b-instant)
+│       ├── pharmacySync.js     # סנכרון MOH + 15 בתי מרקחת fallback
+│       └── webSearch.js        # DuckDuckGo → Brave → Google CSE
+├── src/                        # React 18 + Vite frontend
+│   ├── CannaMatch.jsx          # אפליקציה ראשית (~7,500 שורות)
+│   ├── components/
+│   │   ├── ZemachAvatarChat.jsx   # עוזר הצמח הצף
+│   │   ├── PharmacyViewer.jsx     # מסך בתי מרקחת
+│   │   ├── StrainCard.jsx
+│   │   └── ...
+│   ├── styles/ds.js            # Design System — "Organic Cyberpunk"
+│   ├── hooks/useGeolocation.js
+│   └── knowledge/              # בסיס ידע מקומי (JSON)
+│       ├── terpene_science.json
+│       ├── indications.json
+│       ├── israeli_products.json
+│       └── routes_of_administration.json
+└── ...
 ```
 
-The `dvh` unit (dynamic viewport height) is used instead of `vh` so that iOS Safari's floating address bar never triggers overflow. Every screen — Splash, Login, Register, and all five onboarding stages — is designed to fill exactly one screen without scrolling.
-
-**Visual system:** The entire auth shell uses a cinematic cross-fading backdrop of local cannabis plant imagery. The images fade smoothly every 7 seconds using Framer Motion. Three compositing layers sit over the photo:
-
-| Layer | Treatment |
-|-------|-----------|
-| Photo | `saturate(1.65) brightness(0.82)` — vivid, trichome-visible |
-| Gradient overlay | Linear, ≈ 20% opacity — structural depth |
-| Radial vignette | Edge darkening — cinematic framing |
-
-Interactive cards use **organic glassmorphism**: `backdrop-filter: blur(32px)`, deep green-tinted dark backgrounds, and luminous green borders. All body text carries shadow depth for legibility against the bright botanical backdrop.
-
-Typography is set in **Heebo** — an RTL-optimized Hebrew sans-serif at weights 300–900. The entire product is rendered `dir="rtl"`.
-
 ---
 
-## Inclusive Onboarding: Cannabis Preferences Only
+## התקנה
 
-The CannaMatch onboarding wizard builds a precise botanical profile from cannabis preferences — and *nothing else*. There are no medical history questions, no psychiatric intake screens, no diagnosis fields, and no medication warnings.
+### דרישות
+- Node.js 20+
+- PostgreSQL 15+
 
-**Five stages, every one skippable:**
+### משתני סביבה (`.env`)
 
-| Stage | Content |
-|-------|---------|
-| **מטרות** — Goals | Which effects are you looking for? (8 goal tiles) |
-| **חושי** — Sensory | Which aromas resonate? (sensory wheel, 8 flavor tiles) |
-| **שגרה** — Routine | When and how do you typically use? |
-| **גנטיקה** — Heritage | Any classic genetics you've experienced before? |
-| **תצוגה** — Preview | Live visualization of your botanical fingerprint |
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/cannamatch
+SESSION_SECRET=your-secret-here
 
-**Every stage (1–4) shows a "דילוג על שלב זה" skip button** — visually understated but always accessible. Adjacent to every skip control is a friendly, non-intrusive disclaimer:
+# אופציונלי — מפעיל שיחה חכמה עם Llama-3
+# הירשם חינם בכתובת console.groq.com
+GROQ_API_KEY=gsk_...
 
-> *"חבר, אפשר לדלג, אך ללא העדפות הצריכה שלך המערכת לא תדע לחשב ולדייק את אחוזי התאמת ה-DNA של הגנטיקות עבורך."*
+# אופציונלי — חיפוש חיצוני מועשר
+BRAVE_SEARCH_KEY=...
+GOOGLE_CSE_KEY=...
+GOOGLE_CSE_CX=...
+```
 
-Skipping is always permitted. The platform degrades gracefully — showing results with reduced specificity rather than blocking the user's path.
-
-There is no avatar selection. No profile lock. No gamification gate. The flow respects user autonomy from the very first interaction.
-
----
-
-## Gateway Control: 5-Way Social Auth + Community License Gate
-
-### Premium 5-Platform Social Authentication
-
-CannaMatch presents a polished icon row of five social authentication controls, each with individual brand color treatment and glow animation:
-
-| Platform | Visual Identity |
-|----------|----------------|
-| **Gmail (Google)** | Google G multicolour mark · red-tinted hover glow |
-| **Apple** | White Apple silhouette · soft white glow |
-| **Facebook** | Facebook F in deep blue · blue luminance |
-| **Instagram** | Gradient camera mark (gold → orange → magenta) · warm glow |
-| **X / Twitter** | Clean white X on matte black · neutral shimmer |
-
-Clicking any icon **immediately creates an active session** — no OTP, no email confirmation code, no SMS 2FA prompt. The session is persisted to `localStorage` in the same tick and the user transitions directly to the welcome room. Zero friction. Zero waiting.
-
-Standard email/password registration remains available and routes through a secure OTP verification step for users who prefer it.
-
-### Community Access: Verified License Gate
-
-The community discussion feed is the one space in CannaMatch that requires a verified medical cannabis license before entry. This is a deliberate, privacy-forward safeguard:
-
-> The community exists to protect authentic patient experiences from commercial bias and PR contamination (יחצ) — marketing representatives, brand promoters, and pharmaceutical interests have no place here.
-
-When a user navigates to the community tab without a verified license, they encounter a full-screen gate card that explains:
-
-- ✅ Only verified medical patients can post and reply
-- 🚫 No advertising, brand promotion, or commercial interests
-- 🛡️ Identity verified at entry — all posts published anonymously by default
-
-License verification happens entirely **inline, without leaving the app**. A simulated document scan identifies the user's product categories, monthly quantity allowance, and license validity date. Upon confirmation, access is permanently unlocked and the state persists across sessions.
-
-For all other features — strain search, DNA matching, pharmacy browsing, the AI assistant, personal journal, and the market — **no license is required**.
-
----
-
-## Technical Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **UI Framework** | React 18 — functional components with hooks |
-| **Build Tool** | Vite 5 — ESM-first, production builds under 30 seconds |
-| **Styling** | Tailwind CSS utility classes + inline style system |
-| **Animation** | Framer Motion — `AnimatePresence`, `motion.*`, spring physics |
-| **State Management** | `useState` + `useCallback` + `useMemo` — no external store |
-| **Session Persistence** | `localStorage` — synchronous lazy init, zero flash |
-| **Typography** | Heebo (Google Fonts, RTL Hebrew, weights 300–900) |
-| **Icons** | Handcrafted inline SVG — zero icon-library dependency |
-| **Viewport Architecture** | `100dvh` + `overflow:hidden` — strict no-scroll everywhere |
-| **Text Direction** | Full `dir="rtl"` across all surfaces |
-
-### Running Locally
+### הפעלה
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server with hot reload
 npm run dev
-
-# Production build (outputs to /dist)
-npm run build
-
-# Preview the production build locally
-npm run preview
 ```
 
-The dev server starts at `http://localhost:5173`. The API backend (if active) runs on port `3001` and is proxied transparently through Vite.
+---
+
+## אבטחה ופרטיות
+
+- **אימות OTP** — כניסה ללא סיסמה (טלפון/אימייל)
+- **Rate limiting** על כל נקודות הקצה
+- **k-anonymity** — נתוני קהילה מוצגים רק כשיש ≥20 דיווחים
+- **צמח אינו יועץ רפואי** — כל תגובה כוללת הפניה לרופא המטפל
+- **אפס קריאות Anthropic/OpenAI** — מנוע מקומי + Groq free tier בלבד
+- **אין אחסון מידע רפואי** — הפרופיל מבוסס על העדפות בוטניות בלבד
 
 ---
 
-## Foundational Engineering Principles
+## מיועד למטופלים מורשים בלבד
 
-**Synchronous session restore:** Session state is initialized via lazy `useState` initializers that read `localStorage` synchronously — the app never renders a logged-out flash before restoring an active session.
+CannaMatch מיועדת לשימוש על ידי מטופלים עם רישיון קנאביס רפואי תקף בישראל בלבד, בהתאם לתקנות נוהל 106 ורשות הרוקחות.
 
-**Defensive array access:** All user preference fields use optional chaining (`?.`) and `|| []` fallback initialization throughout. No post-onboarding screen transition can crash from an undefined dataset.
-
-**No medical data:** The platform does not store, transmit, or process any medical diagnoses, prescriptions, or clinical health history. Botanical matching vectors are derived entirely from cannabis preference expressions. This is a core design principle, not a technical constraint.
-
-**Community integrity:** All community posts pass through a moderation layer before publication. Commercial language, brand promotion, and personally identifying information are handled before display.
+**המידע באפליקציה הוא חינוכי בלבד ואינו מהווה ייעוץ רפואי.**
 
 ---
 
-## Compliance & Eligibility
+## עיצוב
 
-CannaMatch is designed exclusively for holders of a valid Israeli medical cannabis license aged 18 and above.
-
-The information displayed does not constitute medical advice and does not replace consultation with a licensed physician. All match percentages and strain rankings are informational guidance based on botanical science — not clinical recommendations.
-
-Not for commercial sale. Not intended for minors. For personal, licensed medical use only.
+- "Organic Cyberpunk" — ערכת נושא כהה עמוקה עם הדגשים ירוקים אורגניים
+- Design System מלא (`ds.js`) עם טוקנים לצבע, פיזיקת ספרינג, ו-motion variants
+- RTL עברית מלאה (`dir="rtl"`, Heebo)
+- מותאם לנגישות — ניגוד גבוה, גופן קריא, אנימציות עדינות
 
 ---
 
-*CannaMatch — Where botanical science meets personal precision.*
+*CannaMatch — התאמה בוטנית אישית לכל מטופל.*

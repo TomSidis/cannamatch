@@ -5,19 +5,23 @@
 //  israeli-pharmacy-catalog.js reference them in their `pharmacies` arrays.
 //
 //  Fields:
+//    data_source — provenance tag: "scraped" | "public"
+//                  ph1/ph2 = scraped (menu sources for the strain catalog)
+//                  ph3–ph8 = public (real pharmacies licensed by MoH, coordinates from maps)
 //    id          — stable key matching strain.pharmacies[]
 //    name        — display name (Hebrew)
 //    city        — city name (Hebrew)
 //    region      — one of: "מרכז" | "ירושלים" | "צפון" | "דרום"
 //    lat / lng   — WGS-84 coordinates for haversine distance sort
-//    open        — placeholder status; real-time data comes from PharmacyViewer
-//    priceFactor — relative to market avg (< 0.97 = low, > 1.03 = high)
+//    open        — PLACEHOLDER (not shown to users); real open/close from PharmacyViewer
+//    priceFactor — PLACEHOLDER estimate (not shown to users); real prices from scraped menu
 //    delivery    — offers courier / delivery service
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const PHARMACIES = [
   {
     id:          "ph1",
+    data_source: "scraped",
     name:        "פארמרי",
     city:        "אור עקיבא",
     region:      "מרכז",
@@ -29,6 +33,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph2",
+    data_source: "scraped",
     name:        "גיוול",
     city:        "תל אביב",
     region:      "מרכז",
@@ -40,6 +45,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph3",
+    data_source: "public",
     name:        "תמיר",
     city:        "ירושלים",
     region:      "ירושלים",
@@ -51,6 +57,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph4",
+    data_source: "public",
     name:        "קנה-בוסם",
     city:        "חיפה",
     region:      "צפון",
@@ -62,6 +69,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph5",
+    data_source: "public",
     name:        "פארמוס",
     city:        "פתח תקווה",
     region:      "מרכז",
@@ -73,6 +81,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph6",
+    data_source: "public",
     name:        "נגב קנאביס",
     city:        "באר שבע",
     region:      "דרום",
@@ -84,6 +93,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph7",
+    data_source: "public",
     name:        "גלילי קנאביס",
     city:        "נצרת",
     region:      "צפון",
@@ -95,6 +105,7 @@ export const PHARMACIES = [
   },
   {
     id:          "ph8",
+    data_source: "public",
     name:        "ריאליף",
     city:        "ראשון לציון",
     region:      "מרכז",

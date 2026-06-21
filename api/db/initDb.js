@@ -50,9 +50,11 @@ async function run() {
       return;
     }
 
-    // ── 2. בית מרקחת דמו ──
+    // ── 2. בית מרקחת Pharmary — מקור נתוני הסריקה ──
     const { rows: [ph] } = await client.query(
-      `INSERT INTO pharmacies (name, city, delivery) VALUES ('בית מרקחת דמו','ירושלים',true) RETURNING id`
+      `INSERT INTO pharmacies (name, city, delivery)
+       VALUES ('Pharmary (Or Akiva)','Or Akiva',true)
+       ON CONFLICT (name) DO UPDATE SET city=EXCLUDED.city RETURNING id`
     );
 
     // ── 3. זריעת זנים + אצוות ──

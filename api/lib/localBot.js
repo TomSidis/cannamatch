@@ -1,17 +1,14 @@
 /**
  * File:            api/lib/localBot.js
- * Responsibility:  Deterministic conversational routing engine for the "Zemach"
- *                  assistant.  Zero LLM calls.  Three intent tiers:
+ * Responsibility:  Conversational routing engine for the "Zemach" assistant.
+ *                  Three intent tiers:
  *                    A — local knowledge retrieval (terpenes, storage, clinical)
- *                    B — real-time data (pharmacy hours, live stock, web search stub)
- *                    C — friendly Hebrew fallback
- * Dependencies:    fs (Node built-in), path (Node built-in),
- *                  api/db.js (PostgreSQL pool),
- *                  api/lib/pharmacyHours.js (computeOpenStatus, fallback list),
- *                  api/lib/clinicalCore.js (verifyClinicalSafety — kill-switch),
- *                  src/knowledge/terpene_science.json,
- *                  src/knowledge/indications.json,
- *                  src/knowledge/israeli_products.json
+ *                    B — real-time data (pharmacy hours, live stock, web search)
+ *                    C — open-ended: Groq LLM with optional web RAG context
+ *                  When GROQ_API_KEY is set, intents A and B are enhanced by
+ *                  Groq to produce natural Hebrew prose instead of raw templates.
+ *                  Image analysis is routed to Groq Vision (also free-tier).
+ *                  Falls back 100% locally if Groq is unavailable.
  */
 
 import { readFileSync }                                  from 'fs';
@@ -20,6 +17,8 @@ import { dirname, resolve }                              from 'path';
 import { pool }                                          from '../db.js';
 import { computeOpenStatus, ISRAELI_PHARMACY_FALLBACK }  from './pharmacyHours.js';
 import { verifyClinicalSafety }                          from './clinicalCore.js';
+import { callGroq, callGroqVision, isGroqAvailable }    from './groqAdapter.js';
+import { webSearch }                                     from './webSearch.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -253,73 +252,50 @@ const INTENT_B_PATTERNS = [
   /ב?זמינות\s*(?:עכשיו|כרגע|היום)/i,
 ];
 
-// ── Web / search stub ─────────────────────────────────────────────────────────
-// Attempts Google Custom Search → SerpAPI → local pharmacy response.
-// Never throws; always resolves to a { reply, citations } object.
-async function webSearchStub(query, inventory = []) {
-  const GOOGLE_KEY = process.env.GOOGLE_CSE_KEY;
-  const GOOGLE_CX  = process.env.GOOGLE_CSE_CX;
-  const SERP_KEY   = process.env.SERPAPI_KEY;
+// ── Build Groq system prompt from user's DNA profile ─────────────────────────
+function buildSystemPrompt(dnaProfile) {
+  const profileSection = dnaProfile
+    ? [
+        '',
+        '=== פרופיל המטופל ===',
+        dnaProfile.indications?.length
+          ? `התוויות: ${dnaProfile.indications.join(', ')}`
+          : '',
+        Object.keys(dnaProfile.target_terpenes || {}).length
+          ? `טרפנים מועדפים: ${Object.keys(dnaProfile.target_terpenes).join(', ')}`
+          : '',
+        Object.keys(dnaProfile.trigger_terpenes || {}).length
+          ? `טרפנים אסורים (kill-switch): ${Object.keys(dnaProfile.trigger_terpenes).join(', ')}`
+          : '',
+      ].filter(Boolean).join('\n')
+    : '';
 
-  // Pharmacy-hours queries answered locally without any external call
+  return (
+    `אתה צמח (Zemach), עוזר AI ידידותי ומקצועי של אפליקציית קנאמאצ׳ — שוק הקנאביס הרפואי הישראלי.
+ענה תמיד בעברית בלבד, בטון חם ובגובה העיניים — כמו חבר מנוסה, לא כמו רופא.
+אל תיתן ייעוץ רפואי ישיר. הפנה לרופא בנושאי טיפול.
+היה קצר ומדויק — עד 3 פסקאות. השתמש ב-emoji מדי פעם להנגשה.
+אתה מכיר היטב: טרפנים, קנבינואידים, זנים ישראלים, נוהל 106, ויק"ר (T/C).
+אל תמציא נתוני מחירים או מלאי — הם מגיעים ממסד הנתונים המחובר.${profileSection}`
+  );
+}
+
+// ── Web / search — now uses the full free search chain ────────────────────────
+async function doWebSearch(query, inventory = []) {
   if (/בית\s*מרקחת|פתוח|שעות/i.test(query)) {
     return buildLocalPharmacyResponse(inventory);
   }
 
-  let results = [];
-
-  // ── Attempt 1: Google Custom Search ─────────────────────────────────────
-  if (GOOGLE_KEY && GOOGLE_CX) {
-    try {
-      const url =
-        'https://www.googleapis.com/customsearch/v1?' +
-        `key=${encodeURIComponent(GOOGLE_KEY)}&cx=${encodeURIComponent(GOOGLE_CX)}` +
-        `&q=${encodeURIComponent(query + ' ישראל קנאביס רפואי')}&num=5&hl=iw&gl=il`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-      if (resp.ok) {
-        const data = await resp.json();
-        results = (data.items || []).slice(0, 3).map((item) => ({
-          title:   item.title,
-          snippet: item.snippet,
-          url:     item.link,
-        }));
-      }
-    } catch (err) {
-      console.warn('localBot Google CSE error:', err.message);
-    }
-  }
-
-  // ── Attempt 2: SerpAPI ───────────────────────────────────────────────────
-  if (!results.length && SERP_KEY) {
-    try {
-      const url =
-        'https://serpapi.com/search.json?' +
-        `q=${encodeURIComponent(query + ' קנאביס רפואי ישראל')}` +
-        `&api_key=${encodeURIComponent(SERP_KEY)}&engine=google&hl=iw&gl=il&num=5`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-      if (resp.ok) {
-        const data = await resp.json();
-        results = (data.organic_results || []).slice(0, 3).map((r) => ({
-          title:   r.title,
-          snippet: r.snippet,
-          url:     r.link,
-        }));
-      }
-    } catch (err) {
-      console.warn('localBot SerpAPI error:', err.message);
-    }
-  }
-
-  // ── Fallback: local data only ─────────────────────────────────────────────
+  const results = await webSearch(query + ' קנאביס רפואי ישראל').catch(() => []);
   if (!results.length) return buildLocalPharmacyResponse(inventory);
 
   const bullets = results
-    .map((r, i) => `${i + 1}. **${r.title}**\n   ${r.snippet}\n   🔗 ${r.url}`)
+    .map((r, i) => `${i + 1}. **${r.title}**\n   ${r.snippet}${r.url ? `\n   🔗 ${r.url}` : ''}`)
     .join('\n\n');
 
   return {
-    reply: `מצאתי ${results.length} תוצאות עדכניות עבורך:\n\n${bullets}\n\n` +
-           `💡 המידע לעיל מגיע ממקורות חיצוניים — תמיד בדוק ישירות עם בית המרקחת.`,
+    reply: `מצאתי ${results.length} תוצאות עדכניות:\n\n${bullets}\n\n` +
+           `💡 המידע לעיל ממקורות חיצוניים — תמיד בדוק ישירות.`,
     citations: results,
   };
 }
@@ -391,54 +367,174 @@ const FALLBACK_MESSAGE =
 
 // ── Public entry-point ────────────────────────────────────────────────────────
 /**
- * handleZemachQuery(message, dnaProfile, inventory)
- *   → Promise<{ reply: string, citations: object[], local_fallback: boolean, intent: string }>
+ * handleZemachQuery(message, dnaProfile, inventory, image)
+ *   → Promise<{ reply, citations, local_fallback, intent }>
  *
- * Deterministic routing — zero LLM calls:
- *   A → knowledge response built from local JSON files
- *   B → live pharmacy/stock data, or external search API stub
- *   C → friendly Hebrew fallback with optional stock personalisation
+ * Routing:
+ *   IMAGE → Groq Vision (free) when GROQ_API_KEY is set
+ *   A     → Local knowledge JSON; optionally naturalised by Groq
+ *   B     → Free multi-source web search; synthesised by Groq when available
+ *   C     → Groq with web RAG context; pure local fallback otherwise
+ *
+ * @param {string} message
+ * @param {object|null} dnaProfile
+ * @param {Array} inventory
+ * @param {{ data: string, type: string }|null} image  base64 for vision queries
  */
-async function handleZemachQuery(message, dnaProfile = null, inventory = []) {
-  if (!message || typeof message !== 'string' || !message.trim()) {
+async function handleZemachQuery(message = '', dnaProfile = null, inventory = [], image = null) {
+  if (!message?.trim() && !image) {
     return { reply: FALLBACK_MESSAGE, citations: [], local_fallback: true, intent: 'C' };
+  }
+
+  const systemPrompt = buildSystemPrompt(dnaProfile);
+  const useGroq      = isGroqAvailable();
+  const trimmed      = (message || '').trim();
+
+  // ── GREETING / small-talk detection ──────────────────────────────────────
+  const GREETING_RE = /^(שלום|היי|הי|שב"?ת שלום|בוקר טוב|ערב טוב|לילה טוב|מה שלומך|מה נשמע|מה קורה|מה המצב|hey|hello|hi\b|yo\b)/i;
+  const THANKS_RE   = /^(תודה|תנקס|תודה רבה|thanks|thank you)/i;
+  const ACK_RE      = /^(בסדר|אוקי|אוקיי|הבנתי|קיבלתי|מעולה|נכון|בדיוק|ok\b|okay\b)/i;
+
+  if (GREETING_RE.test(trimmed) || THANKS_RE.test(trimmed) || ACK_RE.test(trimmed)) {
+    const name = dnaProfile?.name;
+    let reply;
+    if (THANKS_RE.test(trimmed)) {
+      reply = 'בשמחה גדולה! 💚\nאני כאן בשבילך 24/7 — שאל על טרפנים, זנים, בתי מרקחת, או שלח תמונת תפריט לניתוח.';
+    } else if (ACK_RE.test(trimmed)) {
+      reply = 'מעולה 🙌 מה עוד אתה רוצה לדעת?';
+    } else {
+      reply = `שלום${name ? ` ${name}` : ''}! 🌿 אני צמח — העוזר הרפואי האישי שלך לקנאביס.\n\nאני יכול לעזור לך עם:\n• מידע על טרפנים וקנבינואידים\n• בתי מרקחת פתוחים ומלאי חי\n• אחסון נכון ושיטות צריכה\n• ניתוח תפריטים — שלח תמונה!\n\nמה מעניין אותך היום?`;
+    }
+    return { reply, citations: [], local_fallback: true, intent: 'greeting' };
+  }
+
+  // ── IMAGE ANALYSIS ────────────────────────────────────────────────────────
+  if (image?.data) {
+    if (useGroq) {
+      try {
+        const reply = await callGroqVision({
+          systemPrompt,
+          userText:    message?.trim() || 'מה מופיע בתמונה? פענח זנים, קטגוריות T/C, ומידע רפואי.',
+          imageBase64: image.data,
+          mediaType:   image.type || 'image/jpeg',
+        });
+        return { reply, citations: [], local_fallback: false, intent: 'IMAGE' };
+      } catch (err) {
+        console.warn('Groq Vision error:', err.message);
+        return {
+          reply: 'לא הצלחתי לנתח את התמונה כרגע 📸 — נסה שוב, או שלח את שם הזן בטקסט ואענה.',
+          citations: [], local_fallback: true, intent: 'IMAGE',
+        };
+      }
+    }
+    return {
+      reply: 'ניתוח תמונות דורש חיבור ל-Groq API 🔑\n' +
+             'הוסף GROQ_API_KEY ל-.env (חינמי ב-console.groq.com) ואפענח תפריטים תוך שניות!',
+      citations: [], local_fallback: true, intent: 'IMAGE',
+    };
   }
 
   const intent = detectIntent(message);
 
-  // ── Intent A ─────────────────────────────────────────────────────────────
+  // ── INTENT A: local knowledge ─────────────────────────────────────────────
   if (intent.type === 'A') {
-    try {
-      let reply = intent.rule.respond() || FALLBACK_MESSAGE;
-      if (dnaProfile?.indications?.length) {
-        reply += `\n\n📌 *לפי הפרופיל שלך (${dnaProfile.indications.join(', ')}):* ` +
-                 'שאל אותי על טרפנים ספציפיים שרלוונטיים להתוויות שלך!';
+    let localReply;
+    try { localReply = intent.rule.respond() || FALLBACK_MESSAGE; }
+    catch (err) { console.error('localBot Intent A:', err.message); localReply = FALLBACK_MESSAGE; }
+
+    if (useGroq) {
+      try {
+        const reply = await callGroq({
+          systemPrompt,
+          messages: [
+            { role: 'user', content: message },
+            {
+              role: 'assistant',
+              content: localReply + '\n\n[הנ"ל ידע קליני מובנה. המר לתגובה שיחתית, חמה ומדויקת בעברית. שמור על כל העובדות. עד 3 פסקאות.]',
+            },
+          ],
+          maxTokens: 500,
+        });
+        const suffix = dnaProfile?.indications?.length
+          ? `\n\n📌 לפי הפרופיל שלך (${dnaProfile.indications.join(', ')}) — שאל אותי על טרפנים ספציפיים!`
+          : '';
+        return { reply: reply + suffix, citations: [], local_fallback: false, intent: 'A' };
+      } catch (err) {
+        console.warn('Groq Intent A naturalisation:', err.message);
       }
-      return { reply, citations: [], local_fallback: false, intent: 'A' };
-    } catch (err) {
-      console.error('localBot Intent A error:', err.message);
-      return { reply: FALLBACK_MESSAGE, citations: [], local_fallback: true, intent: 'C' };
     }
+
+    if (dnaProfile?.indications?.length) {
+      localReply += `\n\n📌 *לפי הפרופיל שלך (${dnaProfile.indications.join(', ')}):* שאל אותי על טרפנים ספציפיים!`;
+    }
+    return { reply: localReply, citations: [], local_fallback: true, intent: 'A' };
   }
 
-  // ── Intent B ─────────────────────────────────────────────────────────────
+  // ── INTENT B: real-time / web ─────────────────────────────────────────────
   if (intent.type === 'B') {
     try {
-      const result = await webSearchStub(message, inventory);
-      return { ...result, local_fallback: false, intent: 'B' };
+      const searchResult = await doWebSearch(message, inventory);
+
+      if (useGroq && searchResult.citations?.length) {
+        try {
+          const snippets = searchResult.citations
+            .map((r, i) => `${i + 1}. ${r.title}: ${r.snippet}`)
+            .join('\n');
+          const reply = await callGroq({
+            systemPrompt,
+            messages: [{
+              role: 'user',
+              content: `שאלת המשתמש: ${message}\n\nתוצאות חיפוש חיות:\n${snippets}\n\nענה בעברית חמה ומדויקת לפי המידע הנ"ל.`,
+            }],
+            maxTokens: 550,
+          });
+          return { reply, citations: searchResult.citations, local_fallback: false, intent: 'B' };
+        } catch (err) { console.warn('Groq Intent B synthesis:', err.message); }
+      }
+
+      return { ...searchResult, local_fallback: false, intent: 'B' };
     } catch (err) {
-      console.error('localBot Intent B error:', err.message);
+      console.error('localBot Intent B:', err.message);
       return { ...buildLocalPharmacyResponse(inventory), local_fallback: true, intent: 'B' };
     }
   }
 
-  // ── Intent C ─────────────────────────────────────────────────────────────
-  let reply = FALLBACK_MESSAGE;
-  if (dnaProfile?.indications?.length && inventory.length) {
-    const inStock = inventory.filter((b) => b.in_stock).slice(0, 3);
-    if (inStock.length) {
-      reply += `\n\nכרגע במלאי: ${inStock.map((b) => `${b.name} (${b.pharmacy_name || '?'})`).join(', ')}.`;
+  // ── INTENT C: open-ended → Groq + web RAG ────────────────────────────────
+  if (useGroq) {
+    let citations  = [];
+    let ragContext = '';
+
+    if (message.length > 10) {
+      try {
+        const results = await webSearch(message + ' cannabis medical Israel קנאביס');
+        if (results.length) {
+          citations  = results;
+          ragContext = '\n\nמידע עדכני מהרשת (השתמש רק אם רלוונטי):\n' +
+                      results.slice(0, 3).map((r) => `• ${r.title}: ${r.snippet}`).join('\n');
+        }
+      } catch { /* non-fatal */ }
     }
+
+    const inStock  = (inventory || []).filter((b) => b.in_stock).slice(0, 4);
+    const stockCtx = inStock.length
+      ? '\n\nמלאי חי: ' + inStock.map((b) => `${b.name} (${b.pharmacy_name || '?'}) ₪${b.price ?? '?'}`).join(', ')
+      : '';
+
+    try {
+      const reply = await callGroq({
+        systemPrompt: systemPrompt + ragContext + stockCtx,
+        messages: [{ role: 'user', content: message }],
+        maxTokens: 650,
+      });
+      return { reply, citations, local_fallback: false, intent: 'C' };
+    } catch (err) { console.warn('Groq Intent C:', err.message); }
+  }
+
+  // ── Final local fallback ──────────────────────────────────────────────────
+  let reply     = FALLBACK_MESSAGE;
+  const inStock = (inventory || []).filter((b) => b.in_stock).slice(0, 3);
+  if (dnaProfile?.indications?.length && inStock.length) {
+    reply += `\n\nכרגע במלאי: ${inStock.map((b) => `${b.name} (${b.pharmacy_name || '?'})`).join(', ')}.`;
   }
   return { reply, citations: [], local_fallback: true, intent: 'C' };
 }

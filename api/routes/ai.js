@@ -37,26 +37,38 @@ router.post('/claude', claudeRateLimit, verifySession, (_req, res) => {
   });
 });
 
-// ── POST /api/zemach-chat — deterministic local assistant ─────────────────────
-router.post('/zemach-chat', claudeRateLimit, verifySession, async (req, res) => {
-  const { message, history = [] } = req.body;          // history kept for future use
+// ── POST /api/zemach-chat — Zemach assistant (public; auth is optional)
+router.post('/zemach-chat', claudeRateLimit, async (req, res) => {
+  // Optional auth — bot serves ALL users; session only enriches the DNA profile
+  let _userId = null;
+  try {
+    await new Promise((resolve, reject) =>
+      verifySession(req, res, (err) => (err ? reject(err) : resolve()))
+    );
+    _userId = req.userId;
+  } catch { /* unauthenticated is fine */ }
 
-  if (!message || typeof message !== 'string' || !message.trim()) {
+  // image: { data: base64string, type: 'image/jpeg' } — optional, for vision queries
+  const { message, history = [], image } = req.body;
+
+  if ((!message || !message.trim()) && !image?.data) {
     return res.status(400).json({ error: { message: 'חסרה הודעה.' } });
   }
 
-  // ── Load user DNA profile ──────────────────────────────────────────────────
+  // ── Load user DNA profile (only when authenticated) ───────────────────────
   let profile   = null;
   let inventory = [];
 
-  try {
-    const { rows: [profRow] } = await pool.query(
-      `SELECT profile FROM user_dna_profiles WHERE user_id = $1`,
-      [req.userId],
-    );
-    profile = profRow?.profile || null;
-  } catch (err) {
-    console.warn('zemach-chat: profile lookup failed —', err.message);
+  if (_userId) {
+    try {
+      const { rows: [profRow] } = await pool.query(
+        `SELECT profile FROM user_dna_profiles WHERE user_id = $1`,
+        [_userId],
+      );
+      profile = profRow?.profile || null;
+    } catch (err) {
+      console.warn('zemach-chat: profile lookup failed —', err.message);
+    }
   }
 
   // ── Load live inventory (top 60 in-stock batches) ─────────────────────────
@@ -78,7 +90,7 @@ router.post('/zemach-chat', claudeRateLimit, verifySession, async (req, res) => 
 
   // ── Route through local bot engine ────────────────────────────────────────
   try {
-    const result = await handleZemachQuery(message, profile, inventory);
+    const result = await handleZemachQuery(message, profile, inventory, image || null);
     return res.json({
       reply:          result.reply,
       citations:      result.citations || [],

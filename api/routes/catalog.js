@@ -25,7 +25,7 @@ function mapRowToScoringEngineStrain(row) {
 
 function mapDnaToScoringAnswers(dna, overrideCats = null) {
   return {
-    cats:      overrideCats || ["T22/C4","T20/C4","T18/C3","T15/C3","T12/C12","T10/C10","T10/C2","T3/C15","T3/C12"],
+    cats:      overrideCats || ["T22/C4","T18/C3","T15/C3","T12/C12","T10/C10","T10/C2","T3/C15","T3/C12"],
     reasons:   dna.indications || [],
     flavors:   Object.keys(dna.target_terpenes || {}),
     helped: [], notHelped: [], current: [],
@@ -170,5 +170,33 @@ router.get("/pharmacy-stock/:pharmacyId", async (req, res) => {
     res.status(500).json({ error: { message: "שגיאת שרת בשליפת מלאי בית מרקחת" } });
   }
 });
+
+// ── GET /api/community-stats — social proof aggregates ────────
+// Returns report counts and avg efficacy per strain (k-anonymity: min 3 reports).
+// Zero-latency empty-state when no data — never throws a 5xx.
+router.get("/community-stats", async (req, res) => {
+  const { strain_id } = req.query;
+  try {
+    const where  = strain_id ? `WHERE strain_id::text = $1` : ``;
+    const params = strain_id ? [strain_id] : [];
+    const { rows: [stat] } = await pool.query(
+      `SELECT
+         COUNT(*)::int                                           AS total_reports,
+         ROUND(AVG(efficacy)::numeric, 1)                       AS avg_efficacy,
+         COUNT(*) FILTER (WHERE efficacy >= 4)::int             AS high_rating_count,
+         COUNT(*) FILTER (WHERE anxiety_triggered = TRUE)::int  AS anxiety_count
+       FROM user_reviews ${where}`,
+      params,
+    );
+    // Enforce k-anonymity — suppress until there are at least 3 reports
+    const total = stat?.total_reports || 0;
+    if (total < 3) return res.json({ total_reports: 0, avg_efficacy: null, high_rating_count: 0 });
+    res.json(stat);
+  } catch (err) {
+    console.error("community-stats error:", err.message);
+    res.json({ total_reports: 0, avg_efficacy: null, high_rating_count: 0 });
+  }
+});
+
 
 export default router;

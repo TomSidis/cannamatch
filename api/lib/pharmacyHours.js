@@ -4,9 +4,11 @@
 // ─────────────────────────────────────────────
 
 // בתי מרקחת מובילים לקנאביס רפואי בישראל — fallback אם ה-DB לא זמין/ריק
+// data_source: "public" — שמות ושעות מ-MoH / אתר בית המרקחת; טלפונים משוערים (לא נסרקו)
 const ISRAELI_PHARMACY_FALLBACK = [
   {
     id: "fallback-yarkonim",
+    data_source: "public",
     name: "סופר-פארם הירקונים",
     city: "תל אביב",
     delivery: true,
@@ -20,6 +22,7 @@ const ISRAELI_PHARMACY_FALLBACK = [
   },
   {
     id: "fallback-givat-shaul",
+    data_source: "public",
     name: "סופר-פארם גבעת שאול",
     city: "ירושלים",
     delivery: true,
@@ -33,6 +36,7 @@ const ISRAELI_PHARMACY_FALLBACK = [
   },
   {
     id: "fallback-shor-tabachnik",
+    data_source: "public",
     name: "שור טבצ'ניק",
     city: "תל אביב",
     delivery: false,

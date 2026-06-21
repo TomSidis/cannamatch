@@ -52,6 +52,21 @@ export const api = {
 
   // בתי מרקחת + מלאי
   getPharmacies: () => apiFetch(`/api/pharmacies`),
+  syncPharmacies: () => apiFetch(`/api/pharmacies/sync`, { method: 'POST' }),
+  getPharmacyMenu: (pharmacyId) => apiFetch(`/api/pharmacies/${pharmacyId}/menu`),
+  verifyStock: (pharmacyId, batchId, answer) =>
+    apiFetch(`/api/pharmacies/${pharmacyId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ batch_id: batchId, answer }),
+    }),
+  setStockAlert: (pharmacyId, strainId, strainName, pharmacyName) =>
+    apiFetch(`/api/pharmacies/alert`, {
+      method: 'POST',
+      body: JSON.stringify({ pharmacy_id: pharmacyId, strain_id: strainId, strain_name: strainName, pharmacy_name: pharmacyName }),
+    }),
+  getStockAlerts: () => apiFetch(`/api/pharmacies/alerts`),
+  deleteStockAlert: (alertId) =>
+    apiFetch(`/api/pharmacies/alerts/${alertId}`, { method: 'DELETE' }),
   getInventory: ({ pharmacy_id, category, strain_id } = {}) => {
     const p = new URLSearchParams();
     if (pharmacy_id) p.set("pharmacy_id", pharmacy_id);
@@ -70,9 +85,21 @@ export const api = {
     return apiFetch(`/api/recommendations/${userId}?${p}`);
   },
 
-  // ביקורת
+  // ביקורת + דיווח מהיר
   submitReview: (payload) =>
     apiFetch(`/api/reviews`, { method: "POST", body: JSON.stringify(payload) }),
+  // 5-second report flow (maps rating 1-4 → efficacy 1-5 scale)
+  submitReport: ({ user_id, strain_id, rating, effects = [] }) =>
+    apiFetch(`/api/reviews`, {
+      method: "POST",
+      body: JSON.stringify({
+        user_id,
+        strain_id,
+        efficacy: Math.min(5, Math.max(1, Math.round(rating * 1.25))),
+        side_effects: effects,
+        anxiety_triggered: effects.includes("anxious"),
+      }),
+    }).catch(() => ({ ok: true, offline: true })), // non-blocking — offline OK
 
   // RWE — חוכמת קהילה (community_stats aggregate; k-anonymity n≥20)
   getCommunityStats: ({ strainId, indicationId } = {}) => {

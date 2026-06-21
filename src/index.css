@@ -270,6 +270,22 @@ body {
 }
 .chat-input::placeholder { color:rgba(172,198,180,.38) !important; }
 
+/* ───────── Zemach Avatar — destroy any browser button box ───────── */
+.zemach-avatar-btn,
+.zemach-avatar-btn:focus,
+.zemach-avatar-btn:focus-visible,
+.zemach-avatar-btn:active {
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
 /* ───────── Holographic Bud ───────── */
 @keyframes holo-pulse-anim {
   0%,100% { opacity:0.52; transform:scale(1); }
