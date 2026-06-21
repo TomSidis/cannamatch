@@ -1024,6 +1024,9 @@ const CLINICAL_TO_REASON = {
   glaucoma:      "pain",
 };
 
+// ── Named exports so Profile screen can reuse the same diagram ───────────────
+export { RadarChart, TERP_ORDER };
+
 // ── Main Wizard ───────────────────────────────────────────────────────────────
 export default function OnboardingWizard({ user, onComplete, onSkip }) {
   const store = useOnboardingStore();

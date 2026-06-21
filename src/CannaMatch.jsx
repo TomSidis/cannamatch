@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
@@ -20,7 +20,13 @@ import KB_PRODUCTS from "./knowledge/israeli_products.json";
 import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
 // ZemachAvatarChat removed — replaced by future knowledge-base chatbot
-import OnboardingWizard from "./components/OnboardingWizard.jsx";
+import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
+import ReportFlow from "./components/ReportFlow.jsx";
+import NextExperiment from "./components/NextExperiment.jsx";
+import CommunitySplitScreen from "./components/CommunitySplitScreen.jsx";
+import { friendWhy, killSwitchSummary, computeMapDiff, nextExperimentStrain } from "./lib/matchCopy.js";
+import { useReportTiming } from "./hooks/useReportTiming.js";
+import { terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
 
@@ -112,15 +118,15 @@ const DELIVERY_METHODS = [
   { id: "vape", icon: "💨", title: "אידוי (Vaporizer)", best: true,
     onset: "3–10 דקות", peak: "~30 דקות", duration: "עד ~3 שעות",
     note: "היעיל ביותר — כ-2.5 פעמים יותר חומר פעיל מעישון באותה כמות, ובטמפ' נמוכה יותר עם פחות תוצרי בעירה. מאפשר טיטרציה מדויקת. ההמלצה המועדפת לשאיפה.",
-    color: "#2E6B53" },
+    color: "#4ADE80" },
   { id: "smoke", icon: "🔥", title: "עישון תפרחת",
     onset: "3–10 דקות", peak: "~30 דקות", duration: "עד ~3 שעות",
     note: "מיידי ומוכר, מאפשר טיטרציה — אך בזבזני (ספיגה ~25–30%) ומייצר תוצרי בעירה. אם מעשנים, תפרחת נקייה בלבד. אידוי בריא יותר.",
-    color: "#B5651D" },
+    color: "#FB923C" },
   { id: "oil", icon: "💧", title: "שמן (תת-לשוני / בליעה)",
     onset: "15 דק' (תת-לשוני) עד שעתיים (בליעה)", peak: "1–3 שעות", duration: "5–6 שעות",
     note: "השפעה הדרגתית וארוכה, ללא שאיפה (טוב לריאות), מינון מדיד וקבוע. עובר בכבד והופך ל-11-OH-THC חזק יותר. מצוין לכאב כרוני מתמשך ולשינה רציפה — פחות למענה מיידי.",
-    color: "#5E4B8B" },
+    color: "#A78BFA" },
 ];
 
 /* אזהרת טבק — מבוססת מחקר. מוצגת בכל מקום רלוונטי. */
@@ -233,10 +239,10 @@ function scoreAll(rawAns, ratings, indFilter = [], typeFilter = "all") {
 
 /* סיווג איכות ההתאמה — נותן משמעות לאחוז. הרף ל"מומלץ" הוא 85%. */
 function matchTier(pct) {
-  if (pct >= 85) return { label: "התאמה מצוינת", color: "#2E6B53", bg: "#E7F0E9", show: true, icon: "🎯" };
-  if (pct >= 72) return { label: "התאמה טובה", color: "#5E7C4F", bg: "#EFF5EF", show: true, icon: "✓" };
-  if (pct >= 60) return { label: "התאמה חלקית", color: "#7A5510", bg: "#FBF3E3", show: false, icon: "~" };
-  return { label: "התאמה נמוכה", color: "#6B7280", bg: "#F0F0EE", show: false, icon: "·" };
+  if (pct >= 85) return { label: "התאמה מצוינת", color: "#4ADE80", bg: "rgba(74,222,128,0.12)", show: true, icon: "🎯" };
+  if (pct >= 72) return { label: "התאמה טובה", color: "#86EFAC", bg: "rgba(74,222,128,0.07)", show: true, icon: "✓" };
+  if (pct >= 60) return { label: "התאמה חלקית", color: "#FBBF24", bg: "rgba(251,191,36,0.07)", show: false, icon: "~" };
+  return { label: "התאמה נמוכה", color: "rgba(187,247,208,0.45)", bg: "rgba(255,255,255,0.05)", show: false, icon: "·" };
 }
 
 /* ───────────── פרופילי התוויה מבוססי מחקר ─────────────
@@ -481,7 +487,7 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
 
   const [copied, setCopied] = useState(false);
   const share = () => {
-    const txt = `הפרופיל שלי בקנאמאצ׳ 🌿\nפרופיל: ${seq}\nטרפנים מובילים: ${active.slice(0,3).map(([t]) => TERPENES[t].he).join(", ")}\nקנאמאצ׳ — מיטוב הקנייה החודשית שלך`;
+    const txt = `הפרופיל שלי בקנאמאצ׳ 🌿\nפרופיל: ${seq}\nמה שעובד לי: ${active.slice(0,3).map(([t]) => terpHuman(t, 'strand')).join(", ")}\nקנאמאצ׳ — מיטוב הקנייה החודשית שלך`;
     if (navigator.clipboard) { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
@@ -519,8 +525,9 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
             const st = terpStrength(v);
             return (
               <div key={t} className="flex items-center gap-2 py-1">
-                <span className="text-xs w-16 font-bold" style={{ color: "#fff" }}>{TERPENES[t].he}</span>
-                <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.2)" }}>
+                <span style={{ fontSize: 12 }}>{terpHuman(t, 'icon')}</span>
+                <span className="text-xs flex-1 font-bold" style={{ color: "#fff", minWidth: 0 }}>{terpHuman(t, 'shortLabel')}</span>
+                <div className="h-3 rounded-full overflow-hidden" style={{ width: 70, background: "rgba(0,0,0,0.2)", flexShrink: 0 }}>
                   <div className="h-full rounded-full transition-all" style={{
                     width: `${(v / maxV) * 100}%`,
                     background: TERPENES[t].color,
@@ -586,7 +593,7 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
                   {Object.entries(s.terps).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t]) => (
                     <span key={t} className="text-xs px-2 py-0.5 rounded-full"
                       style={{ background: TERPENES[t].color + "22", color: TERPENES[t].color, fontWeight: 600 }}>
-                      {TERPENES[t].he}
+                      {terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}
                     </span>
                   ))}
                 </div>
@@ -609,7 +616,7 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
               return (
                 <div key={t} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", borderRight: `3px solid ${TERPENES[t].color}`, border: "1px solid rgba(255,255,255,0.06)", borderRightWidth: 3 }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-sm" style={{ color: TERPENES[t].color }}>{sci.aroma} {TERPENES[t].he}</span>
+                    <span className="font-bold text-sm" style={{ color: TERPENES[t].color }}>{terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: TERPENES[t].color + "22", color: TERPENES[t].color }}>{sci.role}</span>
                   </div>
@@ -620,7 +627,7 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
           </div>
           {avoided.length > 0 && (
             <p className="text-xs mt-3 rounded-xl p-2.5" style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
-              ⚠️ כדאי להימנע מ: {avoided.map(([t]) => TERPENES[t].he).join(", ")} — לפי הדיווחים שלך, אלה נקשרו לחוויה פחות טובה.
+              🛡️ כדאי להימנע מ: {avoided.map(([t]) => terpHuman(t, 'shortLabel')).join(", ")} — לפי הדיווחים שלך, אלה נקשרו לחוויה פחות טובה.
             </p>
           )}
           <p className="text-xs mt-2 text-center" style={{ color: "rgba(187,247,208,0.40)" }}>
@@ -670,14 +677,14 @@ const TerpDots = ({ terps }) => (
 const GeneticsChip = ({ s }) => (
   <span className="inline-flex items-center gap-1 flex-wrap">
     <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-      style={{ background: "#EDE7F6", color: "#5E4B8B" }}>
+      style={{ background: "rgba(167,139,250,0.12)", color: "#A78BFA" }}>
       🧬 {s.genetics}
       {s.gConf === "verified" && <span title="גנטיקה מאומתת"> ✓</span>}
       {s.gConf === "unverified" && <span title="שושלת לא מאומתת"> ?</span>}
     </span>
     {s.grower && (
       <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-        style={{ background: "#E7F0E9", color: "#2E6B53" }}>
+        style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80" }}>
         🌱 {s.grower}
       </span>
     )}
@@ -703,7 +710,7 @@ const ReportBars = ({ data, dict, color, max = 3 }) => (
 
 const MatchRing = ({ pct }) => {
   const r = 20, c = 2 * Math.PI * r;
-  const col = pct >= 85 ? "#2E6B53" : pct >= 70 ? "#D99A2B" : "#6B7280";
+  const col = pct >= 85 ? "#4ADE80" : pct >= 70 ? "#D99A2B" : "rgba(187,247,208,0.45)";
   return (
     <svg width="52" height="52" viewBox="0 0 52 52">
       <circle cx="26" cy="26" r={r} fill="none" stroke={C.line} strokeWidth="5" />
@@ -917,11 +924,11 @@ function IndicationCard({ rid, prof, topStrains, scored, ans }) {
             🎯 {rec?.headline || prof.label}
           </span>
           <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{ background: "#E7F0E9", color: C.accent }}>
+            style={{ background: "rgba(74,222,128,0.12)", color: C.accent }}>
             {prof.successRate}% מצליחים
           </span>
         </div>
-        <p className="text-xs mb-2" style={{ color: "#3D4F43" }}>
+        <p className="text-xs mb-2" style={{ color: "rgba(187,247,208,0.75)" }}>
           {rec?.tip || prof.summary.slice(0, 100) + "..."}
         </p>
         {/* הזנים המובילים בהתוויה זו */}
@@ -935,17 +942,17 @@ function IndicationCard({ rid, prof, topStrains, scored, ans }) {
         </div>
         <button onClick={() => setExpanded(!expanded)}
           className="text-xs font-bold flex items-center gap-1"
-          style={{ color: "#8A7BC0" }}>
+          style={{ color: "#A78BFA" }}>
           {expanded ? "− סגור פירוט מחקרי" : "+ פתח: מחקר, טרפנים ומה לדעת"}
         </button>
       </div>
       {expanded && (
         <div className="px-3 pb-3 border-t space-y-2.5 pt-2.5" style={{ borderColor: C.soft }}>
-          <p className="text-xs leading-relaxed" style={{ color: "#3D4F43" }}>{prof.summary}</p>
-          <p className="text-xs p-2.5 rounded-xl" style={{ background: "#FBF3E3", color: "#7A5510" }}>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.75)" }}>{prof.summary}</p>
+          <p className="text-xs p-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", color: "#FBBF24" }}>
             ⚖️ {prof.ratioNote}
           </p>
-          <p className="text-xs" style={{ color: "#4B5563" }}>
+          <p className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>
             📚 {prof.research}
           </p>
           <p className="text-xs font-semibold" style={{ color: C.accent }}>
@@ -960,7 +967,7 @@ function IndicationCard({ rid, prof, topStrains, scored, ans }) {
               return terps.map(t => TERPENES[t] && (
                 <span key={t} className="text-xs px-2 py-0.5 rounded-full"
                   style={{ background: TERPENES[t].color + "22", color: TERPENES[t].color, fontWeight: 600 }}>
-                  {TERPENES[t].he} ({TERPENES[t].flavor})
+                  {terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}
                 </span>
               ));
             })}
@@ -1049,13 +1056,13 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
     <div className="space-y-3">
       {source === "db" && (
         <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full w-fit"
-          style={{ background: "#E7F0E9", color: "#2E6B53" }}>
+          style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80" }}>
           🟢 מחובר למאגר החי (357 זנים)
         </div>
       )}
       {/* כותרת + כפתור הסבר */}
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm flex-1" style={{ color: "#4B5563" }}>
+        <p className="text-sm flex-1" style={{ color: "rgba(187,247,208,0.55)" }}>
           הזנים שהכי מתאימים לך — מסודרים מהגבוה לנמוך. לחצו על כרטיס לפירוט.
         </p>
         <button onClick={() => setShowInfo(!showInfo)}
@@ -1068,7 +1075,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
       {/* הסבר על הציונים */}
       {showInfo && (
         <div className="rounded-2xl p-3.5 text-xs leading-relaxed space-y-2"
-          style={{ background: "#EFF5EF", border: `1px solid ${C.line}`, color: "#3D4F43" }}>
+          style={{ background: "rgba(74,222,128,0.07)", border: `1px solid ${C.line}`, color: "rgba(187,247,208,0.75)" }}>
           <p><b>איך מחושב הציון?</b> אנחנו משווים את פרופיל הטרפנים של כל זן ל-DNA האישי שלכם —
           מה שבניתם מהדירוגים ומהשאלון. ככל שהזן קרוב יותר למה שעבד לכם, הציון גבוה יותר.</p>
           <div className="flex flex-col gap-1 pt-1">
@@ -1077,7 +1084,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
             <span>👍 <b>72–84%</b> — התאמה טובה</span>
             <span>· <b>מתחת ל-72%</b> — מוסתר, פחות מתאים לכם</span>
           </div>
-          <p className="pt-1" style={{ color: "#7A5510" }}>
+          <p className="pt-1" style={{ color: "#FBBF24" }}>
             ⚖️ ציון גבוה = התאמה לטעם והעדפות שלכם, לא הבטחה רפואית. ההחלטה תמיד עם הרופא/ה.
           </p>
         </div>
@@ -1121,13 +1128,13 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
       {/* באנר מצב: מה הצגנו ולמה */}
       {!nothingFound && (
         <div className="rounded-2xl p-3 flex items-center gap-3"
-          style={{ background: "#EFF5EF", border: `1px solid ${C.line}` }}>
+          style={{ background: "rgba(74,222,128,0.07)", border: `1px solid ${C.line}` }}>
           <div className="text-center px-1">
             <div className="text-xl font-bold" style={{ color: C.accent }}>{visible.length}</div>
-            <div className="text-xs" style={{ color: "#4B5563" }}>הצעות</div>
+            <div className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>הצעות</div>
           </div>
           <div className="w-px h-8" style={{ background: C.line }} />
-          <p className="text-xs leading-relaxed flex-1" style={{ color: "#3D4F43" }}>
+          <p className="text-xs leading-relaxed flex-1" style={{ color: "rgba(187,247,208,0.75)" }}>
             {usedThreshold >= 90
               ? `מצאנו ${visible.length} זנים בהתאמה מעולה (${usedThreshold}%+). אלה הכי תואמים אתכם.`
               : usedThreshold >= 80
@@ -1144,7 +1151,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
           <div className="font-bold mb-1" style={{ color: C.ink }}>
             עדיין אין לנו התאמה חזקה{indFilter !== "auto" ? " להתוויה הזו" : ""}
           </div>
-          <p className="text-xs leading-relaxed mb-3" style={{ color: "#4B5563" }}>
+          <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
             {topMatch > 0
               ? `ההתאמה הכי גבוהה כרגע היא ${topMatch}% — נמוכה מדי כדי שנמליץ בביטחון. `
               : ""}
@@ -1177,7 +1184,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                   <span className="font-bold" style={{ color: C.ink }}>{s.name}</span>
                   {s.isNew && (
                     <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: "#FDE9D0", color: "#B5651D" }}>★ חדש</span>
+                      style={{ background: "rgba(251,191,36,0.12)", color: "#FBBF24" }}>★ חדש</span>
                   )}
                   <GeneticsChip s={s} />
                 </div>
@@ -1186,7 +1193,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                     style={{ background: tier.bg, color: tier.color }}>{tier.icon} {tier.label}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                     style={{ background: C.soft, color: C.accent }}>{s.cat}</span>
-                  <span className="text-xs" style={{ color: "#4B5563" }}>{s.kind}</span>
+                  <span className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>{s.kind}</span>
                 </div>
               </div>
               <div className="text-center">
@@ -1208,35 +1215,35 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
 
             {isOpen && (
               <div className="px-4 pb-4 space-y-4 border-t pt-3" style={{ borderColor: C.soft }}>
-                <p className="text-xs" style={{ color: "#4B5563" }}>שושלת: {s.lineage}</p>
+                <p className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>שושלת: {s.lineage}</p>
                 {(s.brand || s.country || s.batch) && (
                   <div className="flex flex-wrap gap-1.5">
                     {s.brand && s.brand !== s.grower && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#EEF3EE", color: "#3D4F43" }}>מותג: {s.brand}</span>
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(187,247,208,0.75)" }}>מותג: {s.brand}</span>
                     )}
                     {s.country && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#EEF3EE", color: "#3D4F43" }}>
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(187,247,208,0.75)" }}>
                         {s.country === "קנדה" ? "🇨🇦" : "🇮🇱"} {s.country}
                       </span>
                     )}
                     {s.batch && (
-                      <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: "#F0F0EE", color: "#4B5563" }}>אצווה: {s.batch}</span>
+                      <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(187,247,208,0.55)" }}>אצווה: {s.batch}</span>
                     )}
                     {s.nReviews > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#FBF3E3", color: "#7A5510" }}>⭐ {s.rating} ({s.nReviews})</span>
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.07)", color: "#FBBF24" }}>⭐ {s.rating} ({s.nReviews})</span>
                     )}
                   </div>
                 )}
                 {s.type === "oil" && s.geneticNote && (
                   <div className="rounded-xl p-2.5" style={{
-                    background: s.geneticInfo === "none" ? "#F0F0EE" : s.geneticInfo === "grower" ? "#FBF3E3" : "#EFF5EF",
+                    background: s.geneticInfo === "none" ? "rgba(255,255,255,0.05)" : s.geneticInfo === "grower" ? "rgba(251,191,36,0.07)" : "rgba(74,222,128,0.07)",
                   }}>
                     <div className="text-xs font-bold mb-0.5" style={{
-                      color: s.geneticInfo === "none" ? "#6B7280" : s.geneticInfo === "grower" ? "#7A5510" : C.accent,
+                      color: s.geneticInfo === "none" ? "rgba(187,247,208,0.45)" : s.geneticInfo === "grower" ? "#FBBF24" : C.accent,
                     }}>
                       {s.geneticInfo === "none" ? "⚠️ אין מידע גנטי" : s.geneticInfo === "grower" ? "📋 לפי דיווח המגדל" : "🧬 גנטיקה ידועה"}
                     </div>
-                    <p className="text-xs" style={{ color: "#3D4F43" }}>{s.geneticNote}</p>
+                    <p className="text-xs" style={{ color: "rgba(187,247,208,0.75)" }}>{s.geneticNote}</p>
                   </div>
                 )}
                 {s.forms && (
@@ -1244,7 +1251,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                     <span className="text-xs font-bold" style={{ color: C.ink }}>תצורות:</span>
                     {s.forms.map((f) => FORM_LABELS[f] && (
                       <span key={f} className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: "#EEF3EE", color: "#3D4F43" }}>
+                        style={{ background: "rgba(255,255,255,0.05)", color: "rgba(187,247,208,0.75)" }}>
                         {FORM_LABELS[f].icon} {FORM_LABELS[f].he}
                       </span>
                     ))}
@@ -1264,7 +1271,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                 </div>
                 <div>
                   <h4 className="text-xs font-bold mb-2" style={{ color: C.ink }}>😕 תופעות שדווחו</h4>
-                  <ReportBars data={s.neg} dict={NEGATIVES} color="#B5543B" max={3} />
+                  <ReportBars data={s.neg} dict={NEGATIVES} color="#F87171" max={3} />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold mb-2" style={{ color: C.ink }}>👅 טעמים</h4>
@@ -1273,39 +1280,39 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                 {comm && (
                   <div className="rounded-xl p-3" style={{ background: "rgba(46,107,83,0.06)", border: "1px solid rgba(46,107,83,0.18)" }}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold" style={{ color: "#2E6B53" }}>🤝 מה מטופלים דומים לך מדווחים</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "#E7F0E9", color: "#2E6B53" }}>
+                      <span className="text-xs font-bold" style={{ color: "#4ADE80" }}>🤝 מה מטופלים דומים לך מדווחים</span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80" }}>
                         {comm.avg}/10
                       </span>
                     </div>
                     {comm.helpedPct !== null && (
                       <div className="mb-1.5">
                         <div className="flex justify-between text-xs mb-0.5">
-                          <span style={{ color: "#4B5563" }}>דיווחו על עזרה</span>
-                          <span className="font-semibold" style={{ color: "#2E6B53" }}>{comm.helpedPct}%</span>
+                          <span style={{ color: "rgba(187,247,208,0.55)" }}>דיווחו על עזרה</span>
+                          <span className="font-semibold" style={{ color: "#4ADE80" }}>{comm.helpedPct}%</span>
                         </div>
                         <div className="h-1.5 rounded-full" style={{ background: "rgba(46,107,83,0.15)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${comm.helpedPct}%`, background: "#2E6B53" }} />
+                          <div className="h-full rounded-full" style={{ width: `${comm.helpedPct}%`, background: "#4ADE80" }} />
                         </div>
                       </div>
                     )}
-                    <p className="text-xs leading-relaxed" style={{ color: "#4B5563" }}>
+                    <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.55)" }}>
                       {comm.note || `מבוסס על ${comm.n} דיווחים אנונימיים של מטופלים — לא הוכחה קלינית, אבל חוכמה אמיתית מהשטח.`}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: "#9AA79C" }}>
+                    <p className="text-xs mt-1" style={{ color: "rgba(187,247,208,0.50)" }}>
                       כל הדאטה מצטבר ואנונימי. מוצג רק כשיש ≥20 דיווחים.
                     </p>
                   </div>
                 )}
                 <details>
-                  <summary className="text-xs font-semibold cursor-pointer" style={{ color: "#8A7BC0" }}>
+                  <summary className="text-xs font-semibold cursor-pointer" style={{ color: "#A78BFA" }}>
                     + הרחבה: פרופיל טרפנים (למתעניינים)
                   </summary>
                   <div className="mt-2"><TerpDots terps={s.terps} /></div>
                 </details>
                 <button onClick={() => setOpen(null)}
                   className="w-full py-2.5 rounded-xl font-bold border text-sm"
-                  style={{ borderColor: C.line, color: "#4B5563", background: C.bg }}>
+                  style={{ borderColor: C.line, color: "rgba(187,247,208,0.55)", background: C.bg }}>
                   ✕ סגירת הכרטיס
                 </button>
               </div>
@@ -1318,11 +1325,34 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
 }
 
 
+// ── Personal terpene insight copy — warm friend tone, not clinical ────────────
+const TERP_PERSONAL = {
+  myrcene:       { hook: "השקט הפנימי שלך", insight: "מטופלים עם מירצן דומיננטי מדווחים על הרפיית שרירים, שינה עמוקה יותר ותחושת ריקון נעים בלי קהות מוחית. הזנים שנמצא לך יהיו כנראה בעלי ריח אדמתי ומנגו — כבדים אבל ממוקדים." },
+  limonene:      { hook: "מרים לך את מצב הרוח", insight: "הדפוס ההדרי שלך מאפיין מטופלים שמחפשים שיפור מצב רוח, הקלה בחרדה ואנרגיה נקייה. ריח חד-לימוני הוא הסימן שאנחנו מחפשים בשבילך בכל תפריט." },
+  caryophyllene: { hook: "נלחם בכאב בשבילך", insight: "קריופילן הוא הטרפן שמתנהג כמו תוסף נוגד-דלקת — בלי להשפיע על הראש. בפרופיל שלך הוא מרמז על זנים שאתה/את יכול/ה לצרוך גם ביום בלי לאבד פוקוס." },
+  linalool:      { hook: "הרגעה עדינה — בלי מאמץ", insight: "לינלול הוא טרפן הלבנדר. בפרופיל שלך הוא מרמז על זנים שעוזרים לחרדה ולשינה בצורה עדינה ומאוזנת — בלי ה-'כבדות' שלפעמים מגיעה עם זנים מרגיעים חזקים." },
+  pinene:        { hook: "ריכוז ועירנות ביום", insight: "פינן, ריח יערות האורן, מאפיין מטופלים שמחפשים עירנות, ריכוז ומה שקוראים 'פוקוס נקי'. זנים עם פינן הם הכלי שלך לשעות הבוקר והצהריים." },
+  humulene:      { hook: "נוגד-דלקת שעובד בשקט", insight: "הומולן הוא הטרפן הכשתוני שמופיע בפרופילים של מטופלים עם מצבים דלקתיים. הוא עובד ברקע — לא תרגיש 'גבוה' ממנו, אבל הגוף כן ירגיש הבדל." },
+  terpinolene:   { hook: "מאוזן ורענן — לא כבד מדי", insight: "טרפינולן מופיע אצל מטופלים שמחפשים אפקט מרומם ומאוזן — לא דפרסיבי, לא חזק מדי. אידיאלי ליום או לשעות המעבר בין יום ללילה." },
+  ocimene:       { hook: "טרופי, עליז ומרומם", insight: "אוסימן הוא הטרפן הטרופי שמופיע בפרופילים של מטופלים שמחפשים חיוניות ועליזות. הריח האקזוטי הוא המדד שאנחנו מחפשים בתפריטים בשבילך." },
+};
+
 function Profile({ ans, ratings, goDNA }) {
   const profile = buildProfile(ans, ratings);
-  const active = Object.entries(profile).filter(([t, v]) => v > 0 && TERPENES[t]).sort((a, b) => b[1] - a[1]);
+  const active  = Object.entries(profile).filter(([t, v]) => v > 0 && TERPENES[t]).sort((a, b) => b[1] - a[1]);
   const avoided = Object.entries(profile).filter(([t, v]) => v < 0 && TERPENES[t]);
-  const maxV = active.length > 0 ? Math.max(...active.map(([, v]) => v), 1) : 1;
+  const maxV    = active.length > 0 ? Math.max(...active.map(([, v]) => v), 1) : 1;
+  const conf    = geneticConfidence(ans, ratings);
+  const seq     = dnaSequence(profile);
+  const [copied, setCopied] = useState(false);
+
+  // Build liveVector (0-1 normalized) and killSwitches for the RadarChart
+  const liveVector = Object.fromEntries(
+    [...active, ...avoided].map(([t, v]) => [t, Math.max(0, v / maxV)])
+  );
+  const killSwitches = Object.fromEntries(
+    avoided.filter(([, v]) => v < -0.3).map(([t]) => [t, 0.8])
+  );
 
   const liked = [...new Set([
     ...ans.helped,
@@ -1333,164 +1363,381 @@ function Profile({ ans, ratings, goDNA }) {
     ...ans.notHelped.filter((id) => !ans.helped.includes(id)),
     ...Object.entries(ratings).filter(([, r]) => r <= 4).map(([id]) => id),
   ])].map((id) => STRAINS.find((s) => s.id === id)).filter(Boolean);
-  const conf = geneticConfidence(ans, ratings);
-  const seq = dnaSequence(profile);
+
+  const shareProfile = () => {
+    const top3 = active.slice(0, 3).map(([t]) => TERPENES[t]?.he || t).join(", ");
+    navigator.clipboard?.writeText(`🧬 הפרופיל שלי בקנאמאצ׳\nרצף: ${seq}\nטרפנים מובילים: ${top3}\nקנאמאצ׳ — התאמה אישית לתפריט הקנאביס שלך`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const hasProfile = active.length > 0;
 
   return (
     <div className="space-y-4">
-      {/* Profile summary button → full DNA view */}
-      <button onClick={goDNA} className="w-full rounded-2xl p-4 text-right relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg,#0D2B1B 0%,#0F3D22 55%,#061A10 100%)", border: "1.5px solid rgba(74,222,128,0.22)" }}>
-        <div className="flex items-center justify-between">
+
+      {/* ── 1. DNA Identity Header ─────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-3xl p-5 relative overflow-hidden"
+        style={{
+          background: "linear-gradient(150deg,#060f08 0%,#0a1f0e 50%,#061008 100%)",
+          border: "1.5px solid rgba(74,222,128,0.22)",
+          boxShadow: "0 0 40px rgba(74,222,128,0.06), 0 8px 32px rgba(0,0,0,0.50)",
+        }}
+      >
+        {/* Ambient glow spot */}
+        <div style={{
+          position: "absolute", top: -30, right: -20,
+          width: 160, height: 160, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(74,222,128,0.12) 0%, transparent 70%)",
+          pointerEvents: "none",
+        }} />
+
+        <div className="flex items-start justify-between mb-3 relative">
           <div>
-            <div className="font-bold text-white">🌿 הפרופיל שלך</div>
-            <div className="text-xs font-mono mt-1 tracking-wider" style={{ color: "#A8E6C0" }}>{seq}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <motion.span
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 2.4, repeat: Infinity }}
+                style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ADE80",
+                         boxShadow: "0 0 8px rgba(74,222,128,0.90)", display: "inline-block" }}
+              />
+              <span className="text-xs font-bold tracking-widest"
+                style={{ color: "rgba(74,222,128,0.75)", letterSpacing: "0.12em" }}>
+                CANNAMATCH DNA
+              </span>
+            </div>
+            <h2 className="text-xl font-bold" style={{ color: "#F0FDF4" }}>הפרופיל שלך 🌿</h2>
+            <div className="font-mono text-sm mt-1 tracking-wider" style={{ color: "#86EFAC" }}>
+              {seq || "——"}
+            </div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-white">{conf.pct}%</div>
-            <div className="text-xs" style={{ color: "#C9DFD2" }}>{conf.label}</div>
+            <div className="text-2xl font-bold" style={{ color: "#4ADE80" }}>{conf.pct}%</div>
+            <div className="text-xs" style={{ color: "rgba(187,247,208,0.60)" }}>{conf.label}</div>
           </div>
         </div>
-        <div className="text-xs mt-2" style={{ color: "#C9DFD2" }}>הצג את הפרופיל המלא ←</div>
-      </button>
 
-      {/* Visual terpene profile — identical to GeneticDNA screen */}
-      <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-        <h3 className="font-bold mb-1" style={{ color: C.ink }}>🔬 פרופיל הטרפנים שלך</h3>
-        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
-          סרקנו מחקרים ומצאנו שאלה הטרפנים שמסבירים למה גנטיקות מסוימות עובדות לך
+        {/* Confidence bar */}
+        <div className="h-1.5 rounded-full mb-3" style={{ background: "rgba(255,255,255,0.08)" }}>
+          <motion.div className="h-full rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${conf.pct}%` }}
+            transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
+            style={{ background: "linear-gradient(90deg,#4ADE80,#86EFAC)" }}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={goDNA}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+            style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80",
+                     border: "1px solid rgba(74,222,128,0.25)" }}>
+            פרופיל מלא ←
+          </button>
+          <button onClick={shareProfile}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold"
+            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(187,247,208,0.80)",
+                     border: "1px solid rgba(255,255,255,0.10)" }}>
+            {copied ? "✓ הועתק" : "🧬 שתף"}
+          </button>
+        </div>
+      </motion.div>
+
+      {/* ── 2. Radar Chart — the exact onboarding diagram ──────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-3xl p-5"
+        style={{
+          background: "rgba(8,14,10,0.92)",
+          border: "1.5px solid rgba(57,255,133,0.16)",
+          boxShadow: "0 0 30px rgba(57,255,133,0.04), 0 6px 28px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-bold text-base" style={{ color: "#F0FDF4" }}>🧬 המפה הגנטית שלך</h3>
+          {active.length > 0 && (
+            <span className="text-xs px-2.5 py-1 rounded-full font-bold"
+              style={{ background: "rgba(57,255,133,0.10)", color: "#39FF85",
+                       border: "1px solid rgba(57,255,133,0.20)" }}>
+              {active.length} טרפנים פעילים
+            </span>
+          )}
+        </div>
+        <p className="text-xs mb-4" style={{ color: "rgba(126,168,142,0.80)" }}>
+          כל נקודה על המפה = טרפן שאפיין את הזנים שעבדו לך
         </p>
-        {active.length === 0 ? (
-          <p className="text-sm text-center py-3" style={{ color: "rgba(187,247,208,0.50)" }}>
-            דרגו זנים ביומן — הפרופיל יבנה אוטומטית 🌱
-          </p>
+
+        {hasProfile ? (
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <RadarChart liveVector={liveVector} killSwitches={killSwitches} size={230} />
+          </div>
         ) : (
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.06)" }}>
-            {active.map(([t, v]) => {
-              const st = terpStrength(v);
+          <div className="text-center py-8">
+            <div className="text-4xl mb-3">🌱</div>
+            <p className="text-sm font-bold mb-1" style={{ color: "#4ADE80" }}>הפרופיל שלך מחכה לדיווחים</p>
+            <p className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>
+              דרגי זן אחד ביומן המעקב — ואנחנו נתחיל לצייר את המפה שלך
+            </p>
+          </div>
+        )}
+
+        {/* Terpene pills */}
+        {active.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4 justify-center">
+            {active.slice(0, 6).map(([t, v], i) => (
+              <motion.span
+                key={t}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 + i * 0.06, type: "spring", stiffness: 280 }}
+                className="text-xs px-3 py-1.5 rounded-full font-bold"
+                style={{
+                  background: `${TERPENES[t]?.color || "#4ADE80"}1A`,
+                  color:      TERPENES[t]?.color || "#4ADE80",
+                  border:     `1.5px solid ${TERPENES[t]?.color || "#4ADE80"}44`,
+                  boxShadow:  `0 0 8px ${TERPENES[t]?.color || "#4ADE80"}18`,
+                }}
+              >
+                {TERPENES[t]?.he} {Math.round((v / maxV) * 100)}%
+              </motion.span>
+            ))}
+          </div>
+        )}
+
+        {avoided.length > 0 && (
+          <div className="mt-3 rounded-xl px-3 py-2.5"
+            style={{ background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.18)" }}>
+            <p className="text-xs" style={{ color: "#FCA5A5" }}>
+              🛡️ <span className="font-bold">חסום לבטיחותך:</span>{" "}
+              {avoided.map(([t]) => TERPENES[t]?.he).join(", ")} — זוהה כטריגר בפרופיל שלך
+            </p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── 3. "What We Found For You" — warm micro-cards ──────────────────── */}
+      {hasProfile && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {/* Section header */}
+          <div className="rounded-2xl p-4 mb-3"
+            style={{
+              background: "rgba(6,12,8,0.96)",
+              border: "1.5px solid rgba(57,255,133,0.14)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">📡</span>
+              <h3 className="font-bold text-base" style={{ color: "#F0FDF4" }}>מה גילינו עליך</h3>
+            </div>
+            <p className="text-xs leading-relaxed" style={{ color: "rgba(134,239,172,0.65)" }}>
+              סרקנו נתוני מחקר ציבוריים ודיווחי מטופלים ואספנו לך את הדפוסים הפרסונליים שהכי מתאימים לפרופיל שלך.
+              זה לא ניסוי מעבדה — זה מה שמטופלים עם פרופיל דומה לשלך מדווחים.
+            </p>
+          </div>
+
+          {/* Terpene insight micro-cards */}
+          <div className="space-y-2.5">
+            {active.slice(0, 4).map(([t], i) => {
+              const personal = TERP_PERSONAL[t];
+              const sci      = TERP_SCIENCE[t];
+              if (!personal && !sci) return null;
+              const tColor = TERPENES[t]?.color || "#4ADE80";
               return (
-                <div key={t} className="flex items-center gap-2 py-1.5">
-                  <span className="text-xs w-16 font-bold" style={{ color: "#fff" }}>{TERPENES[t].he}</span>
-                  <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.25)" }}>
-                    <motion.div className="h-full rounded-full"
-                      initial={{ width: 0 }} animate={{ width: `${(v / maxV) * 100}%` }}
-                      transition={{ duration: 0.7, ease: "easeOut" }}
-                      style={{ background: TERPENES[t].color }} />
+                <motion.div
+                  key={t}
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + i * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="rounded-2xl p-4"
+                  style={{
+                    background: "rgba(10,18,12,0.92)",
+                    borderRight: `3px solid ${tColor}`,
+                    border: `1px solid ${tColor}20`,
+                    borderRightWidth: 3,
+                    borderRightColor: tColor,
+                    boxShadow: `0 0 16px ${tColor}0A`,
+                  }}
+                >
+                  {/* Card header */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{sci?.aroma?.split(" ")[0] || "🌿"}</span>
+                    <div>
+                      <span className="font-bold text-sm" style={{ color: tColor }}>
+                        {TERPENES[t]?.he}
+                      </span>
+                      <span className="text-xs mx-2 font-medium" style={{ color: "rgba(255,255,255,0.45)" }}>—</span>
+                      <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.80)" }}>
+                        {personal?.hook || sci?.role}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs w-14 text-left" style={{ color: "rgba(187,247,208,0.60)" }}>{st.label}</span>
-                </div>
+                  {/* Warm copy */}
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.72)" }}>
+                    {personal?.insight || sci?.detail}
+                  </p>
+                </motion.div>
               );
             })}
-            {avoided.length > 0 && (
-              <p className="text-xs mt-3 rounded-lg p-2" style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
-                ⚠️ פחות מתאים לך: {avoided.map(([t]) => TERPENES[t].he).join(", ")}
-              </p>
-            )}
           </div>
-        )}
-      </div>
 
-      {/* Liked strains */}
-      <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-        <h3 className="font-bold mb-1" style={{ color: C.ink }}>🌿 זנים שעבדו לך</h3>
-        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
-          נבנה מהדירוגים והדיווחים שלך — מתחדד עם כל פידבק
-        </p>
-        {liked.length === 0 && (
-          <p className="text-sm" style={{ color: "rgba(187,247,208,0.45)" }}>
-            עוד לא למדנו מספיק — דרגו מוצרים ביומן ונתחיל לזהות את הזנים שלכם 🌱
-          </p>
-        )}
-        {liked.map(({ s, score }) => (
-          <div key={s.id} className="flex items-center justify-between py-2.5 border-b last:border-0"
-            style={{ borderColor: "rgba(74,222,128,0.08)" }}>
-            <div>
-              <span className="font-bold text-sm" style={{ color: C.ink }}>{s.genetics}</span>
-              <span className="text-xs mr-2" style={{ color: "rgba(187,247,208,0.50)" }}>({s.name})</span>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.40)" }}>{s.lineage}</div>
-            </div>
-            <span className="font-bold text-sm" style={{ color: C.accent }}>
-              {typeof score === "number" ? `${score}/10` : score}
-            </span>
+          {/* Disclaimer micro-card */}
+          <div className="rounded-xl p-3 mt-2"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <p className="text-xs text-center" style={{ color: "rgba(187,247,208,0.35)" }}>
+              המידע מבוסס על דיווחי מטופלים ונתוני מחקר פתוחים. אינו ייעוץ רפואי — כל החלטה טיפולית עם הרופא/ה שלך.
+            </p>
           </div>
-        ))}
-        {disliked.length > 0 && (
-          <div className="mt-3 pt-3 border-t" style={{ borderColor: "rgba(74,222,128,0.10)" }}>
-            <p className="text-xs font-bold mb-1.5" style={{ color: "#FCA5A5" }}>פחות עבדו לך:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {disliked.map((s) => (
-                <span key={s.id} className="text-xs px-2.5 py-1 rounded-full"
-                  style={{ background: "rgba(248,113,113,0.10)", color: "#FCA5A5", fontWeight: 600, border: "1px solid rgba(248,113,113,0.20)" }}>
-                  {s.genetics}
-                </span>
+        </motion.div>
+      )}
+
+      {/* ── 4. Goals (indications) ─────────────────────────────────────────── */}
+      {ans.reasons.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.3 }}
+          className="rounded-2xl p-4"
+          style={{ background: "rgba(10,16,12,0.90)", border: "1.5px solid rgba(74,222,128,0.12)" }}
+        >
+          <h3 className="font-bold mb-3" style={{ color: "#F0FDF4" }}>🎯 המטרות שלך</h3>
+          <div className="flex flex-wrap gap-2">
+            {ans.reasons.map((r) => (
+              <span key={r} className="text-sm px-3 py-1.5 rounded-full font-semibold"
+                style={{ background: "rgba(74,222,128,0.10)", color: "#4ADE80",
+                         border: "1px solid rgba(74,222,128,0.22)" }}>
+                {REASONS.find((x) => x.id === r)?.label}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── 5. Liked strains ───────────────────────────────────────────────── */}
+      {(liked.length > 0 || disliked.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.35 }}
+          className="rounded-2xl p-4"
+          style={{ background: "rgba(10,16,12,0.90)", border: "1.5px solid rgba(74,222,128,0.12)" }}
+        >
+          <h3 className="font-bold mb-1" style={{ color: "#F0FDF4" }}>🌿 מה שכבר למדנו עליך</h3>
+          <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.50)" }}>
+            כל דירוג שתנתן מחדד את הפרופיל ואת ההמלצות שלך
+          </p>
+
+          {liked.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {liked.map(({ s, score }) => (
+                <div key={s.id} className="flex items-center justify-between rounded-xl p-2.5"
+                  style={{ background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.10)" }}>
+                  <div className="min-w-0">
+                    <span className="font-bold text-sm" style={{ color: "#F0FDF4" }}>{s.genetics}</span>
+                    <span className="text-xs mr-1.5" style={{ color: "rgba(187,247,208,0.45)" }}>({s.name})</span>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.35)" }}>{s.lineage}</div>
+                  </div>
+                  <span className="font-bold text-sm ml-2 flex-shrink-0" style={{ color: "#4ADE80" }}>
+                    {typeof score === "number" ? `${score}/10` : score}
+                  </span>
+                </div>
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Indications */}
-      <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-        <h3 className="font-bold mb-2" style={{ color: C.ink }}>ההתוויות שלך</h3>
-        <div className="flex flex-wrap gap-2">
-          {ans.reasons.map((r) => (
-            <span key={r} className="text-sm px-3 py-1 rounded-full"
-              style={{ background: C.soft, color: C.accent, fontWeight: 600 }}>
-              {REASONS.find((x) => x.id === r)?.label}
-            </span>
-          ))}
-        </div>
-      </div>
+          {disliked.length > 0 && (
+            <div>
+              <p className="text-xs font-bold mb-2" style={{ color: "#FCA5A5" }}>❌ לא עבדו לך:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {disliked.map((s) => (
+                  <span key={s.id} className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                    style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5",
+                             border: "1px solid rgba(248,113,113,0.20)" }}>
+                    {s.genetics}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
 
-      {/* Batch-dependent strains */}
+      {/* ── 6. Batch-dependent strains ─────────────────────────────────────── */}
       {ans.helped.filter((id) => ans.notHelped.includes(id)).length > 0 && (
-        <div className="rounded-2xl p-4 border" style={{ background: "rgba(251,191,36,0.06)", borderColor: "rgba(251,191,36,0.20)" }}>
+        <div className="rounded-2xl p-4"
+          style={{ background: "rgba(251,191,36,0.05)", border: "1.5px solid rgba(251,191,36,0.18)" }}>
           <h3 className="font-bold mb-2" style={{ color: "#FBBF24" }}>🏷️ זנים תלויי-אצווה</h3>
           <div className="flex flex-wrap gap-2 mb-2">
             {ans.helped.filter((id) => ans.notHelped.includes(id)).map((id) => (
-              <span key={id} className="text-sm px-3 py-1 rounded-full font-semibold"
-                style={{ background: "rgba(251,191,36,0.12)", color: "#FBBF24", border: "1px solid rgba(251,191,36,0.25)" }}>
+              <span key={id} className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                style={{ background: "rgba(251,191,36,0.10)", color: "#FBBF24",
+                         border: "1px solid rgba(251,191,36,0.22)" }}>
                 {STRAINS.find((s) => s.id === id)?.name}
               </span>
             ))}
           </div>
-          <p className="text-xs" style={{ color: "rgba(251,191,36,0.70)" }}>
-            זנים שעבדו לך באצווה אחת ולא באחרת. בגרסה המלאה: סריקת מספר האצווה מהאריזה,
-            דירוג נפרד לכל אצווה, והתראה כשאצווה שאהבת חוזרת למלאי.
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.65)" }}>
+            זנים שעזרו לך באצווה מסוימת אבל לא בכל אצווה. סיבה שכיחה: שינוי בפרופיל הטרפנים בין אצוות שונה של אותו זן.
           </p>
         </div>
       )}
 
-      {/* Delivery methods — dark themed */}
-      <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-        <h3 className="font-bold mb-1" style={{ color: C.ink }}>⚗️ דרכי מתן — אותה גנטיקה, חוויה שונה</h3>
-        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
-          איך שאתם צורכים משנה את ההשפעה לא פחות מאיזה זן. מידע כללי — לא ייעוץ רפואי.
+      {/* ── 7. Delivery methods — compact ──────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.4 }}
+        className="rounded-2xl p-4"
+        style={{ background: "rgba(10,16,12,0.90)", border: "1.5px solid rgba(74,222,128,0.10)" }}
+      >
+        <h3 className="font-bold mb-1" style={{ color: "#F0FDF4" }}>⚗️ אותה גנטיקה — חוויה אחרת לפי דרך הצריכה</h3>
+        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.50)" }}>
+          איך שאתה/את צורכ/ת משנה את ההשפעה לא פחות מאיזה זן בחרת
         </p>
         <div className="space-y-2">
           {DELIVERY_METHODS.map((d) => (
-            <div key={d.id} className="rounded-xl p-3 border"
-              style={{ borderColor: d.best ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.06)", background: d.best ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.03)" }}>
+            <div key={d.id} className="rounded-xl p-3"
+              style={{
+                background: d.best ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${d.best ? "rgba(74,222,128,0.22)" : "rgba(255,255,255,0.07)"}`,
+              }}>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{d.icon}</span>
-                <span className="font-bold text-sm" style={{ color: d.best ? C.accent : C.ink }}>{d.title}</span>
+                <span className="text-base">{d.icon}</span>
+                <span className="font-bold text-sm" style={{ color: d.best ? "#4ADE80" : "#F0FDF4" }}>
+                  {d.title}
+                </span>
                 {d.best && (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: C.accent, color: "#0c0d11" }}>מומלץ</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold ml-auto"
+                    style={{ background: "#4ADE80", color: "#0c0d11" }}>מומלץ</span>
                 )}
               </div>
-              <div className="flex gap-3 flex-wrap text-xs mb-1" style={{ color: "rgba(187,247,208,0.55)" }}>
-                <span>⏱️ תחילה: {d.onset}</span>
-                <span>📈 שיא: {d.peak}</span>
-                <span>⏳ משך: {d.duration}</span>
+              <div className="flex gap-2 flex-wrap text-xs mb-1" style={{ color: "rgba(187,247,208,0.50)" }}>
+                <span>⏱ {d.onset}</span>
+                <span>·</span>
+                <span>שיא: {d.peak}</span>
+                <span>·</span>
+                <span>משך: {d.duration}</span>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.70)" }}>{d.note}</p>
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.68)" }}>{d.note}</p>
             </div>
           ))}
         </div>
-        <div className="text-xs mt-3 rounded-xl p-2.5 leading-relaxed" style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
+        <div className="text-xs mt-3 rounded-xl p-3 leading-relaxed"
+          style={{ background: "rgba(248,113,113,0.07)", color: "#FCA5A5",
+                   border: "1px solid rgba(248,113,113,0.15)" }}>
           🚭 {TOBACCO_WARNING}
         </div>
-      </div>
+      </motion.div>
+
     </div>
   );
 }
@@ -1716,7 +1963,7 @@ function Feedback({ ans, scored, ratings, setRatings }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm" style={{ color: "#4B5563" }}>
+      <p className="text-sm" style={{ color: "rgba(187,247,208,0.55)" }}>
         דרגו זנים שניסיתם — עד כמה עזרו לכם. כל דירוג מחדד מיד את ה-DNA ואת ההמלצות. 🧬
       </p>
 
@@ -1732,8 +1979,8 @@ function Feedback({ ans, scored, ratings, setRatings }) {
             {searchResults.map((s) => (
               <button key={s.id} onClick={() => addStrain(s.id)}
                 className="w-full text-right flex items-center justify-between rounded-lg p-2 text-sm border"
-                style={{ borderColor: C.line, background: "#fff" }}>
-                <span style={{ color: C.ink }}>{s.name} <span className="text-xs" style={{ color: "#6B7280" }}>· {s.genetics}</span></span>
+                style={{ borderColor: C.line, background: "rgba(255,255,255,0.04)" }}>
+                <span style={{ color: C.ink }}>{s.name} <span className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>· {s.genetics}</span></span>
                 <span className="text-xs font-bold" style={{ color: C.accent }}>+ הוסף</span>
               </button>
             ))}
@@ -1751,8 +1998,8 @@ function Feedback({ ans, scored, ratings, setRatings }) {
             {topSuggestions.map((s) => (
               <button key={s.id} onClick={() => addStrain(s.id)}
                 className="w-full text-right flex items-center justify-between rounded-lg p-2 text-sm border"
-                style={{ borderColor: C.line, background: "#fff" }}>
-                <span style={{ color: C.ink }}>{s.name} <span className="text-xs" style={{ color: "#6B7280" }}>· {s.match}% התאמה</span></span>
+                style={{ borderColor: C.line, background: "rgba(255,255,255,0.04)" }}>
+                <span style={{ color: C.ink }}>{s.name} <span className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>· {s.match}% התאמה</span></span>
                 <span className="text-xs font-bold" style={{ color: C.accent }}>+ דרג</span>
               </button>
             ))}
@@ -1766,10 +2013,10 @@ function Feedback({ ans, scored, ratings, setRatings }) {
           <div className="flex justify-between items-center mb-2">
             <div>
               <span className="font-bold" style={{ color: C.ink }}>{s.name}</span>
-              <span className="text-xs mr-2" style={{ color: "#6B7280" }}>{s.genetics}</span>
+              <span className="text-xs mr-2" style={{ color: "rgba(187,247,208,0.45)" }}>{s.genetics}</span>
             </div>
             <span className="text-lg font-bold"
-              style={{ color: ratings[s.id] ? (ratings[s.id] >= 7 ? C.accent : ratings[s.id] >= 4 ? "#D99A2B" : "#B5543B") : "#6B7280" }}>
+              style={{ color: ratings[s.id] ? (ratings[s.id] >= 7 ? C.accent : ratings[s.id] >= 4 ? "#D99A2B" : "#F87171") : "rgba(187,247,208,0.45)" }}>
               {ratings[s.id] || "—"}
             </span>
           </div>
@@ -1785,7 +2032,7 @@ function Feedback({ ans, scored, ratings, setRatings }) {
                 }}>{n}</button>
             ))}
           </div>
-          <div className="flex justify-between text-xs mt-1" style={{ color: "#6B7280" }}>
+          <div className="flex justify-between text-xs mt-1" style={{ color: "rgba(187,247,208,0.45)" }}>
             <span>1 = לא עזר</span><span>10 = מצוין</span>
           </div>
         </div>
@@ -1815,7 +2062,7 @@ function Analytics() {
       <div className="p-8 text-center rounded-2xl border" style={{ background: C.card, borderColor: C.line }}>
         <div className="text-4xl mb-3">📊</div>
         <p className="font-bold mb-1" style={{ color: C.ink }}>{T.analytics.noData}</p>
-        <p className="text-sm" style={{ color: "#6B7280" }}>{T.analytics.noDataSub}</p>
+        <p className="text-sm" style={{ color: "rgba(187,247,208,0.45)" }}>{T.analytics.noDataSub}</p>
       </div>
     );
   }
@@ -1843,7 +2090,7 @@ function Analytics() {
       style={{ background: C.card, borderColor: C.line }}>
       <div className="text-xl font-bold" style={{ color: C.ink }}>{value}</div>
       <div className="text-xs font-semibold" style={{ color: C.accent }}>{label}</div>
-      {sub && <div className="text-xs mt-0.5" style={{ color: "#6B7280" }}>{sub}</div>}
+      {sub && <div className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.45)" }}>{sub}</div>}
     </div>
   );
 
@@ -1857,15 +2104,15 @@ function Analytics() {
 
       <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>כמה הוצאת כל חודש</h3>
-        <p className="text-xs mb-3" style={{ color: "#4B5563" }}>
+        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
           הקו המקווקו — התקציב שהגדרת לאותו חודש
         </p>
         <div style={{ width: "100%", height: 200 }} dir="ltr">
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.soft} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#4B5563" }} reversed />
-              <YAxis tick={{ fontSize: 11, fill: "#4B5563" }} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "rgba(187,247,208,0.55)" }} reversed />
+              <YAxis tick={{ fontSize: 11, fill: "rgba(187,247,208,0.55)" }} />
               <Tooltip formatter={(v, n) => [`₪${v}`, n === "spent" ? "הוצאה" : n]}
                 labelStyle={{ color: C.ink, fontWeight: 700 }} />
               <ReferenceLine y={data[data.length - 1].budget} stroke="#D99A2B" strokeDasharray="4 4" />
@@ -1877,19 +2124,19 @@ function Analytics() {
 
       <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>כמה אהבת את הקנייה</h3>
-        <p className="text-xs mb-3" style={{ color: "#4B5563" }}>
+        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
           ממוצע הדירוגים שלך (1–10) לכל סל חודשי — שימו לב לעלייה ככל שהמערכת לומדת
         </p>
         <div style={{ width: "100%", height: 180 }} dir="ltr">
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.soft} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#4B5563" }} reversed />
-              <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: "#4B5563" }} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "rgba(187,247,208,0.55)" }} reversed />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: "rgba(187,247,208,0.55)" }} />
               <Tooltip formatter={(v) => [v, "דירוג ממוצע"]}
                 labelStyle={{ color: C.ink, fontWeight: 700 }} />
-              <Line type="monotone" dataKey="avg" stroke="#8A7BC0" strokeWidth={3}
-                dot={{ r: 4, fill: "#8A7BC0" }} />
+              <Line type="monotone" dataKey="avg" stroke="#A78BFA" strokeWidth={3}
+                dot={{ r: 4, fill: "#A78BFA" }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -1906,7 +2153,7 @@ function Analytics() {
             </div>
             <div className="text-left">
               <div className="font-bold" style={{ color: C.accent }}>{avg.toFixed(1)}</div>
-              <div className="text-xs" style={{ color: "#6B7280" }}>{n} רכישות</div>
+              <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>{n} רכישות</div>
             </div>
           </div>
         ))}
@@ -1915,7 +2162,7 @@ function Analytics() {
       <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
         <h3 className="font-bold mb-3" style={{ color: C.ink }}>מה פחות עבד</h3>
         {disliked.length === 0 && (
-          <p className="text-sm" style={{ color: "#4B5563" }}>אין כרגע מוצרים עם דירוג נמוך</p>
+          <p className="text-sm" style={{ color: "rgba(187,247,208,0.55)" }}>אין כרגע מוצרים עם דירוג נמוך</p>
         )}
         {disliked.map(({ s, avg, n }) => (
           <div key={s.id} className="flex items-center justify-between py-2 border-b last:border-0"
@@ -1925,8 +2172,8 @@ function Analytics() {
               <div className="mt-1"><GeneticsChip s={s} /></div>
             </div>
             <div className="text-left">
-              <div className="font-bold" style={{ color: "#B5543B" }}>{avg.toFixed(1)}</div>
-              <div className="text-xs" style={{ color: "#6B7280" }}>{n} רכישות</div>
+              <div className="font-bold" style={{ color: "#F87171" }}>{avg.toFixed(1)}</div>
+              <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>{n} רכישות</div>
             </div>
           </div>
         ))}
@@ -1971,24 +2218,24 @@ function ValueAnalysis({ ranked }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl p-4 border" style={{ background: "#F0F6F1", borderColor: C.line }}>
+      <div className="rounded-2xl p-4 border" style={{ background: "rgba(20,23,32,0.92)", borderColor: C.line }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>💰 מפת השווי שלך</h3>
-        <p className="text-xs mb-3" style={{ color: "#3D6B53" }}>
+        <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.65)" }}>
           לא תמיד הזול ביותר הכי משתלם. ה"שווי" = כמה שביעות רצון אתה מקבל לכל שקל — לפי הדירוגים שלך.
         </p>
         {withValue.length === 0 && (
-          <p className="text-xs" style={{ color: "#4B5563" }}>דרגו עוד זנים כדי לקבל ניתוח שווי אישי</p>
+          <p className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>דרגו עוד זנים כדי לקבל ניתוח שווי אישי</p>
         )}
         <div className="space-y-2">
           {withValue.slice(0, 6).map((x, i) => {
             const maxVal = withValue[0].value || 1;
             return (
-              <div key={x.s.id} className="rounded-xl p-2.5" style={{ background: "#fff" }}>
+              <div key={x.s.id} className="rounded-xl p-2.5" style={{ background: "rgba(255,255,255,0.04)" }}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 min-w-0">
                     {i === 0 && <span className="text-xs">👑</span>}
                     <span className="font-bold text-sm truncate" style={{ color: C.ink }}>{x.s.name}</span>
-                    <span className="text-xs" style={{ color: "#6B7280" }}>₪{x.s.price}</span>
+                    <span className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>₪{x.s.price}</span>
                   </div>
                   <span className="text-xs font-bold whitespace-nowrap" style={{ color: C.accent }}>
                     {x.avg.toFixed(1)}/10
@@ -2013,22 +2260,22 @@ function ValueAnalysis({ ranked }) {
 
       {/* מתי שווה לשלם יותר */}
       {upgradeInsight && (
-        <div className="rounded-2xl p-4 border" style={{ background: "#FBF3E3", borderColor: "#EAD9B0" }}>
-          <h3 className="font-bold mb-2" style={{ color: "#7A5510" }}>⚖️ שווה לשלם יותר?</h3>
+        <div className="rounded-2xl p-4 border" style={{ background: "rgba(251,191,36,0.07)", borderColor: "rgba(251,191,36,0.22)" }}>
+          <h3 className="font-bold mb-2" style={{ color: "#FBBF24" }}>⚖️ שווה לשלם יותר?</h3>
           <div className="flex items-center gap-2 mb-3">
-            <div className="flex-1 rounded-xl p-2.5 text-center" style={{ background: "#fff" }}>
-              <div className="text-xs" style={{ color: "#4B5563" }}>הזול</div>
+            <div className="flex-1 rounded-xl p-2.5 text-center" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <div className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>הזול</div>
               <div className="font-bold text-sm" style={{ color: C.ink }}>{upgradeInsight.cheap.s.name}</div>
-              <div className="text-xs" style={{ color: "#6B7280" }}>₪{upgradeInsight.cheap.s.price} · {upgradeInsight.cheap.avg.toFixed(1)}/10</div>
+              <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>₪{upgradeInsight.cheap.s.price} · {upgradeInsight.cheap.avg.toFixed(1)}/10</div>
             </div>
             <span className="text-lg">←</span>
-            <div className="flex-1 rounded-xl p-2.5 text-center" style={{ background: "#fff", border: `2px solid ${C.accent}` }}>
+            <div className="flex-1 rounded-xl p-2.5 text-center" style={{ background: "rgba(74,222,128,0.06)", border: `2px solid ${C.accent}` }}>
               <div className="text-xs" style={{ color: C.accent }}>האיכותי 👑</div>
               <div className="font-bold text-sm" style={{ color: C.ink }}>{upgradeInsight.premium.s.name}</div>
-              <div className="text-xs" style={{ color: "#6B7280" }}>₪{upgradeInsight.premium.s.price} · {upgradeInsight.premium.avg.toFixed(1)}/10</div>
+              <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>₪{upgradeInsight.premium.s.price} · {upgradeInsight.premium.avg.toFixed(1)}/10</div>
             </div>
           </div>
-          <p className="text-xs leading-relaxed" style={{ color: "#7A5510" }}>
+          <p className="text-xs leading-relaxed" style={{ color: "#FBBF24" }}>
             תוספת של <span className="font-bold">₪{upgradeInsight.priceDiff}</span> נותנת לך
             <span className="font-bold"> +{upgradeInsight.ratingDiff} נקודות</span> שביעות רצון —
             כ-₪{upgradeInsight.perPoint} לכל נקודת שיפור. אם האיכות חשובה לך, כאן זה משתלם.
@@ -2100,7 +2347,7 @@ function Market({ scored, basket, addToBasket }) {
     <div className="space-y-3">
       <div className="rounded-2xl p-4 border" style={{ background: C.soft, borderColor: C.line }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>מחירים ובתי מרקחת 🏪</h3>
-        <p className="text-xs leading-relaxed" style={{ color: "#3D6B53" }}>
+        <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.65)" }}>
           אותו מוצר עולה אחרת בכל מקום, ואותה גנטיקה מופיעה בשמות שונים. כאן רואים איפה משתלם.
         </p>
       </div>
@@ -2578,7 +2825,7 @@ function Guide() {
   const [open, setOpen] = useState(null);
   return (
     <div className="space-y-2">
-      <p className="text-sm mb-3" style={{ color: "#4B5563" }}>
+      <p className="text-sm mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
         מידע כללי למטופלים. תמיד פעלו לפי הנחיות הרופא/ה המטפל/ת.
       </p>
       {GUIDE.map((g) => (
@@ -2596,7 +2843,7 @@ function Guide() {
           {open === g.id && (
             <div className="px-4 pb-4 space-y-2">
               {g.body.map((p, i) => (
-                <p key={i} className="text-sm leading-relaxed" style={{ color: "#3D4F43" }}>{p}</p>
+                <p key={i} className="text-sm leading-relaxed" style={{ color: "rgba(187,247,208,0.75)" }}>{p}</p>
               ))}
             </div>
           )}
@@ -2929,7 +3176,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
         {/* File mode */}
         {inputMode === "file" && (
           <div className="rounded-xl border-2 border-dashed p-4 mb-3 text-center"
-            style={{ borderColor: dragOver ? C.accent : "#C9D8CC", background: dragOver ? "#E7F0E9" : C.soft }}>
+            style={{ borderColor: dragOver ? C.accent : "#C9D8CC", background: dragOver ? "rgba(74,222,128,0.12)" : C.soft }}>
             <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
               onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
             <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -2973,7 +3220,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
                 {fetchingUrl ? "טוען..." : "טען"}
               </button>
             </div>
-            <p className="text-xs mt-1.5" style={{color:"#6B7280"}}>
+            <p className="text-xs mt-1.5" style={{color:"rgba(187,247,208,0.45)"}}>
               הדביקו קישור לתפריט PDF, תמונה, או עמוד HTML של בית מרקחת
             </p>
           </div>
@@ -3014,7 +3261,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
           {inputMode === "text" && (
             <button onClick={() => setText(SAMPLE_MENU)}
               className="px-3 py-2.5 rounded-xl text-xs font-bold border"
-              style={{ borderColor: C.line, color: "#4B5563" }}>
+              style={{ borderColor: C.line, color: "rgba(187,247,208,0.55)" }}>
               דוגמה
             </button>
           )}
@@ -3094,7 +3341,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
               {r.match !== null ? <MatchRing pct={r.match} /> : (
                 <div className="text-center" style={{ width: 52 }}>
                   <div className="text-lg">❔</div>
-                  <div className="text-xs" style={{ color: "#6B7280" }}>חדש</div>
+                  <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>חדש</div>
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -3689,7 +3936,7 @@ function HolographicBudScene() {
             }}>
               <div className="text-lg mb-1">{f.icon}</div>
               <div className="text-xs font-bold mb-0.5" style={{color:"#1F2937"}}>{f.t}</div>
-              <div className="text-xs" style={{color:"#4B5563"}}>{f.d}</div>
+              <div className="text-xs" style={{color:"rgba(187,247,208,0.55)"}}>{f.d}</div>
             </div>
           ))}
         </div>
@@ -3757,7 +4004,7 @@ function PharmacyNearby() {
           </motion.button>
           <div className="text-sm font-bold" style={{color:C.ink}}>בתי מרקחת 🏪</div>
         </div>
-        {locErr && <p className="text-xs mb-2" style={{color:"#B5543B"}}>{locErr}</p>}
+        {locErr && <p className="text-xs mb-2" style={{color:"#F87171"}}>{locErr}</p>}
         {/* Region tabs */}
         <div className="flex gap-1.5 overflow-x-auto" style={{scrollbarWidth:"none"}}>
           {REGIONS.map(r => (
@@ -3765,7 +4012,7 @@ function PharmacyNearby() {
               className="flex-shrink-0 text-xs px-2.5 py-1 rounded-full font-semibold transition-all"
               style={{
                 background: region === r ? C.ink : "transparent",
-                color: region === r ? "#fff" : "#4B5563",
+                color: region === r ? "#fff" : "rgba(187,247,208,0.55)",
                 border: `1px solid ${region === r ? C.ink : C.line}`,
               }}>{r}</button>
           ))}
@@ -3786,14 +4033,10 @@ function PharmacyNearby() {
             </button>
             <div className="flex-1 text-right min-w-0">
               <div className="flex items-center justify-end gap-2 mb-1">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${p.open ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
-                  {p.open ? "פתוח" : "סגור"}
-                </span>
                 <span className="text-sm font-bold truncate" style={{color:C.ink}}>{p.name}</span>
               </div>
-              <div className="flex items-center justify-end gap-2 text-xs flex-wrap" style={{color:"#4B5563"}}>
-                <span>{priceLabel(p.priceFactor)}</span>
-                {p.delivery && <span>🚚</span>}
+              <div className="flex items-center justify-end gap-2 text-xs flex-wrap" style={{color:"rgba(187,247,208,0.55)"}}>
+                {p.delivery && <span>🚚 משלוח</span>}
                 <span>📍 {p.distKm} ק"מ</span>
                 <span>{p.city}</span>
               </div>
@@ -3802,7 +4045,7 @@ function PharmacyNearby() {
         ))}
       </AnimatePresence>
       {list.length === 0 && (
-        <div className="px-4 py-6 text-center text-sm" style={{color:"#6B7280"}}>
+        <div className="px-4 py-6 text-center text-sm" style={{color:"rgba(187,247,208,0.45)"}}>
           אין בתי מרקחת באזור הנבחר
         </div>
       )}
@@ -4014,10 +4257,6 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
               סרוק את הרישיון כדי להיכנס לפיד החי
             </p>
           </div>
-          <motion.div animate={{ opacity:[0.6,1,0.6] }} transition={{ duration:1.8, repeat:Infinity }}
-            style={{ fontSize:10, fontWeight:700, color:"rgba(187,247,208,0.55)", textAlign:"center" }}>
-            🔴 {Math.floor(47 + Math.random() * 20)} מטופלים פעילים כרגע
-          </motion.div>
           <button onClick={onGoLicense}
             style={{
               padding:"10px 22px", borderRadius:14, border:"none", cursor:"pointer",
@@ -4033,8 +4272,7 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
     );
   }
 
-  // Verified — show live mini-feed + CTA to full feed
-  const recent = DEMO_POSTS.slice(0, 3);
+  // Verified — empty state until real posts exist
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
       {/* Feed header */}
@@ -4043,10 +4281,9 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
         background:"rgba(0,0,0,0.20)", flexShrink:0,
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <motion.span animate={{ opacity:[0.7,1,0.7] }} transition={{ duration:2, repeat:Infinity }}
-          style={{ fontSize:10, fontWeight:700, color:"rgba(187,247,208,0.60)" }}>
-          🔴 פיד חי
-        </motion.span>
+        <span style={{ fontSize:10, fontWeight:700, color:"rgba(187,247,208,0.60)" }}>
+          🌿 קהילה
+        </span>
         <button onClick={() => goTab("community")}
           style={{
             fontSize:11, fontWeight:800, color:"#4ADE80", background:"none",
@@ -4056,36 +4293,19 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
           הכל ←
         </button>
       </div>
-      {/* Mini posts */}
-      <div style={{ flex:1, overflowY:"auto", scrollbarWidth:"none", padding:"8px 10px" }}>
-        {recent.map((p, i) => (
-          <motion.div key={p.id}
-            initial={{ opacity:0, x:10 }} animate={{ opacity:1, x:0 }}
-            transition={{ delay: i * 0.12 }}
-            style={{
-              background:"rgba(255,255,255,0.03)", borderRadius:12,
-              border:"1px solid rgba(74,222,128,0.08)", padding:"10px 12px",
-              marginBottom:6, cursor:"pointer",
-            }}
-            onClick={() => goTab("community")}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
-              <div style={{
-                width:24, height:24, borderRadius:"50%", flexShrink:0,
-                background:`rgba(74,222,128,0.20)`,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:10, fontWeight:900, color:"#4ADE80",
-              }}>{p.nick[0]}</div>
-              <span style={{ fontSize:10, fontWeight:700, color:"rgba(187,247,208,0.70)" }} className="truncate">{p.nick}</span>
-              <span style={{ fontSize:9, color:"rgba(187,247,208,0.35)", marginRight:"auto", flexShrink:0 }}>{p.time}</span>
-            </div>
-            <p style={{ fontSize:11, color:"rgba(240,253,244,0.82)", lineHeight:1.55 }}
-              className="line-clamp-2">{p.text.slice(0, 90)}{p.text.length > 90 && "..."}</p>
-            <div style={{ display:"flex", gap:10, marginTop:6 }}>
-              <span style={{ fontSize:10, color:"rgba(187,247,208,0.45)" }}>💚 {p.helped}</span>
-              <span style={{ fontSize:10, color:"rgba(187,247,208,0.45)" }}>💬 {p.comments.length}</span>
-            </div>
-          </motion.div>
-        ))}
+      {/* Empty state */}
+      <div style={{
+        flex:1, display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        padding:"20px 16px", textAlign:"center", gap:10,
+      }}>
+        <span style={{ fontSize:32 }}>🌱</span>
+        <p style={{ fontSize:12, fontWeight:700, color:"rgba(187,247,208,0.70)", lineHeight:1.4 }}>
+          הקהילה רק מתחילה
+        </p>
+        <p style={{ fontSize:11, color:"rgba(187,247,208,0.45)", lineHeight:1.5 }}>
+          היה הראשון לשתף — הדיווח שלך יעזור למטופלים אחרים עם אותה התוויה
+        </p>
       </div>
       {/* Compose CTA */}
       <div style={{ padding:"8px 10px", flexShrink:0, borderTop:"1px solid rgba(74,222,128,0.08)" }}>
@@ -4102,12 +4322,29 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
   );
 }
 
-function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, goTab }) {
+function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, goTab, ratings = {}, onReport }) {
   const [query, setQuery]               = useState("");
   const [results, setResults]           = useState(null);
   const [selectedStrain, setSelectedStrain] = useState(null);
   const [mobilePane, setMobilePane]     = useState("nav"); // "nav" | "community"
   const { loginStage }                  = useJourney();
+
+  // Build terpene profile for friend-voice copy (uses same buildProfile defined in file)
+  const profile = useMemo(() => buildProfile(ans, ratings), [ans, ratings]);
+
+  // Strains already rated (have any rating value)
+  const ratedIds = useMemo(() => Object.keys(ratings), [ratings]);
+
+  // Kill-switch stats — before vs after filtering by avoided terps
+  const totalBeforeFilter = scored.length;
+  const totalAfterFilter  = scored.filter(s => (s.match || 0) >= 40).length;
+  const ksMsg = useMemo(
+    () => killSwitchSummary(profile, totalBeforeFilter, totalAfterFilter),
+    [profile, totalBeforeFilter, totalAfterFilter],
+  );
+
+  // Next untried experiment
+  const nextExp = useMemo(() => nextExperimentStrain(scored, ratedIds), [scored, ratedIds]);
 
   const search = (q) => {
     if (!q.trim()) { setResults(null); return; }
@@ -4128,11 +4365,18 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
   const topReason  = ans.reasons?.[0];
   const topReasonLabel = REASONS.find(r => r.id === topReason)?.label;
 
+  // Context-aware report nudge — timing-aware, once per day
+  const lastRatedStrain = useMemo(
+    () => scored.find(s => ratedIds.includes(String(s.id))) || null,
+    [scored, ratedIds],
+  );
+  const { shouldNudge, nudgeMsg, dismissNudge } = useReportTiming(lastRatedStrain);
+
   // Mobile sub-tab bar
   const MobileTabBar = (
     <div className="lg:hidden flex rounded-2xl p-1 mb-3 mx-4"
       style={{ background:"rgba(0,0,0,0.35)", border:"1px solid rgba(74,222,128,0.14)" }}>
-      {[{ id:"nav", icon:"🧭", label:"ניווט אישי" }, { id:"community", icon:"🌿", label:"פיד חי" }].map(t => (
+      {[{ id:"nav", icon:"🧭", label:"ניווט אישי" }, { id:"community", icon:"🌿", label:"קהילה" }].map(t => (
         <button key={t.id} onClick={() => setMobilePane(t.id)}
           className="flex-1 py-2 rounded-xl text-xs font-extrabold transition-all"
           style={{
@@ -4149,6 +4393,45 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
   // ── Navigator Pane content ───────────────────────────────────────────────
   const NavigatorPane = (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+
+      {/* Context-aware report nudge banner */}
+      <AnimatePresence>
+        {shouldNudge && lastRatedStrain && (
+          <motion.div
+            initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:"auto" }}
+            exit={{ opacity:0, height:0 }}
+            style={{ overflow:"hidden" }}>
+            <div style={{
+              display:"flex", alignItems:"center", gap:10,
+              padding:"10px 14px",
+              background:"rgba(74,222,128,0.07)",
+              borderBottom:"1px solid rgba(74,222,128,0.18)",
+            }}>
+              <span style={{ fontSize:17, flexShrink:0 }}>🌿</span>
+              <div style={{ flex:1, textAlign:"right" }}>
+                <div style={{ fontSize:12, fontWeight:700, color:"rgba(187,247,208,0.85)", lineHeight:1.5 }}>
+                  {nudgeMsg}
+                </div>
+              </div>
+              <button
+                onClick={() => { if (onReport) onReport(lastRatedStrain); }}
+                style={{
+                  padding:"7px 14px", borderRadius:10, border:"none", cursor:"pointer",
+                  background:"rgba(74,222,128,0.18)", color:"#4ADE80",
+                  fontSize:12, fontWeight:800, flexShrink:0,
+                }}>
+                דווח
+              </button>
+              <button onClick={dismissNudge}
+                style={{ background:"none", border:"none", cursor:"pointer",
+                  fontSize:16, color:"rgba(187,247,208,0.35)", flexShrink:0 }}>
+                ×
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Compact greeting */}
       <motion.div
         initial={{ opacity:0, y:-14 }} animate={{ opacity:1, y:0 }}
@@ -4291,22 +4574,67 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
                         <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:tier.bg, color:tier.color }}>{tier.icon} {tier.label}</span>
                         <span style={{ fontSize:11, fontWeight:700, color:C.accent }}>{s.cat} · ₪{s.price}</span>
                       </div>
+                      {/* Friend-voice "why" */}
+                      <div style={{ fontSize:10.5, color:"rgba(187,247,208,0.68)", lineHeight:1.55, marginTop:4, fontStyle:"italic" }}>
+                        {friendWhy(s, profile, ans)}
+                      </div>
                     </div>
-                    <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
-                      style={{
-                        fontSize:11, fontWeight:800, padding:"7px 11px", borderRadius:12, flexShrink:0,
-                        background: basket.includes(s.id) ? C.line : C.accent,
-                        color: basket.includes(s.id) ? "rgba(187,247,208,0.45)" : "#0c0d11",
-                        border: `1px solid ${basket.includes(s.id) ? C.line : C.accent}`,
-                        opacity: basket.includes(s.id) ? 0.6 : 1,
-                        cursor: basket.includes(s.id) ? "default" : "pointer",
-                      }}>
-                      {basket.includes(s.id) ? "✓" : "+"}
-                    </button>
+                    <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                      <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
+                        style={{
+                          fontSize:11, fontWeight:800, padding:"7px 11px", borderRadius:12,
+                          background: basket.includes(s.id) ? C.line : C.accent,
+                          color: basket.includes(s.id) ? "rgba(187,247,208,0.45)" : "#0c0d11",
+                          border: `1px solid ${basket.includes(s.id) ? C.line : C.accent}`,
+                          opacity: basket.includes(s.id) ? 0.6 : 1,
+                          cursor: basket.includes(s.id) ? "default" : "pointer",
+                        }}>
+                        {basket.includes(s.id) ? "✓" : "+"}
+                      </button>
+                      {onReport && ratedIds.includes(String(s.id)) && (
+                        <button onClick={e => { e.stopPropagation(); onReport(s); }}
+                          style={{
+                            fontSize:10, fontWeight:700, padding:"5px 8px", borderRadius:10,
+                            background:"rgba(167,139,250,0.09)", border:"1px solid rgba(167,139,250,0.22)",
+                            color:"#A78BFA", cursor:"pointer",
+                          }}>
+                          דווח
+                        </button>
+                      )}
+                    </div>
                   </motion.div>
                 );
               })}
             </div>
+
+            {/* Kill-switch callout — appears when strains were filtered */}
+            {ksMsg && (
+              <motion.div
+                initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
+                transition={{ delay:0.6 }}
+                style={{
+                  marginTop:8, padding:"9px 13px", borderRadius:12,
+                  background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.18)",
+                }}>
+                <div style={{ fontSize:11, color:"rgba(248,113,113,0.85)", lineHeight:1.55 }}>
+                  {ksMsg}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Next experiment — always gives the user somewhere to go */}
+            {nextExp && (
+              <div style={{ marginTop:10 }}>
+                <NextExperiment
+                  strain={nextExp}
+                  why={friendWhy(nextExp, profile, ans)}
+                  inBasket={basket.includes(nextExp.id)}
+                  onAddToBasket={() => addToBasket(nextExp.id)}
+                  onReport={onReport ? () => onReport(nextExp) : undefined}
+                />
+              </div>
+            )}
+
             {/* Quick-nav buttons */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:10 }}>
               {[
@@ -4982,9 +5310,9 @@ function Verify({ go, user, setUser, nextScreen = "welcome_room" }) {
       <input value={code} maxLength={6} inputMode="numeric"
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
         className="w-full rounded-xl p-4 text-center text-2xl font-bold tracking-widest mb-3 neon-input"
-        style={{ borderColor: code.length === 6 ? "#2E6B53" : "rgba(46,107,83,0.28)", color: "#111827", letterSpacing: "0.5em" }}
+        style={{ borderColor: code.length === 6 ? "#4ADE80" : "rgba(46,107,83,0.28)", color: "#111827", letterSpacing: "0.5em" }}
         placeholder="• • • • • •" dir="ltr" />
-      {err && <p className="text-xs text-center mb-2" style={{ color: "#B5543B" }}>{err}</p>}
+      {err && <p className="text-xs text-center mb-2" style={{ color: "#F87171" }}>{err}</p>}
       <button onClick={verify} disabled={code.length !== 6 || loading} className="auth-btn-primary">
         {loading ? "מאמת..." : "אימות והמשך"}
       </button>
@@ -5305,25 +5633,24 @@ function Assistant({ ans, ratings, user }) {
     }));
 
     try {
-      const res = await fetch("/api/claude", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
           system: buildAgentContext(ans, ratings, user),
           messages: [...apiHistory, apiMsg],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
         }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `שגיאת שרת ${res.status}`);
       const reply = (data.content || [])
         .map((b) => (b.type === "text" ? b.text : ""))
         .filter(Boolean).join("\n")
-        || (data.error ? `שגיאה מהשרת: ${data.error.message || JSON.stringify(data.error)}` : "מצטער, משהו השתבש. נסו שוב.");
+        || "מצטער, משהו השתבש. נסו שוב.";
       setMsgs([...newDisplay, { role: "assistant", content: reply }]);
     } catch (e) {
-      setMsgs([...newDisplay, { role: "assistant", content: "שגיאת חיבור — נסו שוב בעוד רגע." }]);
+      console.error("[chat] send error:", e.message);
+      setMsgs([...newDisplay, { role: "assistant", content: `שגיאת חיבור — ${e.message || "נסו שוב בעוד רגע."}` }]);
     } finally {
       setBusy(false);
     }
@@ -5552,15 +5879,15 @@ function Insights({ ans, ratings, scored }) {
       {insights.map((ins, i) => (
         <div key={i} className="rounded-2xl p-3.5 border"
           style={{
-            background: ins.tone === "warn" ? "#FBF3E3" : C.soft,
-            borderColor: ins.tone === "warn" ? "#EAD9B0" : C.line,
+            background: ins.tone === "warn" ? "rgba(251,191,36,0.07)" : C.soft,
+            borderColor: ins.tone === "warn" ? "rgba(251,191,36,0.22)" : C.line,
           }}>
           <div className="font-bold text-sm mb-1"
-            style={{ color: ins.tone === "warn" ? "#7A5510" : C.accent }}>
+            style={{ color: ins.tone === "warn" ? "#FBBF24" : C.accent }}>
             {ins.icon} {ins.title}
           </div>
           <p className="text-xs leading-relaxed"
-            style={{ color: ins.tone === "warn" ? "#7A5A14" : "#3D6B53" }}>
+            style={{ color: ins.tone === "warn" ? "rgba(251,191,36,0.80)" : "rgba(187,247,208,0.65)" }}>
             {ins.body}
           </p>
         </div>
@@ -5640,11 +5967,10 @@ const TOPICS = [
 
 async function moderatePost(text) {
   try {
-    const res = await fetch("/api/claude", {
+    const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
         max_tokens: 200,
         messages: [{
           role: "user",
@@ -5708,11 +6034,10 @@ function CommunityLicenseGate({ onUnlock }) {
       setStage("scanning");
       const base64 = e.target.result.split(",")[1];
       try {
-        const res = await fetch("/api/claude", {
+        const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "claude-sonnet-4-6",
             max_tokens: 300,
             messages: [{
               role: "user",
@@ -5961,7 +6286,7 @@ function VerifiedBadge() {
 }
 
 function Community({ ans, user }) {
-  const [posts, setPosts] = useState(DEMO_POSTS);
+  const [posts, setPosts] = useState([]);
   const [text, setText] = useState("");
   const [checking, setChecking] = useState(false);
   const [blocked, setBlocked] = useState(null);
@@ -6531,21 +6856,20 @@ function FloatingAvatarAgent({ ans, ratings, user, goOnboarding, goDNA }) {
     setBusy(true);
     const apiHistory = msgs.map(m => ({ role: m.role, content: m.content }));
     try {
-      const res  = await fetch("/api/claude", {
+      const res  = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
           system: buildAgentContext(ans, ratings, user),
           messages: [...apiHistory, { role: "user", content: userContent }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
         }),
       });
       const data  = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `שגיאת שרת ${res.status}`);
       const reply = (data.content || []).map(b => b.type === "text" ? b.text : "").filter(Boolean).join("\n") || T.errors.generic;
       setMsgs([...newDisplay, { role: "assistant", content: reply }]);
-    } catch {
+    } catch (err) {
+      console.error("[chat] avatar send error:", err.message);
       setMsgs([...newDisplay, { role: "assistant", content: T.errors.network }]);
     } finally { setBusy(false); }
   };
@@ -6864,6 +7188,10 @@ export default function CannaMatch() {
   const [checked, setChecked] = useState(false);
   const [backendLive, setBackendLive] = useState(false);
 
+  /* ── Report flow state ── */
+  const [reportStrain, setReportStrain] = useState(null);
+  const [mapDiff,      setMapDiff]      = useState(null);
+
   /* ── DNA/profile persistence — survive refresh ── */
   useEffect(() => {
     try {
@@ -6897,6 +7225,38 @@ export default function CannaMatch() {
     setUser(null);
     setScreen("welcome");
   };
+
+  /* ── Handle report submission: compute diff, update ratings, fire API ── */
+  const handleReportSubmit = useCallback((rating, effects) => {
+    if (!reportStrain) return;
+    const oldRatings = { ...ratings };
+    // Map 1-4 emoji rating to 1-10 internal scale
+    const internalRating = rating * 2.5;
+    const newRatings = { ...ratings, [reportStrain.id]: internalRating };
+
+    // Compute what changed in the top-8 results
+    const diff = computeMapDiff(ans, oldRatings, newRatings, scoreAll);
+    setMapDiff(diff);
+    setRatings(newRatings);
+
+    // Fire-and-forget to backend (non-blocking — works offline too)
+    api.submitReport({
+      user_id: user?.id,
+      strain_id: reportStrain.id,
+      rating,
+      effects,
+    }).catch(() => {});
+  }, [reportStrain, ratings, ans, user]);
+
+  const openReport = useCallback((strain) => {
+    setMapDiff(null);
+    setReportStrain(strain);
+  }, []);
+
+  const closeReport = useCallback(() => {
+    setReportStrain(null);
+    setMapDiff(null);
+  }, []);
 
   const [showPerms, setShowPerms] = useState(false);
   useEffect(() => {
@@ -7167,7 +7527,7 @@ export default function CannaMatch() {
                 setAns((prev) => ({
                   ...prev,
                   ...localAns,
-                  cats: (prev.cats || []).length > 0 ? prev.cats : ["T22/C4","T18/C3","T15/C3","T12/C2","T10/C2"],
+                  cats: (prev.cats || []).length > 0 ? prev.cats : ["T18/C3","T15/C3","T10/C10","T1/C22"],
                   reasons: (localAns?.reasons || []).length > 0 ? localAns.reasons : (prev.reasons || []),
                   flavors: (localAns?.flavors || []).length > 0 ? localAns.flavors : (prev.flavors || []),
                 }));
@@ -7362,7 +7722,9 @@ export default function CannaMatch() {
             <main className="flex-1 pb-8 overflow-y-auto">
               {tab === "home" && (
                 <Dashboard ans={ans} scored={scored} basket={basket} user={user}
+                  ratings={ratings}
                   addToBasket={(id) => setBasket([...basket, id])}
+                  onReport={openReport}
                   licenseVerified={licenseVerified}
                   goTab={setTab} />
               )}
@@ -7378,7 +7740,7 @@ export default function CannaMatch() {
               {tab === "ai" && <Assistant ans={ans} ratings={ratings} user={user} />}
               {tab === "community" && (
                 licenseVerified
-                  ? <Community ans={ans} user={user} />
+                  ? <CommunitySplitScreen ans={ans} user={user} />
                   : <CommunityLicenseGate onUnlock={() => setLicenseVerified(true)} />
               )}
               {tab === "social" && <TwinsFeed userId={user?.id} />}
@@ -7430,6 +7792,18 @@ export default function CannaMatch() {
                 localStorage.setItem("cm_perms_asked", "1");
                 setShowPerms(false);
               }} />
+            )}
+          </AnimatePresence>
+
+          {/* ── Report flow overlay — global, outside any tab ── */}
+          <AnimatePresence>
+            {reportStrain && (
+              <ReportFlow
+                strain={reportStrain}
+                onClose={closeReport}
+                onSubmit={handleReportSubmit}
+                mapDiff={mapDiff}
+              />
             )}
           </AnimatePresence>
         </div>
