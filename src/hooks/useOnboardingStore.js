@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { FLAVOR_TERP_MAP, LEGACY_GENETICS } from "../lib/onboardingConstants.js";
+import { CONDITION_PROFILES } from "../data/conditionProfiles.js";
 
-// Stage indices — 7 stages total
-export const STAGE_NAMES = ["license", "form", "goals", "sensory", "circadian", "products", "preview"];
+// Stage indices — 8 stages total
+export const STAGE_NAMES = ["license", "form", "conditions", "goals", "sensory", "circadian", "products", "preview"];
 
 export const INITIAL_PAYLOAD = {
   // Stage 0 — License (optional)
@@ -13,7 +14,10 @@ export const INITIAL_PAYLOAD = {
   // Stage 1 — Consumption form (single choice, required)
   consumptionForm:   null,   // "flower" | "oil" | "vape" | "mixed"
 
-  // Stage 2 — Cannabis Goals
+  // Stage 2 — Medical conditions (optional, multi-select)
+  medicalConditions: [],
+
+  // Stage 3 — Cannabis Goals
   effectGoals:       [],
   thcTolerance:      "new",
 
@@ -35,21 +39,24 @@ function validateStage(stageIdx, payload) {
   const errs = {};
   switch (stageIdx) {
     case 0:
-      // License is optional — always passes
+      // License — optional
       break;
     case 1:
       if (!payload.consumptionForm) errs.form = "אנא בחר/י דרך צריכה כדי שנוכל להתאים לך את המוצרים הנכונים";
       break;
     case 2:
+      // Medical conditions — optional
+      break;
+    case 3:
       if (payload.effectGoals.length === 0) errs.effectGoals = "בחר/י לפחות מטרה אחת";
       if (!payload.thcTolerance)            errs.thcTolerance = "שדה חובה";
       break;
-    case 3:
+    case 4:
       // Sensory / oil-effects — optional
       break;
-    case 4:
+    case 5:
       if (payload.usageTiming.length === 0) errs.timing = "בחר/י זמן שימוש אחד לפחות";
-      // primaryGoals is multi-select and optional — no error
+      // primaryGoals is optional
       break;
     default:
       break;
@@ -91,6 +98,17 @@ const TIMING_TERP_LEAN = {
 function computeLiveVector(payload) {
   const acc = {};
   const add = (t, v) => { acc[t] = (acc[t] || 0) + v; };
+
+  // From medical conditions (Phase 4 — cross-referenced terpene lean)
+  const conditions = payload.medicalConditions || [];
+  const condScale = conditions.length > 2 ? 0.6 : conditions.length > 1 ? 0.8 : 1.0;
+  for (const cond of conditions) {
+    const profile = CONDITION_PROFILES[cond];
+    if (!profile) continue;
+    for (const [terp, weight] of Object.entries(profile.terpLean || {})) {
+      add(terp, weight * condScale);
+    }
+  }
 
   // From effect goals
   for (const goal of (payload.effectGoals || [])) {

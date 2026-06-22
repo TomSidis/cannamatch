@@ -12,6 +12,7 @@ import {
   PHARMARY_STRAINS_3,
   PHARMARY_STRAINS_4,
 } from "../data/israeli-pharmacy-catalog.js";
+import MEDICAL_CONDITIONS from "../data/conditions.js";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -531,7 +532,88 @@ const ZEMACH_GOALS = {
   creative:  "יצירתיות — מטופלים מסוימים מוצאים זנים שפותחים להם ראש ומאפשרים זרימה 🎨",
 };
 
-function Stage2_Goals({ payload, errors, updatePayload }) {
+// ── Stage 2: Medical Conditions ───────────────────────────────────────────────
+const ZEMACH_CONDITIONS = {
+  default:       "לאיזה מצב רפואי קיבלת אישור? זה עוזר לנו למצוא את הפרופיל הנכון לך. 🩺",
+  selected_one:  "קיבלתי! המפה שלך כבר מתחילה להתגבש — ממשיכים 🌿",
+  selected_many: "כמה מצבים — אתאם בין כולם את הפרופיל הכי מתאים לך 🧩",
+};
+
+function Stage2_Conditions({ payload, updatePayload }) {
+  const selected = payload.medicalConditions || [];
+  const toggle = (id) => {
+    const next = selected.includes(id)
+      ? selected.filter((x) => x !== id)
+      : [...selected, id];
+    updatePayload({ medicalConditions: next });
+  };
+
+  const zemachMsg = useMemo(() => {
+    if (selected.length > 1) return ZEMACH_CONDITIONS.selected_many;
+    if (selected.length === 1) return ZEMACH_CONDITIONS.selected_one;
+    return ZEMACH_CONDITIONS.default;
+  }, [selected]);
+
+  return (
+    <motion.div variants={STAGGER} initial="hidden" animate="show">
+      <motion.div variants={FADE_UP}>
+        <AnimatePresence mode="wait">
+          <ZemachBubble key={zemachMsg} message={zemachMsg} stage={2} />
+        </AnimatePresence>
+      </motion.div>
+
+      <motion.div variants={FADE_UP}>
+        <SectionLabel>לאיזה מצב קיבלת אישור? (ניתן לבחור כמה — ואפשרי גם לדלג)</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+          {MEDICAL_CONDITIONS.map((cond) => {
+            const on = selected.includes(cond.id);
+            return (
+              <motion.button
+                key={cond.id}
+                onClick={() => toggle(cond.id)}
+                whileHover={{ scale: 1.03, boxShadow: `0 0 14px ${T.accent}33` }}
+                whileTap={{ scale: 0.94 }}
+                style={{
+                  padding:       "9px 10px",
+                  borderRadius:  13,
+                  textAlign:     "right",
+                  background:    on ? "rgba(57,255,133,0.08)" : "rgba(255,255,255,0.03)",
+                  border:        `1.5px solid ${on ? T.accent : T.border}`,
+                  boxShadow:     on ? T.glow(T.accent, 7) : "none",
+                  cursor:        "pointer",
+                  transition:    "all 0.18s",
+                  minHeight:     52,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 1 }}>
+                  <span style={{ fontSize: 17, flexShrink: 0,
+                                 filter: on ? `drop-shadow(0 0 5px ${T.accent})` : "none" }}>
+                    {cond.icon}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: on ? 800 : 600,
+                                 color: on ? T.accent : T.text, lineHeight: 1.3 }}>
+                    {cond.label}
+                  </span>
+                </div>
+                <p style={{ fontSize: 9, color: T.muted, margin: 0, paddingRight: 24 }}>
+                  {cond.sub}
+                </p>
+              </motion.button>
+            );
+          })}
+        </div>
+        <motion.p variants={FADE_UP} style={{
+          textAlign: "center", marginTop: 12, fontSize: 12,
+          color: "rgba(187,247,208,0.45)",
+        }}>
+          לא רוצה לציין — לחץ ״המשך״ למטה, זה אופציונלי לחלוטין 🌿
+        </motion.p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function Stage3_Goals({ payload, errors, updatePayload }) {
   const selectedGoals = payload.effectGoals || [];
 
   const zemachMsg = useMemo(() => {
@@ -631,34 +713,34 @@ function Stage2_Goals({ payload, errors, updatePayload }) {
 
 // ── Stage 3a: Scent (flower / vape users) ─────────────────────────────────────
 const FLAVOR_TILES = [
-  { id: "gas_fuel",        label: "גז / דלק",        icon: "⛽", color: "#FFA040",
-    sub: "כבד ופאנקי",    terps: "קריופילן · מירצן" },
-  { id: "citrus_sharp",    label: "הדרים / חד",       icon: "🍋", color: "#FFE040",
-    sub: "מרענן וחד",     terps: "לימונן · פינן" },
-  { id: "earthy_musky",   label: "אדמתי / מוסקי",    icon: "🌍", color: "#8B6914",
-    sub: "עמוק ואדמתי",  terps: "מירצן · הומולן" },
-  { id: "sweet_berry",     label: "מתוק / פירות יער", icon: "🍓", color: "#FF6B8A",
-    sub: "פירותי ומתוק",  terps: "לינלול · לימונן" },
-  { id: "pine_fresh",      label: "אורן / רענן",      icon: "🌲", color: "#39FF85",
-    sub: "יערי וצלול",   terps: "פינן · טרפינולן" },
-  { id: "floral_lavender", label: "פרחוני / לבנדר",  icon: "💜", color: "#C855FF",
-    sub: "עדין ורגוע",   terps: "לינלול · אוסימן" },
-  { id: "spicy_pepper",    label: "תבלוני / פלפלי",   icon: "🌶️", color: "#FF4560",
-    sub: "נגד-דלקת",     terps: "קריופילן · הומולן" },
-  { id: "tropical_mango",  label: "טרופי / מנגו",    icon: "🥭", color: "#40CFFF",
-    sub: "אקזוטי ורענן", terps: "מירצן · אוסימן" },
+  { id: "citrus_sharp",    label: "הדרים",             icon: "🍋", color: "#FFE040",
+    sub: "כמו לימון, תפוז, אשכולית" },
+  { id: "earthy_musky",    label: "אדמתי / יערי",      icon: "🌍", color: "#8BC34A",
+    sub: "כמו אחרי גשם, פטריות, יער" },
+  { id: "sweet_berry",     label: "מתוק / פירותי",     icon: "🍓", color: "#FF6B8A",
+    sub: "כמו תות שדה, ענבים, פירות" },
+  { id: "pine_fresh",      label: "אורן / רענן",       icon: "🌲", color: "#39FF85",
+    sub: "כמו יער אורנים, נענע" },
+  { id: "floral_lavender", label: "פרחוני / לבנדר",   icon: "💜", color: "#C855FF",
+    sub: "כמו לבנדר, ורדים, ג'סמין" },
+  { id: "spicy_pepper",    label: "תבלוני / פלפלי",    icon: "🌶️", color: "#FF4560",
+    sub: "כמו פלפל שחור, קינמון, ציפורן" },
+  { id: "tropical_mango",  label: "טרופי / מנגו",      icon: "🥭", color: "#40CFFF",
+    sub: "כמו מנגו, אננס, גויאבה" },
+  { id: "gas_fuel",        label: "עמוק ועשיר",        icon: "🫙", color: "#FFA040",
+    sub: "כמו גבינה מיושנת, קפה שרוף" },
 ];
 
 const ZEMACH_SENSORY = {
-  default:         "בחר/י את הריחות שאתה/את אוהב/ת — ולא אוהב/ת. זה עוזר לנו לדייק עבורך בסריקת התפריט 👃",
-  gas_fuel:        "ריח כבד וחריף — הרבה מטופלים עם זנים כאלה מדווחים על הקלה בכאב. Diesel, Chemdawg ועוד 🤌",
-  citrus_sharp:    "הדרים וחד — ריח מרענן שמרבה מטופלים מקשרים לשיפור מצב רוח ואנרגיה 🍋",
-  earthy_musky:    "אדמתי ועמוק — ריח שמרבה מטופלים מקשרים להרפיה ולהקלת כאב 🌿",
-  sweet_berry:     "מתוק ופירותי — ריח עדין שמרבה מטופלים אוהבים לפנאי ולרוגע 💜",
-  pine_fresh:      "יערי ואורן — ריח צלול שמרבה מטופלים מקשרים לריכוז ועירנות 🌲",
-  floral_lavender: "פרחוני ולבנדר — ריח מרגיע ועדין, נפוץ אצל מטופלים שמחפשים שינה ורוגע 💆",
-  spicy_pepper:    "תבלוני ופלפלי — ריח נועז שמרבה מטופלים מקשרים להקלה בדלקות ובכאב 🌶️",
-  tropical_mango:  "טרופי ומנגו — ריח מתוק ואקזוטי, מועדף על מטופלים שמחפשים הרפיה נעימה 🥭",
+  default:         "סמנ/י ריחות שאתה/את אוהב/ת, ואם יש כאלה שממש לא — גם זה חשוב. משפיע על מה שנמליץ 👃",
+  gas_fuel:        "ריח עמוק ועשיר — מטופלים רבים עם פרופיל כזה מדווחים על הקלה בכאב 🫙",
+  citrus_sharp:    "הדרים ורענן — הרבה מטופלים מקשרים את זה לשיפור מצב רוח ואנרגיה 🍋",
+  earthy_musky:    "ריח אדמה ויער — מקושר לרוגע ולהרפיה 🌿",
+  sweet_berry:     "מתוק ופירותי — עדין ולרוב מתאים לשעות ניטרליות ולרוגע 🍓",
+  pine_fresh:      "ריח יער ואורנים — מקושר לריכוז ועירנות 🌲",
+  floral_lavender: "פרחוני ולבנדר — מרגיע, מוכר בשינה ובהפגת חרדה 💜",
+  spicy_pepper:    "תבלוני — מקושר להקלה בדלקות ובכאב כרוני 🌶️",
+  tropical_mango:  "טרופי — עדין ורגוע, נפוץ בקרב מטופלים שמחפשים הרפיה 🥭",
 };
 
 // ── Stage 3b: Oil Effects (oil users — replaces flavor screen) ─────────────────
@@ -677,7 +759,7 @@ const OIL_EFFECT_TILES = [
     sub: "הרגעת חרדה ומתח נפשי" },
 ];
 
-function Stage3_Sensory({ payload, errors, updatePayload }) {
+function Stage4_Sensory({ payload, errors, updatePayload }) {
   const isOilUser = payload.consumptionForm === "oil";
 
   // ── Oil: effects-based screen ─────────────────────────────────────────────
@@ -747,25 +829,28 @@ function Stage3_Sensory({ payload, errors, updatePayload }) {
     );
   }
 
-  // ── Flower / Vape / Mixed: original flavor screen ─────────────────────────
+  // ── Flower / Vape / Mixed: taste screen — clear אהבתי / לא אהבתי per tile ───
   const scentSels = payload.scentSelections || {};
 
-  const cycle = (id) => {
+  const setLiked    = (id) => {
     const cur = scentSels[id];
-    let next;
-    if (!cur)                   next = "liked";
-    else if (cur === "liked")   next = "loved";
-    else if (cur === "loved")   next = "disliked";
-    else                        next = undefined;
     const updated = { ...scentSels };
-    if (next) updated[id] = next;
-    else delete updated[id];
+    // second tap on the same button → clear it
+    if (cur === "loved") delete updated[id];
+    else updated[id] = "loved";
+    updatePayload({ scentSelections: updated });
+  };
+  const setDisliked = (id) => {
+    const cur = scentSels[id];
+    const updated = { ...scentSels };
+    if (cur === "disliked") delete updated[id];
+    else updated[id] = "disliked";
     updatePayload({ scentSelections: updated });
   };
 
   const lastSelected = useMemo(() => {
-    const keys = Object.keys(scentSels);
-    return keys[keys.length - 1] || null;
+    const entry = Object.entries(scentSels).findLast(([, v]) => v === "loved" || v === "disliked");
+    return entry ? entry[0] : null;
   }, [scentSels]);
 
   const zemachMsg = lastSelected
@@ -776,75 +861,96 @@ function Stage3_Sensory({ payload, errors, updatePayload }) {
     <motion.div variants={STAGGER} initial="hidden" animate="show">
       <motion.div variants={FADE_UP}>
         <AnimatePresence mode="wait">
-          <ZemachBubble key={zemachMsg} message={zemachMsg} stage={3} />
+          <ZemachBubble key={zemachMsg} message={zemachMsg} stage={4} />
         </AnimatePresence>
       </motion.div>
 
       <motion.div variants={FADE_UP}>
-        <SectionLabel>הגלגל החושי — לחץ פעם אחת ❤️ פעמיים 💜 שלוש פעמים ✕</SectionLabel>
+        <SectionLabel>אילו ריחות אתה/את אוהב/ת? (לא חייבים לבחור)</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {FLAVOR_TILES.map((tile, idx) => {
+          {FLAVOR_TILES.map((tile) => {
             const state  = scentSels[tile.id];
-            const isOn   = !!state;
             const isLove = state === "loved";
             const isDis  = state === "disliked";
-            const col    = isDis ? T.danger : tile.color;
             return (
-              <motion.button
+              <motion.div
                 key={tile.id}
-                onClick={() => cycle(tile.id)}
                 variants={FADE_UP}
-                custom={idx}
-                whileHover={{ scale: 1.03, boxShadow: `0 0 16px ${col}44` }}
-                whileTap={{ scale: 0.93 }}
                 style={{
-                  padding:       "10px 10px",
+                  padding:       "9px 10px",
                   borderRadius:  13,
-                  textAlign:     "center",
-                  background:    isOn ? `${col}14` : "rgba(255,255,255,0.03)",
-                  border:        `1.5px solid ${isOn ? col : T.border}`,
-                  boxShadow:     isOn ? `0 0 12px ${col}28` : "none",
-                  cursor:        "pointer",
-                  position:      "relative",
+                  background:    isLove ? `${tile.color}12`
+                               : isDis  ? "rgba(255,69,96,0.07)"
+                               : "rgba(255,255,255,0.03)",
+                  border:        `1.5px solid ${isLove ? tile.color : isDis ? T.danger : T.border}`,
                   transition:    "all 0.18s",
-                  minHeight:     62,
                 }}
               >
-                {isOn && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                  <span style={{ fontSize: 20, flexShrink: 0,
+                                 filter: (isLove || isDis) ? `drop-shadow(0 0 5px ${isLove ? tile.color : T.danger})` : "none" }}>
+                    {tile.icon}
+                  </span>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, margin: 0, lineHeight: 1.2,
+                                color: isLove ? tile.color : isDis ? T.danger : T.text }}>
+                      {tile.label}
+                    </p>
+                    <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{tile.sub}</p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 5 }}>
+                  <button
+                    onClick={() => setLiked(tile.id)}
                     style={{
-                      position: "absolute", top: 6, left: 6,
-                      fontSize: 9, fontWeight: 800,
-                      color:     col,
-                      background: `${col}22`,
-                      borderRadius: "50%",
-                      width: 18, height: 18,
-                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                      background: isLove ? tile.color : `${tile.color}14`,
+                      color:      isLove ? "#061006" : tile.color,
+                      border:     `1px solid ${isLove ? tile.color : `${tile.color}44`}`,
+                      cursor:     "pointer",
                     }}
                   >
-                    {isDis ? "✕" : isLove ? "💜" : "❤️"}
-                  </motion.div>
-                )}
-                <span style={{ fontSize: 22, display: "block", marginBottom: 3,
-                               filter: isOn ? `drop-shadow(0 0 6px ${col})` : "none" }}>
-                  {tile.icon}
-                </span>
-                <p style={{ fontSize: 12, fontWeight: 700, color: isOn ? col : T.text, marginBottom: 1, lineHeight: 1.2 }}>
-                  {tile.label}
-                </p>
-                <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{tile.sub}</p>
-              </motion.button>
+                    {isLove ? "✓ אהבתי" : "❤️ אהבתי"}
+                  </button>
+                  <button
+                    onClick={() => setDisliked(tile.id)}
+                    style={{
+                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                      background: isDis ? T.danger : "rgba(255,69,96,0.1)",
+                      color:      isDis ? "#fff" : T.danger,
+                      border:     `1px solid ${isDis ? T.danger : "rgba(255,69,96,0.3)"}`,
+                      cursor:     "pointer",
+                    }}
+                  >
+                    {isDis ? "✕ לא אהבתי" : "🚫 לא אהבתי"}
+                  </button>
+                </div>
+              </motion.div>
             );
           })}
         </div>
-        <FieldError msg={errors.scents} />
+
+        {/* לא יודע / לא מבחין בטעם */}
+        <motion.button
+          variants={FADE_UP}
+          onClick={() => updatePayload({ scentSelections: {} })}
+          style={{
+            width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 12,
+            background: Object.keys(scentSels).length === 0 ? "rgba(57,255,133,0.08)" : "rgba(255,255,255,0.04)",
+            border: `1.5px solid ${Object.keys(scentSels).length === 0 ? T.accent : T.border}`,
+            color:      Object.keys(scentSels).length === 0 ? T.accent : T.muted,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+            fontFamily: "'Heebo',sans-serif",
+          }}
+        >
+          🤷 לא יודע / לא מבחין בריחות
+        </motion.button>
+
         <motion.p variants={FADE_UP} style={{
-          textAlign: "center", marginTop: 12, fontSize: 12,
-          color: "rgba(187,247,208,0.45)", cursor: "default",
+          textAlign: "center", marginTop: 8, fontSize: 11,
+          color: "rgba(187,247,208,0.45)",
         }}>
-          לא בטוח? לחץ ״המשך״ למטה — טעם הוא אופציונלי 🌿
+          לחץ ״המשך״ למטה — טעם הוא אופציונלי לחלוטין 🌿
         </motion.p>
       </motion.div>
     </motion.div>
@@ -875,7 +981,7 @@ const ZEMACH_CIRCADIAN = {
   both:      "כל שעות היום — נבנה לך פרופיל גמיש: זנים לתפקוד ביום וזנים לרוגע בלילה 🔄",
 };
 
-function Stage4_Circadian({ payload, errors, updatePayload }) {
+function Stage5_Circadian({ payload, errors, updatePayload }) {
   const timing      = payload.usageTiming  || [];
   const selGoals    = payload.primaryGoals || [];
 
@@ -1060,7 +1166,7 @@ function ProductCard({ s, isLoved, isHated, onLove, onHate }) {
   );
 }
 
-function Stage5_Products({ payload, updatePayload }) {
+function Stage6_Products({ payload, updatePayload }) {
   const [q, setQ]           = useState("");
   const [kindFilter, setKindFilter] = useState(null); // null | "אינדיקה" | "סאטיבה" | "היברידי"
 
@@ -1349,7 +1455,7 @@ function dnaSequence(liveVector) {
     .join("-") || "—";
 }
 
-function Stage6_Preview({ liveVector, killSwitches, payload }) {
+function Stage7_Preview({ liveVector, killSwitches, payload }) {
   const seq          = useMemo(() => dnaSequence(liveVector), [liveVector]);
   const activeTerps  = TERP_ORDER.filter((t) => (liveVector[t.key] || 0) > 0.2);
   const blockedTerps = Object.keys(killSwitches);
@@ -1370,7 +1476,7 @@ function Stage6_Preview({ liveVector, killSwitches, payload }) {
     <motion.div variants={STAGGER} initial="hidden" animate="show">
       <motion.div variants={FADE_UP}>
         <AnimatePresence mode="wait">
-          <ZemachBubble key="preview" message={zemachMsg} stage={6} />
+          <ZemachBubble key="preview" message={zemachMsg} stage={7} />
         </AnimatePresence>
       </motion.div>
 
@@ -1523,8 +1629,9 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       flavors:   Object.entries(payload.scentSelections || {})
                   .filter(([, v]) => v !== "disliked")
                   .map(([id]) => FLAVOR_TO_LOCAL[id] || id),
-      oilEffects:   payload.oilEffects    || [],
-      primaryGoals: payload.primaryGoals  || [],
+      medicalConditions: payload.medicalConditions || [],
+      oilEffects:        payload.oilEffects    || [],
+      primaryGoals:      payload.primaryGoals  || [],
       helped:       payload.lovedStrains  || [],
       notHelped:    payload.hatedStrains  || [],
       current:      [],
@@ -1547,6 +1654,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
   const stageTitles = [
     "אימות רישיון",
     "דרך צריכה",
+    "מצב רפואי",
     "מטרות ויעדים",
     "ארומות ותחושות",
     "שגרת השימוש",
@@ -1556,6 +1664,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
   const stageSubtitles = [
     "בוא נוודא שאתה מורשה",
     "איך אתה/את צורכ/ת?",
+    "לאיזה מצב קיבלת אישור?",
     "מה אתה/את מחפש/ת מהקנאביס שלך",
     payload.consumptionForm === "oil"
       ? "מה עוזר לך — מה אתה/את מרגיש/ה?"
@@ -1618,14 +1727,15 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
             animate="center"
             exit="exit"
           >
-            {stage === 0 && <Stage0_License   payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 0 && <Stage0_License        payload={payload} errors={errors} updatePayload={updatePayload} />}
             {stage === 1 && <Stage1_ConsumptionForm payload={payload} errors={errors} updatePayload={updatePayload} />}
-            {stage === 2 && <Stage2_Goals     payload={payload} errors={errors} updatePayload={updatePayload} />}
-            {stage === 3 && <Stage3_Sensory   payload={payload} errors={errors} updatePayload={updatePayload} />}
-            {stage === 4 && <Stage4_Circadian payload={payload} errors={errors} updatePayload={updatePayload} />}
-            {stage === 5 && <Stage5_Products  payload={payload} updatePayload={updatePayload} />}
-            {stage === 6 && (
-              <Stage6_Preview
+            {stage === 2 && <Stage2_Conditions      payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 3 && <Stage3_Goals           payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 4 && <Stage4_Sensory         payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 5 && <Stage5_Circadian       payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 6 && <Stage6_Products        payload={payload} updatePayload={updatePayload} />}
+            {stage === 7 && (
+              <Stage7_Preview
                 liveVector={liveVector}
                 killSwitches={killSwitches}
                 payload={payload}
