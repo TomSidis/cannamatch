@@ -4460,6 +4460,57 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
         </div>
       </motion.div>
 
+      {/* ── Phase 6: Flagship CTAs — Menu Decoder + Community ─────────────── */}
+      <motion.div
+        initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+        transition={{ delay:0.18 }}
+        style={{ display:"flex", gap:10, padding:"10px 14px 4px", flexShrink:0 }}>
+        {/* Menu Decoder */}
+        <motion.button
+          onClick={() => goTab("menu")}
+          whileHover={{ scale:1.03, boxShadow:"0 0 20px rgba(57,255,133,0.25)" }}
+          whileTap={{ scale:0.96 }}
+          style={{
+            flex:1, padding:"12px 10px", borderRadius:16, textAlign:"center",
+            background:"rgba(57,255,133,0.07)", border:"1.5px solid rgba(57,255,133,0.28)",
+            cursor:"pointer", fontFamily:"'Heebo',sans-serif",
+          }}>
+          <p style={{ fontSize:22, marginBottom:3 }}>📸</p>
+          <p style={{ fontSize:12, fontWeight:800, color:"#39FF85", margin:0 }}>
+            מפענח תפריט
+          </p>
+          <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
+            סרוק ואני אגיד מה לקחת
+          </p>
+        </motion.button>
+        {/* Community — license gated */}
+        <motion.button
+          onClick={() => goTab("community")}
+          whileHover={{ scale:1.03, boxShadow:"0 0 20px rgba(200,85,255,0.22)" }}
+          whileTap={{ scale:0.96 }}
+          style={{
+            flex:1, padding:"12px 10px", borderRadius:16, textAlign:"center",
+            background:"rgba(200,85,255,0.07)",
+            border:`1.5px solid ${licenseVerified ? "rgba(200,85,255,0.30)" : "rgba(200,85,255,0.15)"}`,
+            cursor:"pointer", fontFamily:"'Heebo',sans-serif", position:"relative",
+          }}>
+          {!licenseVerified && (
+            <span style={{
+              position:"absolute", top:6, left:8, fontSize:9, fontWeight:800,
+              color:"rgba(200,85,255,0.55)", background:"rgba(200,85,255,0.12)",
+              borderRadius:8, padding:"1px 5px",
+            }}>🔒 רישיון</span>
+          )}
+          <p style={{ fontSize:22, marginBottom:3 }}>🌿</p>
+          <p style={{ fontSize:12, fontWeight:800, color:"#C855FF", margin:0 }}>
+            קהילה
+          </p>
+          <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
+            אנשים עם פרופיל דומה לך
+          </p>
+        </motion.button>
+      </motion.div>
+
       {/* Search bar */}
       <motion.div
         initial={{ opacity:0 }} animate={{ opacity:1 }}
