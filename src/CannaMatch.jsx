@@ -7576,12 +7576,15 @@ export default function CannaMatch() {
             <OnboardingWizard
               user={user}
               onComplete={({ localAns }) => {
+                // ALL_CATS: every category present in our strain database — used when user has no license
+                const ALL_CATS = ["T0/C30","T1/C20","T1/C28","T10/C10","T10/C2","T15/C3","T18/C3","T22/C4","T3/C15","T3/C18","T5/C10","T5/C20"];
                 setAns((prev) => ({
                   ...prev,
                   ...localAns,
+                  // No license → show full catalog; profile scoring still differentiates
                   cats: (localAns?.cats || []).length > 0
                     ? localAns.cats
-                    : (prev.cats || []).length > 0 ? prev.cats : ["T18/C3","T15/C3","T10/C10","T1/C22"],
+                    : (prev.cats || []).length > 0 ? prev.cats : ALL_CATS,
                   reasons: (localAns?.reasons || []).length > 0 ? localAns.reasons : (prev.reasons || []),
                   flavors: (localAns?.flavors || []).length > 0 ? localAns.flavors : (prev.flavors || []),
                 }));

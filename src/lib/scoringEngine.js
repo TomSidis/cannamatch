@@ -49,6 +49,10 @@ export function buildProfile(ans, ratings, { strains, terpenes, reasons }) {
     s && Object.entries(s.terps).forEach(([t, v]) => add(t, v * f));
   });
 
+  // Pre-computed terpene weights from conditions / oilEffects / timing / primaryGoals
+  // — set by the onboarding wizard's computeLiveVector and passed through localAns
+  Object.entries(ans.terpWeights || {}).forEach(([t, v]) => add(t, v));
+
   return w;
 }
 

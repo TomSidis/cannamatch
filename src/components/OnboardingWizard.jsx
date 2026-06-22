@@ -1613,6 +1613,74 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       ),
     ];
 
+    // Build terpWeights — feeds ALL new onboarding signals into the scoring engine
+    // so changing conditions / effects / timing / goals actually changes the results.
+    const OIL_EFFECT_W = {
+      calm_body:    { myrcene: 1.4, linalool: 0.8, humulene: 0.5 },
+      clear_head:   { pinene: 1.4, limonene: 1.0, terpinolene: 0.6 },
+      deep_sleep:   { myrcene: 1.6, linalool: 1.2, caryophyllene: 0.4 },
+      pain_relief:  { caryophyllene: 1.5, myrcene: 0.9, humulene: 0.7 },
+      appetite:     { myrcene: 1.2, humulene: 0.8, limonene: 0.5 },
+      anxiety_calm: { linalool: 1.3, limonene: 1.0, caryophyllene: 0.4 },
+    };
+    const PRIMARY_GOAL_W = {
+      focus:      { pinene: 0.9, limonene: 0.7 },
+      relax:      { linalool: 0.9, myrcene: 0.7 },
+      sleep:      { myrcene: 1.1, linalool: 0.9 },
+      pain_relief:{ caryophyllene: 1.1, myrcene: 0.8 },
+      mood:       { limonene: 1.1, linalool: 0.6 },
+    };
+    const TIMING_W = {
+      morning:   { pinene: 0.7, limonene: 0.5 },
+      noon:      { pinene: 0.5, terpinolene: 0.5 },
+      afternoon: { limonene: 0.4, terpinolene: 0.3 },
+      evening:   { linalool: 0.6, myrcene: 0.5 },
+      night:     { myrcene: 1.0, linalool: 0.8 },
+    };
+
+    const terpWeights = {};
+    const addTW = (t, v) => { terpWeights[t] = (terpWeights[t] || 0) + v; };
+
+    // From oil effects
+    for (const e of (payload.oilEffects || [])) {
+      for (const [t, w] of Object.entries(OIL_EFFECT_W[e] || {})) addTW(t, w);
+    }
+    // From timing
+    for (const slot of (payload.usageTiming || [])) {
+      for (const [t, w] of Object.entries(TIMING_W[slot] || {})) addTW(t, w);
+    }
+    // From primary goals (multi-select, scale down when many)
+    const pgScale = (payload.primaryGoals || []).length > 1 ? 0.65 : 1.0;
+    for (const g of (payload.primaryGoals || [])) {
+      for (const [t, w] of Object.entries(PRIMARY_GOAL_W[g] || {})) addTW(t, w * pgScale);
+    }
+    // From medical condition profiles (already loaded at top of wizard)
+    const condScale = (payload.medicalConditions || []).length > 2 ? 0.6
+                    : (payload.medicalConditions || []).length > 1 ? 0.8 : 1.0;
+    // Import lazily to avoid circular — use inline mini-map for the engine path
+    const COND_TERP_W = {
+      chronic_pain:    { caryophyllene: 1.4, myrcene: 1.1, humulene: 0.8 },
+      neuropathic:     { caryophyllene: 1.3, linalool: 0.9, myrcene: 0.8 },
+      oncology:        { myrcene: 1.2, limonene: 0.9, caryophyllene: 0.7 },
+      nausea_vomiting: { limonene: 1.2, terpinolene: 0.7, myrcene: 0.6 },
+      ibd:             { caryophyllene: 1.3, myrcene: 0.8, humulene: 0.7 },
+      ms:              { myrcene: 1.0, linalool: 0.9, caryophyllene: 0.8 },
+      parkinsons:      { linalool: 1.1, limonene: 0.9, myrcene: 0.8 },
+      epilepsy:        { linalool: 1.4, myrcene: 0.8, caryophyllene: 0.5 },
+      tourette:        { myrcene: 1.1, linalool: 0.9, caryophyllene: 0.6 },
+      ptsd:            { linalool: 1.3, limonene: 1.0, caryophyllene: 0.7 },
+      autism:          { linalool: 1.2, myrcene: 0.9, limonene: 0.7 },
+      fibromyalgia:    { myrcene: 1.2, caryophyllene: 1.0, linalool: 0.8 },
+      aids:            { myrcene: 1.0, limonene: 0.8, caryophyllene: 0.7 },
+      glaucoma:        { myrcene: 0.9, caryophyllene: 0.7 },
+      dementia:        { linalool: 1.1, limonene: 0.9, myrcene: 0.8 },
+      palliative:      { myrcene: 1.3, linalool: 1.0, caryophyllene: 0.9 },
+      heart_failure:   { linalool: 1.0, myrcene: 0.8 },
+    };
+    for (const c of (payload.medicalConditions || [])) {
+      for (const [t, w] of Object.entries(COND_TERP_W[c] || {})) addTW(t, w * condScale);
+    }
+
     // Derive delivery method from consumptionForm for backward compat with scoring engine
     const formToDelivery = {
       flower: ["smoke"],
@@ -1629,6 +1697,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       flavors:   Object.entries(payload.scentSelections || {})
                   .filter(([, v]) => v !== "disliked")
                   .map(([id]) => FLAVOR_TO_LOCAL[id] || id),
+      terpWeights,  // pre-computed from conditions + oilEffects + timing + primaryGoals
       medicalConditions: payload.medicalConditions || [],
       oilEffects:        payload.oilEffects    || [],
       primaryGoals:      payload.primaryGoals  || [],
