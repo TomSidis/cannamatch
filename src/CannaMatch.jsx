@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
 // ZemachAvatarChat removed — replaced by future knowledge-base chatbot
 import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
+import WalkingMascot from "./components/WalkingMascot.jsx";
 import ReportFlow from "./components/ReportFlow.jsx";
 import NextExperiment from "./components/NextExperiment.jsx";
 import CommunitySplitScreen from "./components/CommunitySplitScreen.jsx";
@@ -7815,6 +7816,9 @@ export default function CannaMatch() {
         </div>
         </JourneyProvider>
       )}
+
+      {/* Phase 5 — mascot: walking character overlays all screens (position: fixed) */}
+      <WalkingMascot />
 
     </div>
   );
