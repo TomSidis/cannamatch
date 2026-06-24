@@ -26,6 +26,7 @@ import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
 import { ocrFile } from "./lib/menuOcr.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
+import BatchSignalBadge from "./components/BatchSignalBadge.jsx";
 import {
   hashLicenseId, isValidIsraeliId, isLicenseExpired, daysToExpiry,
   stripExif, storeLicenseMeta, getStoredLicenseHash, readLicenseMeta, clearLicenseMeta,
@@ -1549,6 +1550,11 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                   )}
                   <GeneticsChip s={s} />
                 </div>
+                {s._reasonHuman && (
+                  <p style={{ fontSize: 11, color: 'rgba(187,247,208,0.5)', margin: '0 0 4px', lineHeight: 1.3 }}>
+                    {s._reasonHuman}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                     style={{ background: tier.bg, color: tier.color }}>{tier.icon} {tier.label}</span>
@@ -1589,6 +1595,13 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                     )}
                     {s.batch && (
                       <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(187,247,208,0.55)" }}>אצווה: {s.batch}</span>
+                    )}
+                    {s._flaggedBatch && (
+                      <BatchSignalBadge
+                        axis={s._flaggedBatch.axis}
+                        n={s._flaggedBatch.n}
+                        adverseRate={s._flaggedBatch.adverseRate}
+                      />
                     )}
                     {s.nReviews > 0 && (
                       <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.07)", color: "#FBBF24" }}>⭐ {s.rating} ({s.nReviews})</span>

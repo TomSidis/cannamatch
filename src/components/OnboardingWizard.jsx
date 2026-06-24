@@ -4,8 +4,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "../hooks/useReducedMotion.js";
 import { useOnboardingStore, STAGE_NAMES } from "../hooks/useOnboardingStore.js";
 import { api } from "../services/api.js";
+import {
+  hashLicenseId, isValidIsraeliId, isLicenseExpired,
+  stripExif, storeLicenseMeta, getStoredLicenseHash,
+} from "../lib/licenseUtils.js";
 import {
   PHARMARY_STRAINS,
   PHARMARY_STRAINS_2,
@@ -199,16 +204,82 @@ function fileToBase64(file) {
 }
 
 // ── Stage 0: License ──────────────────────────────────────────────────────────
-const LICENSE_CATEGORIES = [
-  "T22/C4","T20/C4","T18/C3","T15/C3","T12/C12",
-  "T10/C10","T10/C2","T5/C15","T3/C15","T1/C22",
+// MOH Procedure 106 (post-July-2024) T/C categories — single source of truth.
+// Grouped: עתיר THC → מאוזן → עתיר CBD
+export const LICENSE_CATEGORY_GROUPS = [
+  {
+    label: "עתיר THC",
+    color: "#FFA040",
+    cats:  ["T22/C4", "T18/C3", "T15/C3", "T12/C2", "T10/C2"],
+  },
+  {
+    label: "מאוזן",
+    color: "#39FF85",
+    cats:  ["T12/C12", "T10/C10", "T8/C8", "T5/C5", "T1/C1"],
+  },
+  {
+    label: "עתיר CBD",
+    color: "#40CFFF",
+    cats:  ["T5/C10", "T3/C12", "T3/C15", "T3/C18", "T1/C22", "T0/C26"],
+  },
 ];
+// Flat list for validation / filtering
+const LICENSE_CATEGORIES = LICENSE_CATEGORY_GROUPS.flatMap((g) => g.cats);
 
-function Stage0_License({ payload, errors, updatePayload }) {
-  const [mode, setMode]           = useState(null); // null | "manual" | "ocr-confirm"
-  const [scanning, setScanning]   = useState(false);
+// Parse raw Tesseract text for Israeli cannabis license fields.
+// Returns { cats: string[], expiry: string|null, grams: number|null, licenseId: string|null }
+function parseLicenseOCR(text) {
+  const upper = text.toUpperCase();
+
+  // T/C category patterns: T22/C4, T18/C3 etc. — also match with spaces or Hebrew slashes
+  const catRegex = /T\s*(\d{1,2})\s*[\/\\]\s*C\s*(\d{1,2})/gi;
+  const cats = [];
+  let m;
+  while ((m = catRegex.exec(upper)) !== null) {
+    const cat = `T${m[1]}/C${m[2]}`;
+    if (LICENSE_CATEGORIES.includes(cat) && !cats.includes(cat)) cats.push(cat);
+  }
+
+  // Expiry date: DD.MM.YYYY / DD/MM/YYYY / YYYY-MM-DD
+  let expiry = null;
+  const isoMatch = text.match(/(\d{4})[.\-\/](\d{2})[.\-\/](\d{2})/);
+  if (isoMatch) {
+    const [, y, mo, d] = isoMatch;
+    if (parseInt(y) > 2024) expiry = `${y}-${mo}-${d}`;
+  }
+  if (!expiry) {
+    const dmyMatch = text.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
+    if (dmyMatch) {
+      let [, d, mo, y] = dmyMatch;
+      if (y.length === 2) y = `20${y}`;
+      if (parseInt(y) > 2024 && parseInt(mo) <= 12 && parseInt(d) <= 31)
+        expiry = `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+  }
+
+  // Monthly grams: "50 גרם" / "50g" / "כמות: 50"
+  let grams = null;
+  const gramsMatch = text.match(/(\d{2,3})\s*(?:גרם|g\b)/i);
+  if (gramsMatch) grams = parseInt(gramsMatch[1]);
+
+  // Israeli ID / license number: 7–9 consecutive digits (avoid matching T/C, dates, grams)
+  const idCandidates = [...text.matchAll(/\b(\d{7,9})\b/g)];
+  const licenseId = idCandidates
+    .map((r) => r[1])
+    .find((n) => !cats.some((c) => c.includes(n)) && !expiry?.replace(/-/g,'').includes(n))
+    || null;
+
+  return { cats, expiry, grams, licenseId };
+}
+
+function Stage0_License({ payload, errors, updatePayload, onSkip }) {
+  const [mode, setMode]               = useState(null); // null | "manual" | "ocr-confirm" | "ocr-fail" | "expired" | "duplicate"
+  const [scanning, setScanning]       = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [detectedCats, setDetectedCats] = useState([]);
-  const fileRef                   = useRef(null);
+  const [detectedExpiry, setDetectedExpiry] = useState(null);
+  const [idWarn, setIdWarn]           = useState(false); // OCR read an ID but check-digit failed
+  const fileRef                       = useRef(null);
 
   const selectedCats = payload.licenseCategories || [];
 
@@ -223,85 +294,159 @@ function Stage0_License({ payload, errors, updatePayload }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setScanning(true);
+    setScanProgress(0);
+    setIdWarn(false);
     try {
-      const base64 = await fileToBase64(file);
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 300,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 } },
-              { type: "text", text: `זהו רישיון קנאביס רפואי ישראלי. חלץ תאריך תפוגה וקטגוריות (כגון T22/C4, T15/C3).
-השב ב-JSON בלבד: {"expiry":"YYYY-MM-DD","categories":["T22/C4"]}
-אם לא זיהית — החזר: {"expiry":null,"categories":[]}` },
-            ],
-          }],
-        }),
+      // 1. Strip EXIF/GPS metadata before OCR — never process raw phone photos
+      const cleanFile = await stripExif(file);
+
+      // 2. OCR — Hebrew + English, fully offline after first cache
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker(["heb", "eng"], 1, {
+        logger: ({ status, progress }) => {
+          if (status === "recognizing text") setScanProgress(Math.round((progress || 0) * 100));
+        },
       });
-      const data = await res.json();
-      const text = ((data.content || []).map((b) => b.text || "").join("")).trim();
-      const m = text.match(/\{[\s\S]*?\}/);
-      if (m) {
-        const parsed = JSON.parse(m[0]);
-        const expiry = parsed.expiry || null;
-        const cats   = (parsed.categories || []).filter((c) => LICENSE_CATEGORIES.includes(c));
-        if (cats.length > 0) {
-          setDetectedCats(cats);
-          updatePayload({ licenseVerified: true, licenseExpiry: expiry, licenseCategories: cats });
-          setMode("ocr-confirm");
-        } else {
-          setMode("manual");
-          if (expiry) updatePayload({ licenseExpiry: expiry });
-        }
-      } else {
-        setMode("manual");
+      const { data: { text } } = await worker.recognize(cleanFile);
+      await worker.terminate();
+      // Image is not kept — only text is used going forward
+
+      const { cats, expiry, grams, licenseId } = parseLicenseOCR(text);
+
+      // 3. Reject already-expired licenses before they enter the system
+      if (expiry && isLicenseExpired(expiry)) {
+        setMode("expired");
+        return;
       }
-    } catch {
-      setMode("manual");
+
+      // 4. If we got an ID, hash it and check for duplicates
+      let idHash = null;
+      if (licenseId) {
+        // Warn if check-digit fails (OCR can mangle digits) but don't hard-block
+        if (!isValidIsraeliId(licenseId)) setIdWarn(true);
+        idHash = await hashLicenseId(licenseId);
+        const existingHash = getStoredLicenseHash();
+        if (existingHash && existingHash === idHash) {
+          setMode("duplicate");
+          return;
+        }
+      }
+
+      if (cats.length > 0) {
+        setDetectedCats(cats);
+        setDetectedExpiry(expiry);
+        // Store hash + meta (NOT raw ID); image already discarded above
+        storeLicenseMeta({ idHash, expiry, cats });
+        updatePayload({ licenseVerified: true, licenseExpiry: expiry, licenseCategories: cats,
+                        licenseGrams: grams });
+        setMode("ocr-confirm");
+      } else {
+        // OCR ran but found no categories — let user enter manually
+        if (expiry) updatePayload({ licenseExpiry: expiry });
+        setMode("ocr-fail");
+      }
+    } catch (err) {
+      console.warn("OCR error:", err);
+      setMode("ocr-fail");
     } finally {
       setScanning(false);
+      setScanProgress(0);
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
+
+  // Expired license — rejected at upload
+  if (mode === "expired") {
+    return (
+      <motion.div variants={STAGGER} initial="hidden" animate="show">
+        <motion.div variants={FADE_UP}>
+          <ZemachBubble message="הרישיון שזיהיתי פג תוקף 🛑 לא ניתן לאמת רישיון שפג. אנא חדשו את הרישיון ונסו שוב." stage={0} />
+        </motion.div>
+        <motion.div variants={FADE_UP} style={{ display: "flex", gap: 8 }}>
+          <NeonButton size="md" onClick={() => setMode(null)}>← נסה שוב</NeonButton>
+          <NeonButton size="md" variant="ghost" onClick={onSkip}>דלג לעכשיו</NeonButton>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Duplicate license — already registered
+  if (mode === "duplicate") {
+    return (
+      <motion.div variants={STAGGER} initial="hidden" animate="show">
+        <motion.div variants={FADE_UP}>
+          <ZemachBubble message="הרישיון הזה כבר רשום במערכת 🔒 אם מדובר בטעות, פנו לתמיכה." stage={0} />
+        </motion.div>
+        <motion.div variants={FADE_UP} style={{ display: "flex", gap: 8 }}>
+          <NeonButton size="md" onClick={() => setMode(null)}>← נסה שוב</NeonButton>
+          <NeonButton size="md" variant="ghost" onClick={onSkip}>דלג לעכשיו</NeonButton>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // OCR ran but found no categories
+  if (mode === "ocr-fail") {
+    return (
+      <motion.div variants={STAGGER} initial="hidden" animate="show">
+        <motion.div variants={FADE_UP}>
+          <ZemachBubble message="הסריקה רצה אבל לא הצלחתי לזהות קטגוריות T/C בתמונה. לא נורא — בחר/י ידנית 📋" stage={0} />
+        </motion.div>
+        <motion.div variants={FADE_UP} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <NeonButton size="md" onClick={() => setMode("manual")}>
+            הזנה ידנית ✍️
+          </NeonButton>
+          <NeonButton variant="ghost" size="md" onClick={() => { fileRef.current?.click(); setMode(null); }}>
+            נסה שוב 📸
+          </NeonButton>
+        </motion.div>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+      </motion.div>
+    );
+  }
 
   // OCR confirmation screen
   if (mode === "ocr-confirm") {
     return (
       <motion.div variants={STAGGER} initial="hidden" animate="show">
         <motion.div variants={FADE_UP}>
-          <ZemachBubble message="זיהיתי את הרישיון שלך! נראה מה מצאתי 🪪" stage={0} />
+          <ZemachBubble message="זיהיתי את הרישיון שלך! בדוק/י שהמידע נכון 🪪" stage={0} />
         </motion.div>
         <motion.div variants={FADE_UP} style={{
           padding: "16px", borderRadius: 16,
-          background: "rgba(57,255,133,0.06)", border: `1.5px solid ${T.border}`,
+          background: "rgba(57,255,133,0.06)", border: `1.5px solid ${T.accent}44`,
           marginBottom: 12,
         }}>
-          <p style={{ fontSize: 13, color: T.accent, fontWeight: 700, marginBottom: 8 }}>
-            זיהיתי ברישיון: {detectedCats.join(", ")} — נכון?
+          <p style={{ fontSize: 13, color: T.accent, fontWeight: 700, marginBottom: 4 }}>
+            זיהיתי ברישיון:
           </p>
+          <p style={{ fontSize: 15, color: T.text, fontWeight: 800, marginBottom: 4 }}>
+            {detectedCats.join("  ·  ")}
+          </p>
+          {detectedExpiry && (
+            <p style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>
+              📅 תוקף: {detectedExpiry}
+            </p>
+          )}
+          {idWarn && (
+            <p style={{ fontSize: 10, color: "#FBBF24", marginBottom: 4 }}>
+              ⚠️ מספר הרישיון שנקרא לא עבר בדיקת פורמט — בדקו שהתמונה ברורה
+            </p>
+          )}
+          <p style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>— נכון?</p>
           <div style={{ display: "flex", gap: 8 }}>
-            <NeonButton
-              size="md"
+            <NeonButton size="md"
               onClick={() => { updatePayload({ licenseCategories: detectedCats, licenseVerified: true }); setMode(null); }}
             >
               כן, נכון ✓
             </NeonButton>
-            <NeonButton
-              variant="ghost"
-              size="md"
+            <NeonButton variant="ghost" size="md"
               onClick={() => { updatePayload({ licenseCategories: detectedCats }); setMode("manual"); }}
             >
               אני אתקן
             </NeonButton>
           </div>
         </motion.div>
-        {payload.licenseExpiry && (
-          <motion.p variants={FADE_UP} style={{ fontSize: 11, color: T.muted }}>
-            📅 תוקף הרישיון: {payload.licenseExpiry}
-          </motion.p>
-        )}
       </motion.div>
     );
   }
@@ -315,34 +460,41 @@ function Stage0_License({ payload, errors, updatePayload }) {
         </motion.div>
         <motion.div variants={FADE_UP}>
           <SectionLabel>קטגוריות מאושרות ברישיון שלך</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {LICENSE_CATEGORIES.map((cat) => {
-              const on = selectedCats.includes(cat);
-              return (
-                <motion.button
-                  key={cat}
-                  onClick={() => toggleCat(cat)}
-                  whileHover={{ scale: 1.03, boxShadow: `0 0 14px ${T.accent}33` }}
-                  whileTap={{ scale: 0.95 }}
-                  style={{
-                    padding: "10px 12px", borderRadius: 12, textAlign: "center",
-                    background: on ? `${T.accent}14` : "rgba(255,255,255,0.04)",
-                    border:     `1.5px solid ${on ? T.accent : T.border}`,
-                    boxShadow:  on ? T.glow(T.accent, 8) : "none",
-                    cursor:     "pointer", transition: "all 0.18s",
-                  }}
-                >
-                  <p style={{ fontSize: 14, fontWeight: 700, color: on ? T.accent : T.text, margin: 0 }}>
-                    {cat}
-                  </p>
-                </motion.button>
-              );
-            })}
-          </div>
+          {LICENSE_CATEGORY_GROUPS.map((group) => (
+            <div key={group.label} style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: group.color, marginBottom: 6, marginTop: 0 }}>
+                {group.label}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                {group.cats.map((cat) => {
+                  const on = selectedCats.includes(cat);
+                  return (
+                    <motion.button
+                      key={cat}
+                      onClick={() => toggleCat(cat)}
+                      whileHover={{ scale: 1.04, boxShadow: `0 0 12px ${group.color}44` }}
+                      whileTap={{ scale: 0.94 }}
+                      style={{
+                        padding: "8px 6px", borderRadius: 10, textAlign: "center",
+                        background: on ? `${group.color}18` : "rgba(255,255,255,0.04)",
+                        border:     `1.5px solid ${on ? group.color : T.border}`,
+                        boxShadow:  on ? `0 0 10px ${group.color}33` : "none",
+                        cursor:     "pointer", transition: "all 0.18s",
+                      }}
+                    >
+                      <p style={{ fontSize: 13, fontWeight: 700, color: on ? group.color : T.text, margin: 0 }}>
+                        {cat}
+                      </p>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
           {selectedCats.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12,
+              style={{ marginTop: 8, padding: "10px 14px", borderRadius: 12,
                        background: "rgba(57,255,133,0.06)", border: `1px solid ${T.border}` }}
             >
               <p style={{ fontSize: 12, color: T.accent }}>
@@ -371,27 +523,36 @@ function Stage0_License({ payload, errors, updatePayload }) {
       <motion.div variants={FADE_UP}>
         <SectionLabel>בחר/י איך להמשיך</SectionLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Scan */}
+          {/* Scan — real Tesseract OCR, no API key */}
           <motion.button
-            onClick={() => fileRef.current?.click()}
+            onClick={() => !scanning && fileRef.current?.click()}
             disabled={scanning}
-            whileHover={{ scale: 1.02, boxShadow: T.glow(T.accent, 12) }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={scanning ? {} : { scale: 1.02, boxShadow: T.glow(T.accent, 12) }}
+            whileTap={scanning ? {} : { scale: 0.97 }}
             style={{
               padding: "16px 18px", borderRadius: 16, textAlign: "right",
               background: "rgba(57,255,133,0.06)", border: `1.5px solid ${T.accent}55`,
-              cursor: scanning ? "wait" : "pointer", transition: "all 0.18s",
+              cursor: scanning ? "not-allowed" : "pointer", transition: "all 0.18s",
               display: "flex", alignItems: "center", gap: 12,
             }}
           >
             <span style={{ fontSize: 28 }}>🪪</span>
-            <div>
+            <div style={{ flex: 1 }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: T.accent, margin: 0 }}>
-                {scanning ? "סורק..." : "סריקת רישיון"}
+                {scanning ? `סורק... ${scanProgress}%` : "סריקת רישיון (OCR)"}
               </p>
-              <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>
-                צלם או העלה תמונה — נחלץ את הקטגוריות אוטומטית
-              </p>
+              {scanning ? (
+                <div style={{ height: 3, borderRadius: 3, background: "rgba(57,255,133,0.15)",
+                              marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${scanProgress}%`,
+                                background: T.accent, borderRadius: 3,
+                                transition: "width 0.3s" }} />
+                </div>
+              ) : (
+                <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>
+                  צלם או העלה תמונה — OCR מקומי, ללא שרת
+                </p>
+              )}
             </div>
           </motion.button>
           <input
@@ -421,9 +582,12 @@ function Stage0_License({ payload, errors, updatePayload }) {
             </div>
           </motion.button>
 
-          {/* Skip */}
+          {/* Skip — updates payload AND advances the stage */}
           <motion.button
-            onClick={() => updatePayload({ licenseVerified: false, licenseCategories: [] })}
+            onClick={() => {
+              updatePayload({ licenseVerified: false, licenseCategories: [] });
+              onSkip?.();
+            }}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             style={{
@@ -435,9 +599,9 @@ function Stage0_License({ payload, errors, updatePayload }) {
           >
             <span style={{ fontSize: 22, color: T.muted }}>→</span>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: T.muted, margin: 0 }}>דלג</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: T.muted, margin: 0 }}>דלג על רישיון</p>
               <p style={{ fontSize: 10, color: T.muted, opacity: 0.7, margin: 0 }}>
-                גלישה פתוחה — קהילה ודיווחים ידרשו רישיון
+                ממשיך בלי לסרוק — אפשר להוסיף מאוחר יותר
               </p>
             </div>
           </motion.button>
@@ -727,7 +891,7 @@ const FLAVOR_TILES = [
     sub: "כמו פלפל שחור, קינמון, ציפורן" },
   { id: "tropical_mango",  label: "טרופי / מנגו",      icon: "🥭", color: "#40CFFF",
     sub: "כמו מנגו, אננס, גויאבה" },
-  { id: "gas_fuel",        label: "עמוק ועשיר",        icon: "🫙", color: "#FFA040",
+  { id: "gas_fuel",        label: "עמוק ועשיר",        icon: "🧀", color: "#FFA040",
     sub: "כמו גבינה מיושנת, קפה שרוף" },
 ];
 
@@ -759,92 +923,220 @@ const OIL_EFFECT_TILES = [
     sub: "הרגעת חרדה ומתח נפשי" },
 ];
 
-function Stage4_Sensory({ payload, errors, updatePayload }) {
+// Shared effects path — used by oil users AND flower users who can't tell scents
+function EffectsPath({ payload, updatePayload }) {
+  const sels = payload.oilEffectSels || {};
   const isOilUser = payload.consumptionForm === "oil";
 
-  // ── Oil: effects-based screen ─────────────────────────────────────────────
-  if (isOilUser) {
-    const selected = payload.oilEffects || [];
-    const toggle   = (id) => {
-      const next = selected.includes(id)
-        ? selected.filter((x) => x !== id)
-        : [...selected, id];
-      updatePayload({ oilEffects: next });
-    };
-    const zemachMsg = selected.length > 0
-      ? "מצוין! אנחנו לומדים מה עוזר לך — המפה שלך כבר מתעדכנת 🗺️"
-      : "אין טעם בשמן? בוא נלך לפי מה שזה עושה לך 🌿 בחר/י מה עוזר או מה אתה/את מחפש/ת:";
+  const oilQuickPicks = useMemo(() => [
+    ...(PHARMARY_STRAINS   || []),
+    ...(PHARMARY_STRAINS_2 || []),
+    ...(PHARMARY_STRAINS_3 || []),
+    ...(PHARMARY_STRAINS_4 || []),
+  ].filter((s) => s.type === "oil")
+   .sort((a, b) => (b.nReviews || 0) - (a.nReviews || 0))
+   .slice(0, 8), []);
 
-    return (
-      <motion.div variants={STAGGER} initial="hidden" animate="show">
-        <motion.div variants={FADE_UP}>
-          <AnimatePresence mode="wait">
-            <ZemachBubble key={zemachMsg} message={zemachMsg} stage={3} />
-          </AnimatePresence>
+  const lovedOils = payload.lovedStrains || [];
+  const hatedOils = payload.hatedStrains || [];
+  const setOilLoved = (id) => {
+    if (lovedOils.includes(id)) updatePayload({ lovedStrains: lovedOils.filter((x) => x !== id) });
+    else updatePayload({ lovedStrains: [...lovedOils, id], hatedStrains: hatedOils.filter((x) => x !== id) });
+  };
+  const setOilHated = (id) => {
+    if (hatedOils.includes(id)) updatePayload({ hatedStrains: hatedOils.filter((x) => x !== id) });
+    else updatePayload({ hatedStrains: [...hatedOils, id], lovedStrains: lovedOils.filter((x) => x !== id) });
+  };
+
+  const setLiked    = (id) => {
+    const updated = { ...sels };
+    if (updated[id] === "loved") delete updated[id]; else updated[id] = "loved";
+    const loved = Object.entries(updated).filter(([,v])=>v==="loved").map(([k])=>k);
+    updatePayload({ oilEffectSels: updated, oilEffects: loved });
+  };
+  const setDisliked = (id) => {
+    const updated = { ...sels };
+    if (updated[id] === "disliked") delete updated[id]; else updated[id] = "disliked";
+    const loved = Object.entries(updated).filter(([,v])=>v==="loved").map(([k])=>k);
+    updatePayload({ oilEffectSels: updated, oilEffects: loved });
+  };
+
+  const nAnswered = Object.keys(sels).length;
+  const zemachMsg = nAnswered > 0
+    ? "מצוין! אנחנו לומדים מה עוזר לך — המפה שלך מתעדכנת 🗺️"
+    : "בחר/י מה עוזר לך (או מה את/ה מחפש/ת) — אהבתי / לא אהבתי לכל פריט 🌿";
+
+  return (
+    <motion.div variants={STAGGER} initial="hidden" animate="show">
+      {isOilUser && (
+        <motion.div variants={FADE_UP} style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "9px 14px", borderRadius: 12, marginBottom: 14,
+          background: "rgba(64,207,255,0.08)",
+          border: "1.5px solid rgba(64,207,255,0.28)",
+        }}>
+          <span style={{ fontSize: 20 }}>💧</span>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#40CFFF", margin: 0 }}>מסלול שמן — ✓ מסלול הטעם הושמט</p>
+            <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>שאלות לפי השפעה, לא ריח — כי שמן לא ריחני</p>
+          </div>
         </motion.div>
-        <motion.div variants={FADE_UP}>
-          <SectionLabel>מה עוזר לך? (בחר/י הכל שמתאים)</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {OIL_EFFECT_TILES.map((tile) => {
-              const on = selected.includes(tile.id);
-              return (
-                <motion.button
-                  key={tile.id}
-                  onClick={() => toggle(tile.id)}
-                  whileHover={{ scale: 1.03, boxShadow: `0 0 16px ${tile.color}44` }}
-                  whileTap={{ scale: 0.93 }}
-                  style={{
-                    padding:       "10px 10px",
-                    borderRadius:  14,
-                    textAlign:     "right",
-                    background:    on ? `${tile.color}16` : "rgba(255,255,255,0.04)",
-                    border:        `1.5px solid ${on ? tile.color : T.border}`,
-                    boxShadow:     on ? `0 0 12px ${tile.color}28` : "none",
-                    cursor:        "pointer",
-                    transition:    "all 0.18s",
-                    minHeight:     64,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-                    <span style={{ fontSize: 20, filter: on ? `drop-shadow(0 0 6px ${tile.color})` : "none", flexShrink: 0 }}>
-                      {tile.icon}
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: on ? 800 : 600, color: on ? tile.color : T.text, lineHeight: 1.2 }}>
-                      {tile.label}
-                    </span>
-                  </div>
+      )}
+      <motion.div variants={FADE_UP}>
+        <AnimatePresence mode="wait">
+          <ZemachBubble key={zemachMsg} message={zemachMsg} stage={3} />
+        </AnimatePresence>
+      </motion.div>
+      <motion.div variants={FADE_UP}>
+        <SectionLabel>מה עוזר לך? (לא חייבים לבחור)</SectionLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {OIL_EFFECT_TILES.map((tile) => {
+            const state  = sels[tile.id];
+            const isLove = state === "loved";
+            const isDis  = state === "disliked";
+            return (
+              <motion.div
+                key={tile.id}
+                variants={FADE_UP}
+                style={{
+                  padding: "9px 12px", borderRadius: 13,
+                  background: isLove ? "rgba(57,255,133,0.07)"
+                            : isDis  ? "rgba(255,69,96,0.06)"
+                            : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${isLove ? T.accent : isDis ? T.danger : T.border}`,
+                  transition: "all 0.18s",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}
+              >
+                <span style={{
+                  fontSize: 22, flexShrink: 0,
+                  filter: isLove ? `drop-shadow(0 0 6px ${T.accent})` : isDis ? `drop-shadow(0 0 6px ${T.danger})` : "none",
+                }}>
+                  {tile.icon}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, margin: 0,
+                              color: isLove ? T.accent : isDis ? T.danger : T.text }}>
+                    {tile.label}
+                  </p>
                   <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{tile.sub}</p>
-                </motion.button>
+                </div>
+                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                  <button
+                    onClick={() => setLiked(tile.id)}
+                    style={{
+                      padding: "6px 11px", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isLove ? T.accent : "rgba(57,255,133,0.28)",
+                      color:      isLove ? "#061006" : T.accent,
+                      border:     `1.5px solid ${isLove ? T.accent : "rgba(57,255,133,0.80)"}`,
+                      cursor: "pointer",
+                      boxShadow: isLove ? `0 0 8px ${T.accent}55` : "none",
+                    }}
+                  >
+                    {isLove ? "✓ אהבתי" : "💚 אהבתי"}
+                  </button>
+                  <button
+                    onClick={() => setDisliked(tile.id)}
+                    style={{
+                      padding: "6px 11px", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isDis ? T.danger : "rgba(255,69,96,0.28)",
+                      color:      isDis ? "#fff" : T.danger,
+                      border:     `1.5px solid ${isDis ? T.danger : "rgba(255,69,96,0.80)"}`,
+                      cursor: "pointer",
+                      boxShadow: isDis ? `0 0 8px ${T.danger}55` : "none",
+                    }}
+                  >
+                    {isDis ? "✕ לא אהבתי" : "🔴 לא אהבתי"}
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
+      {isOilUser && oilQuickPicks.length > 0 && (
+        <motion.div variants={FADE_UP} style={{ marginTop: 14 }}>
+          <SectionLabel>שמנים שכבר ניסית? סמנ/י מה עזר ומה לא (לא חובה)</SectionLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {oilQuickPicks.map((oil) => {
+              const isLoved = lovedOils.includes(oil.id);
+              const isHated = hatedOils.includes(oil.id);
+              return (
+                <div key={oil.id} style={{
+                  padding: "8px 12px", borderRadius: 12,
+                  background: isLoved ? "rgba(57,255,133,0.07)" : isHated ? "rgba(255,69,96,0.06)" : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${isLoved ? T.accent : isHated ? T.danger : T.border}`,
+                  display: "flex", alignItems: "center", gap: 10,
+                  transition: "all 0.18s",
+                }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>💧</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, margin: 0,
+                      color: isLoved ? T.accent : isHated ? T.danger : T.text,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {oil.name}
+                    </p>
+                    <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{oil.cat} · {oil.grower}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                    <button onClick={() => setOilLoved(oil.id)} style={{
+                      padding: "5px 10px", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isLoved ? T.accent : "rgba(57,255,133,0.28)",
+                      color:      isLoved ? "#061006" : T.accent,
+                      border:     `1.5px solid ${isLoved ? T.accent : "rgba(57,255,133,0.80)"}`,
+                      cursor: "pointer",
+                    }}>
+                      {isLoved ? "✓ עזר" : "💚 עזר"}
+                    </button>
+                    <button onClick={() => setOilHated(oil.id)} style={{
+                      padding: "5px 10px", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isHated ? T.danger : "rgba(255,69,96,0.28)",
+                      color:      isHated ? "#fff" : T.danger,
+                      border:     `1.5px solid ${isHated ? T.danger : "rgba(255,69,96,0.80)"}`,
+                      cursor: "pointer",
+                    }}>
+                      {isHated ? "✕ לא עזר" : "🔴 לא עזר"}
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
         </motion.div>
-        <motion.p variants={FADE_UP} style={{
-          textAlign: "center", marginTop: 12, fontSize: 12,
-          color: "rgba(187,247,208,0.45)",
-        }}>
-          לא בטוח? לחץ ״המשך״ למטה — אפשרי גם בלי לבחור 🌿
-        </motion.p>
-      </motion.div>
-    );
+      )}
+
+      <motion.p variants={FADE_UP} style={{
+        textAlign: "center", marginTop: 12, fontSize: 11,
+        color: "rgba(187,247,208,0.40)",
+      }}>
+        לא בטוח? לחץ ״המשך״ — אפשרי גם בלי לבחור 🌿
+      </motion.p>
+    </motion.div>
+  );
+}
+
+function Stage4_Sensory({ payload, errors, updatePayload }) {
+  const isOilUser  = payload.consumptionForm === "oil";
+  const noScent    = payload.noScentKnowledge;
+
+  // Oil users AND flower/vape users who can't tell scents → effects path
+  if (isOilUser || noScent) {
+    return <EffectsPath payload={payload} updatePayload={updatePayload} />;
   }
 
-  // ── Flower / Vape / Mixed: taste screen — clear אהבתי / לא אהבתי per tile ───
+  // ── Flower / Vape / Mixed: taste screen ──────────────────────────────────────
   const scentSels = payload.scentSelections || {};
 
   const setLiked    = (id) => {
     const cur = scentSels[id];
     const updated = { ...scentSels };
-    // second tap on the same button → clear it
-    if (cur === "loved") delete updated[id];
-    else updated[id] = "loved";
+    if (cur === "loved") delete updated[id]; else updated[id] = "loved";
     updatePayload({ scentSelections: updated });
   };
   const setDisliked = (id) => {
     const cur = scentSels[id];
     const updated = { ...scentSels };
-    if (cur === "disliked") delete updated[id];
-    else updated[id] = "disliked";
+    if (cur === "disliked") delete updated[id]; else updated[id] = "disliked";
     updatePayload({ scentSelections: updated });
   };
 
@@ -866,7 +1158,7 @@ function Stage4_Sensory({ payload, errors, updatePayload }) {
       </motion.div>
 
       <motion.div variants={FADE_UP}>
-        <SectionLabel>אילו ריחות אתה/את אוהב/ת? (לא חייבים לבחור)</SectionLabel>
+        <SectionLabel>אילו ריחות / טעמים אתה/את אוהב/ת? (לא חייבים לבחור)</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {FLAVOR_TILES.map((tile) => {
             const state  = scentSels[tile.id];
@@ -877,52 +1169,55 @@ function Stage4_Sensory({ payload, errors, updatePayload }) {
                 key={tile.id}
                 variants={FADE_UP}
                 style={{
-                  padding:       "9px 10px",
-                  borderRadius:  13,
-                  background:    isLove ? `${tile.color}12`
-                               : isDis  ? "rgba(255,69,96,0.07)"
-                               : "rgba(255,255,255,0.03)",
-                  border:        `1.5px solid ${isLove ? tile.color : isDis ? T.danger : T.border}`,
-                  transition:    "all 0.18s",
+                  padding: "9px 10px", borderRadius: 13,
+                  background: isLove ? "rgba(57,255,133,0.08)"
+                            : isDis  ? "rgba(255,69,96,0.07)"
+                            : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${isLove ? T.accent : isDis ? T.danger : T.border}`,
+                  transition: "all 0.18s",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
                   <span style={{ fontSize: 20, flexShrink: 0,
-                                 filter: (isLove || isDis) ? `drop-shadow(0 0 5px ${isLove ? tile.color : T.danger})` : "none" }}>
+                                 filter: (isLove || isDis) ? `drop-shadow(0 0 5px ${isLove ? T.accent : T.danger})` : "none" }}>
                     {tile.icon}
                   </span>
                   <div>
                     <p style={{ fontSize: 12, fontWeight: 700, margin: 0, lineHeight: 1.2,
-                                color: isLove ? tile.color : isDis ? T.danger : T.text }}>
+                                color: isLove ? T.accent : isDis ? T.danger : T.text }}>
                       {tile.label}
                     </p>
                     <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{tile.sub}</p>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 5 }}>
+                  {/* אהבתי — GREEN */}
                   <button
                     onClick={() => setLiked(tile.id)}
                     style={{
-                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
-                      background: isLove ? tile.color : `${tile.color}14`,
-                      color:      isLove ? "#061006" : tile.color,
-                      border:     `1px solid ${isLove ? tile.color : `${tile.color}44`}`,
+                      flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isLove ? T.accent : "rgba(57,255,133,0.28)",
+                      color:      isLove ? "#061006" : T.accent,
+                      border:     `1.5px solid ${isLove ? T.accent : "rgba(57,255,133,0.80)"}`,
                       cursor:     "pointer",
+                      boxShadow:  isLove ? `0 0 8px ${T.accent}55` : "none",
                     }}
                   >
-                    {isLove ? "✓ אהבתי" : "❤️ אהבתי"}
+                    {isLove ? "✓ אהבתי" : "💚 אהבתי"}
                   </button>
+                  {/* לא אהבתי — RED */}
                   <button
                     onClick={() => setDisliked(tile.id)}
                     style={{
-                      flex: 1, padding: "5px 0", borderRadius: 8, fontSize: 10, fontWeight: 700,
-                      background: isDis ? T.danger : "rgba(255,69,96,0.1)",
+                      flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 10, fontWeight: 800,
+                      background: isDis ? T.danger : "rgba(255,69,96,0.28)",
                       color:      isDis ? "#fff" : T.danger,
-                      border:     `1px solid ${isDis ? T.danger : "rgba(255,69,96,0.3)"}`,
+                      border:     `1.5px solid ${isDis ? T.danger : "rgba(255,69,96,0.80)"}`,
                       cursor:     "pointer",
+                      boxShadow:  isDis ? `0 0 8px ${T.danger}55` : "none",
                     }}
                   >
-                    {isDis ? "✕ לא אהבתי" : "🚫 לא אהבתי"}
+                    {isDis ? "✕ לא אהבתי" : "🔴 לא אהבתי"}
                   </button>
                 </div>
               </motion.div>
@@ -930,27 +1225,30 @@ function Stage4_Sensory({ payload, errors, updatePayload }) {
           })}
         </div>
 
-        {/* לא יודע / לא מבחין בטעם */}
+        {/* לא מרגיש ריח/טעם → route to effects path */}
         <motion.button
           variants={FADE_UP}
-          onClick={() => updatePayload({ scentSelections: {} })}
+          onClick={() => updatePayload({ noScentKnowledge: true, scentSelections: {} })}
           style={{
-            width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 12,
-            background: Object.keys(scentSels).length === 0 ? "rgba(57,255,133,0.08)" : "rgba(255,255,255,0.04)",
-            border: `1.5px solid ${Object.keys(scentSels).length === 0 ? T.accent : T.border}`,
-            color:      Object.keys(scentSels).length === 0 ? T.accent : T.muted,
+            width: "100%", marginTop: 12, padding: "11px 14px", borderRadius: 14,
+            background: "rgba(64,207,255,0.08)",
+            border: "1.5px solid rgba(64,207,255,0.35)",
+            color: "#40CFFF",
             fontSize: 12, fontWeight: 700, cursor: "pointer",
             fontFamily: "'Heebo',sans-serif",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
         >
-          🤷 לא יודע / לא מבחין בריחות
+          <span style={{ fontSize: 16 }}>🤷</span>
+          <span>לא מרגיש/ת ריח / טעם? עברו לשאלות ההשפעה</span>
+          <span style={{ opacity: 0.8 }}>→</span>
         </motion.button>
 
         <motion.p variants={FADE_UP} style={{
           textAlign: "center", marginTop: 8, fontSize: 11,
-          color: "rgba(187,247,208,0.45)",
+          color: "rgba(187,247,208,0.40)",
         }}>
-          לחץ ״המשך״ למטה — טעם הוא אופציונלי לחלוטין 🌿
+          לחץ ״המשך״ — ריח / טעם הם אופציונליים לחלוטין 🌿
         </motion.p>
       </motion.div>
     </motion.div>
@@ -1455,7 +1753,89 @@ function dnaSequence(liveVector) {
     .join("-") || "—";
 }
 
+// ── Welcome screen — the ONLY dramatic moment in the product ─────────────────
+function StepWelcome({ onContinue, reducedMotion }) {
+  return (
+    <motion.div
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: reducedMotion ? 0 : 0.3, duration: 0.6 }}
+      style={{
+        minHeight: "100dvh",
+        background: T.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 32,
+        direction: "rtl",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse 60% 40% at 50% 55%, rgba(57,255,133,0.07) 0%, transparent 70%)",
+        pointerEvents: "none",
+      }} />
+      <motion.span
+        initial={reducedMotion ? false : { scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: reducedMotion ? 0 : 0.5, type: "spring", stiffness: 200 }}
+        style={{ fontSize: 64, marginBottom: 16, display: "block" }}
+      >
+        🌿
+      </motion.span>
+      <h1 style={{
+        fontSize: 32, fontWeight: 900, color: T.accent,
+        margin: 0, textAlign: "center",
+        fontFamily: "'Heebo','Segoe UI',sans-serif",
+        letterSpacing: "-0.02em",
+      }}>
+        CannaMatch
+      </h1>
+      <p style={{
+        fontSize: 15, color: T.muted, marginTop: 10,
+        textAlign: "center", maxWidth: 260, lineHeight: 1.6,
+        fontFamily: "'Heebo','Segoe UI',sans-serif",
+      }}>
+        המלווה שמכיר אותך — לא אפליקציה, לא תפריט.
+      </p>
+      <motion.button
+        initial={reducedMotion ? false : { opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: reducedMotion ? 0 : 0.9, duration: 0.4 }}
+        onClick={onContinue}
+        style={{
+          marginTop: 44,
+          padding: "13px 32px",
+          borderRadius: 999,
+          background: T.accent,
+          color: "#061006",
+          fontWeight: 800,
+          fontSize: 15,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "'Heebo','Segoe UI',sans-serif",
+          boxShadow: T.glow(T.accent, 14),
+        }}
+      >
+        בוא נתחיל →
+      </motion.button>
+    </motion.div>
+  );
+}
+
 function Stage7_Preview({ liveVector, killSwitches, payload }) {
+  const reducedMotion = useReducedMotion();
+  const [wheelPhase, setWheelPhase] = useState(reducedMotion ? "strands" : "wheel");
+
+  useEffect(() => {
+    if (wheelPhase !== "wheel") return;
+    const t = setTimeout(() => setWheelPhase("strands"), 1200);
+    return () => clearTimeout(t);
+  }, [wheelPhase]);
+
   const seq          = useMemo(() => dnaSequence(liveVector), [liveVector]);
   const activeTerps  = TERP_ORDER.filter((t) => (liveVector[t.key] || 0) > 0.2);
   const blockedTerps = Object.keys(killSwitches);
@@ -1471,6 +1851,71 @@ function Stage7_Preview({ liveVector, killSwitches, payload }) {
   const zemachMsg = `הפרופיל שלך מוכן!` +
     (goalText ? ` ממוקד ל: ${goalText}.` : "") +
     " עכשיו נסרוק את התפריט ונמצא לך את ההתאמה הטובה ביותר לקנייה הבאה שלך 🎉";
+
+  // Terpene wheel — spins in for 1.2s before profile reveal
+  const TERP_EMOJI = {
+    myrcene: "🌙", limonene: "🍋", linalool: "💜",
+    caryophyllene: "💪", pinene: "🌲", terpinolene: "⚡", humulene: "🌿",
+  };
+
+  if (wheelPhase === "wheel") {
+    const wheelTerps = activeTerps.slice(0, 4);
+    const R = 68; // orbit radius px
+    return (
+      <div style={{
+        minHeight: 300, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", padding: "40px 0",
+      }}>
+        <div style={{ position: "relative", width: R * 2 + 48, height: R * 2 + 48 }}>
+          {/* center DNA */}
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.4 }}
+            style={{
+              position: "absolute",
+              top: "50%", left: "50%",
+              transform: "translate(-50%,-50%)",
+              fontSize: 32,
+            }}
+          >
+            🧬
+          </motion.span>
+          {/* orbit icons */}
+          {wheelTerps.map((t, i) => {
+            const angle = (i / Math.max(wheelTerps.length, 1)) * 2 * Math.PI - Math.PI / 2;
+            const cx = R * Math.cos(angle);
+            const cy = R * Math.sin(angle);
+            return (
+              <motion.span
+                key={t.key}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.12 + i * 0.12, type: "spring", stiffness: 280 }}
+                style={{
+                  position: "absolute",
+                  top: "50%", left: "50%",
+                  transform: `translate(calc(-50% + ${cx}px), calc(-50% + ${cy}px))`,
+                  fontSize: 26,
+                }}
+                title={t.label}
+              >
+                {TERP_EMOJI[t.key] || "🌿"}
+              </motion.span>
+            );
+          })}
+        </div>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          style={{ color: T.muted, fontSize: 12, marginTop: 18, textAlign: "center" }}
+        >
+          בונה את הפרופיל שלך...
+        </motion.p>
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={STAGGER} initial="hidden" animate="show">
@@ -1577,9 +2022,15 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
   const { stage, totalStages, payload, errors, liveVector, killSwitches,
           updatePayload, goNext, skipStage, goPrev } = store;
 
+  const reducedMotion              = useReducedMotion();
+  const [showWelcome, setShowWelcome] = useState(true);
   const [direction, setDirection] = useState(1);
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  if (showWelcome) {
+    return <StepWelcome onContinue={() => setShowWelcome(false)} reducedMotion={reducedMotion} />;
+  }
 
   const handleNext = useCallback(() => {
     setDirection(1);
@@ -1590,6 +2041,11 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     setDirection(-1);
     goPrev();
   }, [goPrev]);
+
+  const handleSkip = useCallback(() => {
+    setDirection(1);
+    skipStage();
+  }, [skipStage]);
 
   const handleComplete = useCallback(async () => {
     setSaving(true);
@@ -1603,14 +2059,36 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     };
     const EFFECT_GOAL_TO_REASON = {
       sleep: "sleep", pain: "pain", focus: "focus",
-      relax: "relax", mood: "mood", energy: "energy",
+      relax: "anxiety", mood: "anxiety", energy: "focus",
       appetite: "appetite", creative: "focus",
+    };
+    // Medical conditions → REASONS ids so the effects-matching bonus fires per-condition
+    const CONDITION_TO_REASON = {
+      ptsd:            ["ptsd", "anxiety", "sleep"],
+      chronic_pain:    ["pain"],
+      neuropathic:     ["pain", "diabetes"],
+      oncology:        ["pain", "appetite"],
+      nausea_vomiting: ["appetite"],
+      ibd:             ["gi"],
+      crohns:          ["gi"],
+      ms:              ["pain", "sleep"],
+      parkinsons:      ["anxiety"],
+      epilepsy:        ["anxiety", "sleep"],
+      tourette:        ["anxiety"],
+      autism:          ["anxiety"],
+      fibromyalgia:    ["pain"],
+      aids:            ["appetite"],
+      glaucoma:        ["pain"],
+      dementia:        ["anxiety", "sleep"],
+      palliative:      ["pain", "sleep", "appetite"],
+      heart_failure:   ["anxiety"],
     };
 
     const localReasons = [
-      ...new Set(
-        (payload.effectGoals || []).map((g) => EFFECT_GOAL_TO_REASON[g]).filter(Boolean),
-      ),
+      ...new Set([
+        ...(payload.effectGoals || []).map((g) => EFFECT_GOAL_TO_REASON[g]).filter(Boolean),
+        ...(payload.medicalConditions || []).flatMap((c) => CONDITION_TO_REASON[c] || []),
+      ]),
     ];
 
     // Build terpWeights — feeds ALL new onboarding signals into the scoring engine
@@ -1641,8 +2119,10 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     const terpWeights = {};
     const addTW = (t, v) => { terpWeights[t] = (terpWeights[t] || 0) + v; };
 
-    // From oil effects
-    for (const e of (payload.oilEffects || [])) {
+    // From oil effects (liked only — from new אהבתי/לא-אהבתי UI or legacy toggle)
+    const likedOilEffects = payload.oilEffects.length > 0 ? payload.oilEffects
+      : Object.entries(payload.oilEffectSels || {}).filter(([,v])=>v==="loved").map(([k])=>k);
+    for (const e of likedOilEffects) {
       for (const [t, w] of Object.entries(OIL_EFFECT_W[e] || {})) addTW(t, w);
     }
     // From timing
@@ -1699,7 +2179,9 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
                   .map(([id]) => FLAVOR_TO_LOCAL[id] || id),
       terpWeights,  // pre-computed from conditions + oilEffects + timing + primaryGoals
       medicalConditions: payload.medicalConditions || [],
-      oilEffects:        payload.oilEffects    || [],
+      // oilEffects: the liked ones from the new אהבתי/לא-אהבתי UI, OR fallback to legacy toggle list
+      oilEffects: payload.oilEffects.length > 0 ? payload.oilEffects
+                  : Object.entries(payload.oilEffectSels || {}).filter(([,v])=>v==="loved").map(([k])=>k),
       primaryGoals:      payload.primaryGoals  || [],
       helped:       payload.lovedStrains  || [],
       notHelped:    payload.hatedStrains  || [],
@@ -1796,7 +2278,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
             animate="center"
             exit="exit"
           >
-            {stage === 0 && <Stage0_License        payload={payload} errors={errors} updatePayload={updatePayload} />}
+            {stage === 0 && <Stage0_License        payload={payload} errors={errors} updatePayload={updatePayload} onSkip={handleSkip} />}
             {stage === 1 && <Stage1_ConsumptionForm payload={payload} errors={errors} updatePayload={updatePayload} />}
             {stage === 2 && <Stage2_Conditions      payload={payload} errors={errors} updatePayload={updatePayload} />}
             {stage === 3 && <Stage3_Goals           payload={payload} errors={errors} updatePayload={updatePayload} />}
@@ -1816,31 +2298,39 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
 
       {/* Per-stage skip */}
       {stage < totalStages - 1 && (
-        <div style={{ padding: "6px 18px 0", flexShrink: 0, textAlign: "center" }}>
+        <div style={{ padding: "8px 18px 0", flexShrink: 0, textAlign: "center" }}>
           <button
-            onClick={skipStage}
+            onClick={handleSkip}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(57,255,133,0.18)",
-              borderRadius: 20, padding: "5px 14px",
-              color: T.muted, fontSize: 11, fontWeight: 700,
+              display: "inline-flex", alignItems: "center", gap: 7,
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(57,255,133,0.35)",
+              borderRadius: 22, padding: "7px 18px",
+              color: "rgba(126,168,142,0.90)", fontSize: 12, fontWeight: 700,
               cursor: "pointer", fontFamily: "'Heebo',sans-serif",
-              transition: "border-color .15s, color .15s",
+              transition: "border-color .15s, color .15s, background .15s",
               letterSpacing: "0.01em",
             }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = "rgba(57,255,133,0.45)"; e.currentTarget.style.color = T.accent; }}
-            onMouseOut={e => { e.currentTarget.style.borderColor = "rgba(57,255,133,0.18)"; e.currentTarget.style.color = T.muted; }}
+            onMouseOver={e => {
+              e.currentTarget.style.borderColor = T.accent;
+              e.currentTarget.style.color = T.accent;
+              e.currentTarget.style.background = "rgba(57,255,133,0.08)";
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.borderColor = "rgba(57,255,133,0.35)";
+              e.currentTarget.style.color = "rgba(126,168,142,0.90)";
+              e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+            }}
           >
-            <span style={{ fontSize: 10 }}>→</span>
-            דילוג על שלב זה
+            <span style={{ fontSize: 14 }}>⏭</span>
+            דלג על שלב זה
           </button>
           <p style={{
-            fontSize: 9, color: "rgba(126,168,142,0.60)",
+            fontSize: 9, color: "rgba(126,168,142,0.55)",
             lineHeight: 1.55, margin: "5px 0 0",
             fontWeight: 500, maxWidth: 320, marginInline: "auto",
           }}>
-            אפשר לדלג, אבל ככל שנדע יותר עליך — כך ההתאמה לתפריט תהיה מדויקת יותר.
+            ניתן לדלג — ככל שנדע יותר, ההתאמה מדויקת יותר.
           </p>
         </div>
       )}

@@ -59,7 +59,7 @@ function ResultCard({ p, i }) {
           <div className="font-extrabold flex items-center gap-2" style={{ color:"#16302B" }}>
             {p.commercial || p.strain || p.name}
             {godTier && <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-              style={{ background:"#EDE7F6", color:"#5E4B8B" }}>⭐ God Tier</span>}
+              style={{ background:"#EDE7F6", color:"#5E4B8B" }}>⭐ התאמה מצוינת</span>}
             {p.ai_inferred && <span className="text-xs px-1.5 py-0.5 rounded" title="גנטיקה משוערת ב-AI"
               style={{ background:"#FBF3E3", color:"#9C6F12" }}>🔮 משוער</span>}
           </div>
