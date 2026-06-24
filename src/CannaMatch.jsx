@@ -1,10 +1,9 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+﻿import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
 import TwinsFeed from "./components/TwinsFeed.jsx";
-import ZemachAvatarChat from "./components/ZemachAvatarChat.jsx";
 import { JourneyProvider, useJourney } from "./hooks/useJourneyContext.jsx";
 import PharmacyViewer from "./components/PharmacyViewer.jsx";
 import DailyCheckIn from "./components/DailyCheckIn.jsx";
@@ -12,14 +11,9 @@ import { api, pingBackend } from "./services/api.js";
 import { useEnrichedStrains } from "./hooks/useEnrichedStrains.js";
 import LoadingSkeleton from "./components/LoadingSkeleton.jsx";
 import { createEngine } from "./lib/scoringEngine.js";
-import KB_INDICATIONS from "./knowledge/indications.json";
-import KB_TERPENES from "./knowledge/terpene_science.json";
-import KB_CANNABINOIDS from "./knowledge/cannabinoid_profiles.json";
-import KB_ROUTES from "./knowledge/routes_of_administration.json";
-import KB_PRODUCTS from "./knowledge/israeli_products.json";
+import { bridgeScore } from "./engine/legacyBridge";
 import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
-// ZemachAvatarChat removed — replaced by future knowledge-base chatbot
 import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
 import WalkingMascot from "./components/WalkingMascot.jsx";
 import ReportFlow from "./components/ReportFlow.jsx";
@@ -27,9 +21,15 @@ import NextExperiment from "./components/NextExperiment.jsx";
 import CommunitySplitScreen from "./components/CommunitySplitScreen.jsx";
 import { friendWhy, killSwitchSummary, computeMapDiff, nextExperimentStrain } from "./lib/matchCopy.js";
 import { useReportTiming } from "./hooks/useReportTiming.js";
-import { terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
+import { TERPENE_HUMAN, terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
+import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
+import { ocrFile } from "./lib/menuOcr.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
+import {
+  hashLicenseId, isValidIsraeliId, isLicenseExpired, daysToExpiry,
+  stripExif, storeLicenseMeta, getStoredLicenseHash, readLicenseMeta, clearLicenseMeta,
+} from "./lib/licenseUtils.js";
 
 /* ─────────────────────────────────────────────
    CannaMatch — התאמה אישית לקנאביס רפואי בישראל
@@ -142,22 +142,134 @@ const COOKING_BASICS = [
   { icon: "🧮", title: "שלב 3: חשבו את המינון (קריטי!)", body: "אל תנחשו — חשבו. 10 גרם תפרחת ב-20% THC ≈ 1,166 מ\"ג THC אחרי דקרבוקסילציה, ואחרי ספיגה לחמאה (~70%) ≈ 816 מ\"ג בכל המנה. מחולק ל-24 חלקים = ~34 מ\"ג למנה — חזק מאוד! מנת התחלה במאפייה היא 5–10 מ\"ג. רוצים חלש יותר? פחות תפרחת או יותר מנות." },
 ];
 const COOKING_RECIPES = [
-  { id: "brownies", emoji: "🍫", name: "בראוניז קלאסיים", time: "45 דק'", dose: "~12.5 מ\"ג למנה (ב-16 חלקים)",
-    note: "הכי קל להתחיל. הכינו תערובת בראוניז מהקופסה לפי ההוראות, רק החליפו את החמאה בחמאת קנאביס. אפו, קררו, וחתכו ל-16 ריבועים. אם הבאצ' מכיל 200 מ\"ג, כל ריבוע ≈ 12.5 מ\"ג." },
-  { id: "cookies", emoji: "🍪", name: "עוגיות שוקולד צ'יפס", time: "30 דק'", dose: "התחילו מחצי עוגייה",
-    note: "מתכון עוגיות רגיל, עם חמאת קנאביס במקום חמאה. אפייה ב-180°C עד 12 דקות. טיפ: עוגיות קטנות = שליטה טובה יותר במינון." },
-  { id: "tea", emoji: "🍵", name: "תה מרגיע לפני שינה", time: "15 דק'", dose: "עדין, למתחילים",
-    note: "כפית חמאת קנאביס או חלב שמן בתה חם עם דבש. השומן חשוב — בלעדיו ה-THC לא נספג. נחמד לערב ולהרגעה לפני שינה." },
-  { id: "honey", emoji: "🍯", name: "דבש או שמן זית מוחדר", time: "2-3 שעות", dose: "טיפתי — קל למדידה",
-    note: "אפשר להחדיר שמן זית או דבש (עם מעט שמן) במקום חמאה. מצוין לטפטוף על אוכל מוכן, סלטים, או תחת הלשון. שמן זית = אופציה בריאה יותר." },
-  { id: "pasta", emoji: "🍝", name: "רוטב פסטה / שמן זית לבישול", time: "20 דק'", dose: "~10 מ\"ג למנה",
-    note: "מטגנים שום בשמן זית קנאביס על אש נמוכה (לא לשרוף!), מוסיפים רסק עגבניות ותבלינים. השמן נספג מצוין בעגבנייה. מנה אחת לאדם — לא יותר, כי קשה לחלק במדויק." },
-  { id: "smoothie", emoji: "🥤", name: "שייק בוקר/אחר־צהריים", time: "5 דק'", dose: "התחילו מחצי כוס",
-    note: "פרי קפוא, חלב/יוגורט, כף חמאת קנאביס או שמן MCT מוחדר. השומן מהיוגורט עוזר לספיגה. דרך נעימה וקלילה — אבל זכרו שזה עדיין אכיל, אז חכו שעתיים לפני עוד." },
-  { id: "gummies", emoji: "🐻", name: "סוכריות ג'לי (גאמיז)", time: "30 דק' + קירור", dose: "מדויק לכל סוכרייה",
-    note: "ג'לטין, מיץ פרי, מעט סוכר וטינקטורה/שמן קנאביס. יוצקים לתבניות סיליקון ומקררים. היתרון הגדול: כל סוכרייה זהה — הכי קל לשלוט במינון. ערבבו טוב כדי שהשמן יתפזר אחיד." },
-  { id: "choc", emoji: "🍩", name: "שוקולד ביתי", time: "20 דק' + קירור", dose: "לפי משבצת",
-    note: "ממיסים שוקולד איכותי, מערבבים פנימה שמן קנאביס, יוצקים לתבנית משבצות ומקררים. כל משבצת = מנה. השוקולד מסתיר היטב את הטעם הצמחי." },
+  {
+    id: "tea", emoji: "🍵", name: "תה מרגיע לפני שינה", time: "10 דק'",
+    dose: "2.5–5 מ\"ג — מושלם למתחילים", difficulty: "קל מאוד",
+    ingredients: ["כוס מים רותחים", "שקית תה צמחים (כמיל, לבנדר)", "1 כפית חמאת קנאביס", "כפית דבש", "מעט חלב (לא חובה)"],
+    steps: [
+      "הכינו תה צמחים רגיל ותנו לו להתקרר ל-80°C (לא 100° — חום גבוה מדי פוגע ב-THC).",
+      "הוסיפו כפית חמאת קנאביס וערבבו עד שנמסה לגמרי — השומן בחמאה חיוני לספיגה.",
+      "הוסיפו דבש לטעם. שתו לאט, בחצי שעה הראשונה.",
+    ],
+    tip: "הדרך הכי עדינה ומרגיעה להתחיל. כוס אחת = מנה אחת. חכו שעתיים לפני שמחליטים על עוד.",
+  },
+  {
+    id: "brownies", emoji: "🍫", name: "בראוניז קלאסיים", time: "50 דק'",
+    dose: "~10–15 מ\"ג למנה (16 מנות)", difficulty: "קל",
+    ingredients: ["תערובת בראוניז קופסה (כל מותג)", "חמאת קנאביס (במקום חמאה רגילה)", "2 ביצים", "2 כפות מים"],
+    steps: [
+      "הכינו את תערובת הבראוניז לפי ההוראות על הקופסה — רק החליפו את הכמות המלאה של חמאה בחמאת קנאביס.",
+      "ערבבו היטב, יצקו לתבנית מרופדת נייר אפייה, ואפו ב-175°C כ-22–25 דקות.",
+      "קררו לגמרי לפני שחותכים — זה חשוב! חתכו ל-16 ריבועים שווים.",
+      "סמנו כל ריבוע ושמרו במקרר עד 5 ימים או בפריזר עד חודש.",
+    ],
+    tip: "הכי קל להתחיל. אם הבאצ' מכיל 160 מ\"ג THC — כל ריבוע = 10 מ\"ג. בדיוק נכון.",
+  },
+  {
+    id: "cookies", emoji: "🍪", name: "עוגיות שוקולד צ'יפס", time: "35 דק'",
+    dose: "5–12 מ\"ג לעוגייה (תלוי בגודל)", difficulty: "קל",
+    ingredients: ["2 כוסות קמח", "110 גרם חמאת קנאביס מרוככת", "¾ כוס סוכר חום", "2 ביצים", "1 כפית וניל", "כוס שוקולד צ'יפס"],
+    steps: [
+      "ערבבו חמאת קנאביס עם הסוכר עד לקרם חלק. הוסיפו ביצים ווניל.",
+      "הוסיפו קמח בהדרגה ולבסוף שוקולד צ'יפס. הבצק יהיה עבה — זה בסדר.",
+      "יצרו כדורים קטנים (כ-20 גרם) והניחו על תבנית עם מרווחים. אפו ב-175°C כ-10–12 דקות.",
+      "חשוב: עוגיות קטנות = פחות מ\"ג לעוגייה = שליטה טובה יותר. חכו שהן מתקררות לחלוטין.",
+    ],
+    tip: "מדידת בצק שווה = עוגיות שוות = מינון עקבי. השתמשו בכף מדידה.",
+  },
+  {
+    id: "olive", emoji: "🫒", name: "שמן זית מוחדר", time: "2–3 שעות",
+    dose: "~5–8 מ\"ג לכף גדושה", difficulty: "קל",
+    ingredients: ["200 מ\"ל שמן זית כתית עלית", "3–5 גרם תפרחת מדורבקסת"],
+    steps: [
+      "שמו שמן זית בסיר קטן + תפרחת מדורבקסת. חממו לטמפרטורה נמוכה מאוד — 71–80°C.",
+      "שמרו על החום 2–3 שעות תוך בחישה מדי פעם. אל תגיעו לרתיחה!",
+      "סננו דרך בד גבינה לצנצנת זכוכית. סחטו היטב — כל טיפה חשובה.",
+      "שמרו בצנצנת אפלה במקרר עד 3 חודשים.",
+    ],
+    tip: "שמן מוחדר הכי גמיש: על סלט, בפסטה, על לחם, בשייק. כף = מנה.",
+  },
+  {
+    id: "pasta", emoji: "🍝", name: "פסטה שמן-שום", time: "20 דק'",
+    dose: "~8–10 מ\"ג למנה", difficulty: "בינוני",
+    ingredients: ["200 גרם פסטה (כל סוג)", "3 כפות שמן זית מוחדר", "4 שיני שום פרוסות", "פלפל שחור, מלח", "גרדה לימון + עשבי תיבול"],
+    steps: [
+      "בשלו פסטה לפי ההוראות. שמרו כוס ממי הבישול.",
+      "חממו שמן זית מוחדר על אש נמוכה מאוד (70–80°C). הוסיפו שום — אל תשרפו!",
+      "טגנו את השום 2 דקות ברכות. הוסיפו פסטה + קצת ממי הבישול.",
+      "ערבבו, הוסיפו מלח, פלפל וגרדת לימון. הגישו מיד — מנה אחת לאדם.",
+    ],
+    tip: "בישול על אש גבוהה מרוסס את ה-THC. אש נמוכה מאוד — תמיד.",
+  },
+  {
+    id: "hotchoc", emoji: "☕", name: "שוקו חם לפני שינה", time: "8 דק'",
+    dose: "~5–8 מ\"ג — נהדר לשינה", difficulty: "קל מאוד",
+    ingredients: ["כוס חלב (שקדים, שיבולת שועל, או פרה)", "1.5 כפות אבקת קקאו", "כפית חמאת קנאביס", "כפית דבש או מייפל", "קורט קינמון"],
+    steps: [
+      "חממו את החלב בסיר על אש נמוכה — עד שהוא חם אבל לא רותח (80°C). רתיחה מפרקת THC.",
+      "הוסיפו קקאו + דבש וערבבו עד שנמס לגמרי.",
+      "הורידו מהאש. הוסיפו חמאת קנאביס וערבבו 30 שניות — השומן מבטיח ספיגה מלאה.",
+      "מזגו לכוס, הוסיפו קינמון. שתו לאט בשעה שלפני שינה.",
+    ],
+    tip: "קקאו מכיל theobromine שמרגיע בפני עצמו. הצירוף עם קנאביס מעמיק שינה. לא לשתות לפני נהיגה.",
+  },
+  {
+    id: "chia", emoji: "🥣", name: "פודינג צ'יה לבוקר", time: "5 דק' + לילה",
+    dose: "~4–6 מ\"ג — עדין, מושלם לבוקר", difficulty: "קל מאוד",
+    ingredients: ["3 כפות זרעי צ'יה", "כוס חלב שקדים", "כפית שמן קנאביס (CBD עדיף לבוקר)", "כפית דבש או מייפל", "פירות טריים לציפוי"],
+    steps: [
+      "ערבבו צ'יה + חלב שקדים + שמן קנאביס + ממתיק בצנצנת. ערבבו שוב אחרי 5 דקות (מונע גושים).",
+      "כסו ושמרו במקרר לכל הלילה — הצ'יה סופגת ומסמיכה.",
+      "בבוקר: הוסיפו פירות טריים (אוכמניות, תות, בננה). אכלו ישר מהצנצנת.",
+    ],
+    tip: "שמן CBD בבוקר — ריכוז ורוגע בלי ערפול. שמן THC אחה\"צ — שינה טובה יותר. תנסו את שניהם ותגלו מה מתאים.",
+  },
+  {
+    id: "hummus", emoji: "🫘", name: "חומוס עם שמן מוחדר", time: "3 דק'",
+    dose: "~5 מ\"ג למנה בינונית", difficulty: "קל מאוד",
+    ingredients: ["250 גרם חומוס מוכן", "2 כפות שמן זית מוחדר", "טחינה גולמית, לימון, שום כתוש, פפריקה"],
+    steps: [
+      "שמו חומוס בצלחת. צרו גומה במרכז.",
+      "מזגו שמן זית מוחדר בתוך הגומה — לא מעל הכל.",
+      "הוסיפו טחינה, מיץ לימון, שום, פפריקה ופטרוזיליה לפי טעם.",
+    ],
+    tip: "כף = ~2.5 מ\"ג. צלחת קטנה = ~5 מ\"ג. כוללו שמן מוחדר רק במנת עצמכם ותסמנו בבירור כשמשפחה בסביבה.",
+  },
+  {
+    id: "gummies", emoji: "🐻", name: "גאמיז ביתיים", time: "30 דק' + 2 שעות קירור",
+    dose: "~5 מ\"ג לסוכרייה (20 סוכריות)", difficulty: "בינוני",
+    ingredients: ["3 כפות ג'לטין טבעי ללא טעם", "½ כוס מיץ פרי (מרוכז)", "½ כוס מים", "2 כפות סוכר", "2 כפות טינקטורה/שמן קנאביס"],
+    steps: [
+      "ערבבו מים קרים עם ג'לטין ותנו לנפח 2 דקות.",
+      "חממו מיץ פרי עם סוכר על אש בינונית עד שמתמוסס. הוסיפו לג'לטין.",
+      "הניחו לתערובת להתקרר ל-50°C. הוסיפו שמן/טינקטורה וערבבו חזק 2 דקות מלאות.",
+      "יצקו לתבניות סיליקון. קררו 2 שעות. שמרו במקרר.",
+    ],
+    tip: "ערבבו את השמן בחוזקה ולמשך זמן — כדי שיתפזר אחיד בכל הסוכריות.",
+  },
+  {
+    id: "hummus", emoji: "🫘", name: "חומוס מוחדר", time: "10 דק'",
+    dose: "~5–7 מ\"ג ל-2 כפות גדולות", difficulty: "קל מאוד",
+    ingredients: ["פחית חומוס מוכן (400 גרם)", "2 כפות שמן זית מוחדר", "מיץ לימון", "שן שום", "טחינה 2 כפות", "מלח"],
+    steps: [
+      "שפכו חומוס לבלנדר עם טחינה, לימון, שום ומלח.",
+      "הוסיפו שמן זית מוחדר אחרון — לאחר הבלנדר, לא לתוכו (לא לחמם).",
+      "ערבבו בכף עד שמשתלב. הגישו עם ירקות חתוכים.",
+    ],
+    tip: "טעים, לא מרגישים בטעם, ומנה ברורה. מצוין לצהריים — לא לפני שצריך לנהוג.",
+  },
+  {
+    id: "choc", emoji: "🍫", name: "שוקולד ביתי", time: "20 דק' + קירור",
+    dose: "~5 מ\"ג למשבצת (20 משבצות)", difficulty: "קל",
+    ingredients: ["200 גרם שוקולד מריר 70%+", "2–3 כפות שמן קנאביס", "קורט מלח ים", "קצוות אגוז/פיסטוק (לא חובה)"],
+    steps: [
+      "המיסו שוקולד באמבט מים — לא מיקרוגל, לא אש ישירה.",
+      "הניחו לשוקולד להתקרר מעט (45°C). הוסיפו שמן קנאביס וערבבו בחוזקה 2 דקות.",
+      "יצקו לתבנית שוקולד או לנייר אפייה שטוח. פזרו אגוזים אם רוצים.",
+      "קררו במקרר שעה, שברו למשבצות שוות.",
+    ],
+    tip: "שוקולד מריר מסתיר את הטעם הצמחי. כל משבצת = מנה מדויקת.",
+  },
 ];
 const COOKING_SAFETY = [
   "התחילו נמוך וחכו: אכילה משפיעה רק אחרי 30 דק' עד שעתיים — והשיא מגיע אחרי ~3 שעות. אל תאכלו עוד לפני שעברו לפחות שעתיים, אחרת תגזימו.",
@@ -193,6 +305,7 @@ function buildProfile(ans, ratings) {
     const f = ((r - 5.5) / 4.5) * 2.0;
     s && Object.entries(s.terps).forEach(([t, v]) => add(t, v * f));
   });
+  Object.entries(ans.terpWeights || {}).forEach(([t, v]) => add(t, v));
   return w;
 }
 
@@ -203,7 +316,7 @@ function rawScore(strain, profile, ans) {
   const notHelped = ans?.notHelped || [];
   const helped    = ans?.helped    || [];
   const hits = strain.effects.filter((e) => reasons.includes(e)).length;
-  s += hits * 1.4;
+  s += hits * 2.5;
   if (notHelped.includes(strain.id) && !helped.includes(strain.id)) s -= 5;
   return s;
 }
@@ -224,18 +337,38 @@ function scoreAll(rawAns, ratings, indFilter = [], typeFilter = "all") {
   if (indFilter.length > 0) {
     eligible = eligible.filter((s) => s.effects.some((e) => indFilter.includes(e)));
   }
+
+  // §9 Step 6: use the three-layer engine when the user has a meaningful profile.
+  // Fall back to the legacy raw score when no reasons are set (prevents a blank home screen).
+  const hasProfile = ans.reasons && ans.reasons.length > 0;
+  if (hasProfile) {
+    return eligible
+      .map((s) => {
+        const engineResult = bridgeScore(s, ans);
+        // Kill-switch (matchPct=0) → keep in list at 0% so the UI can decide to hide them,
+        // but always exclude them from the visible rendered list downstream.
+        return {
+          ...s,
+          match:      engineResult.matchPct,
+          confidence: engineResult.confidence,
+          _reasonHuman: engineResult.reasonHuman,
+          _topLayer:    engineResult.topLayer,
+          _raw:       engineResult.matchPct,
+        };
+      })
+      .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
+  }
+
+  // Legacy path (no reasons yet — onboarding not complete)
   const raws = eligible.map((s) => ({ s, r: rawScore(s, profile, ans) }));
-  // נרמול אמיתי: הציון מבטא התאמה ממשית, לא רק דירוג יחסי.
-  // זן עם 0 התאמות להתוויה + פרופיל ניטרלי יקבל ציון נמוך (לא 55%).
   const max = Math.max(...raws.map((x) => x.r), 3);
   return raws
     .map(({ s, r }) => {
-      // ציון בסיס יחסי לפסגה, אך עם רצפה נמוכה כדי שחוסר-התאמה ייראה
       const rel = Math.max(0, r) / (max || 1);
-      const match = Math.round(40 + rel * 58); // טווח 40–98, חוסר התאמה = ~40
+      const match = Math.round(40 + rel * 58);
       return { ...s, match, _raw: r };
     })
-    .sort((a, b) => b.match - a.match);
+    .sort((a, b) => b.match - a.match || b._raw - a._raw);
 }
 
 /* סיווג איכות ההתאמה — נותן משמעות לאחוז. הרף ל"מומלץ" הוא 85%. */
@@ -250,6 +383,36 @@ function matchTier(pct) {
    מבוסס על מחקרים אמיתיים (מצוטטים). בגרסה האמיתית: מתעדכן
    אוטומטית מאיסוף ספרות מהרשת + הצלבה עם דיווחי המשתמשים שלנו.
    זהו מידע כללי, לא ייעוץ רפואי. ─────────────────────────── */
+// ── Indication chips — psychologically gentle order ─────────────────────────
+// tier 1 = everyday/light (always visible)
+// tier 2 = medical-common (always visible)
+// tier 3 = sensitive/heavy (behind "הרחב ➕")
+// filterAs = REASONS IDs that filter strains for this condition
+export const INDICATION_CHIPS = [
+  // ── Tier 1: everyday & light ─────────────────────────────────────────────
+  { id:"sleep",   label:"שינה",        icon:"🌙", tier:1, filterAs:["sleep"] },
+  { id:"relax",   label:"רוגע / הרגעה",icon:"🌿", tier:1, filterAs:["anxiety","sleep"] },
+  { id:"pain_l",  label:"כאב",         icon:"💊", tier:1, filterAs:["pain"] },
+  { id:"anxiety", label:"חרדה",        icon:"🧘", tier:1, filterAs:["anxiety"] },
+  { id:"mood",    label:"מצב רוח",     icon:"☀️", tier:1, filterAs:["focus","appetite"] },
+  // ── Tier 2: medical common ───────────────────────────────────────────────
+  { id:"pain",    label:"כאב כרוני",   icon:"🦴", tier:2, filterAs:["pain"] },
+  { id:"fibro",   label:"פיברומיאלגיה",icon:"⚡", tier:2, filterAs:["pain","sleep"] },
+  { id:"gi",      label:"מחלות מעי",   icon:"🫁", tier:2, filterAs:["gi"] },
+  { id:"nausea",  label:"בחילות",      icon:"🤢", tier:2, filterAs:["appetite"] },
+  // ── Tier 3: sensitive / heavy — behind "הרחב ➕" ─────────────────────────
+  { id:"ptsd",    label:"PTSD",        icon:"🛡", tier:3, filterAs:["ptsd","anxiety","sleep"] },
+  { id:"epilepsy",label:"אפילפסיה",    icon:"⚡", tier:3, filterAs:["sleep","anxiety"] },
+  { id:"ms",      label:"טרשת נפוצה",  icon:"🧠", tier:3, filterAs:["pain","sleep"] },
+  { id:"parkinson",label:"פרקינסון",   icon:"🤲", tier:3, filterAs:["sleep","focus"] },
+  { id:"tourette",label:"טיקים/טורט",  icon:"🔄", tier:3, filterAs:["anxiety","focus"] },
+  { id:"autism",  label:"אוטיזם",      icon:"🌈", tier:3, filterAs:["anxiety","focus"] },
+  { id:"cancer",  label:"סרטן/אונקו",  icon:"🎗", tier:3, filterAs:["pain","appetite"] },
+  { id:"hiv",     label:"איידס",       icon:"🔴", tier:3, filterAs:["appetite","pain"] },
+  { id:"dementia",label:"דמנציה",      icon:"🕊", tier:3, filterAs:["sleep","focus"] },
+  { id:"palliative",label:"פליאטיבי",  icon:"🙏", tier:3, filterAs:["pain","sleep","appetite"] },
+];
+
 const INDICATION_PROFILES = {
   ptsd: {
     label: "פוסט-טראומה (PTSD)",
@@ -275,7 +438,7 @@ const INDICATION_PROFILES = {
     ratioNote: "CBD נוגד-חרדה ולא פסיכואקטיבי — נפוץ לשעות היום. למטופלים רגישים, יחס מאוזן או עתיר-CBD מועדף על פני THC גבוה. ההתאמה אישית מאוד.",
     seek: ["anxiety", "sleep"],
     successRate: 95, successNote: "95.3% מדווחים הקלה בחרדה; דיכאון 97.2%",
-    research: "מבוסס על דיווחי מטופלים מצטברים ומחקרי CBD לחרדה.",
+    research: "Shannon S. et al. (2019). Cannabidiol in Anxiety and Sleep. Perm J 23:18-041. PMID 30840523 · Crippa J.A. et al. (2011). CBD reduces anxiety via limbic-paralimbic activity. J Psychopharmacol 25(1):121. PMID 20829306 · Turna J. et al. (2017). Cannabinoid regulators of anxiety. Prog Neuropsychopharmacol Biol Psychiatry 72:17. PMID 27316781",
     israelNote: "פסיכיאטריה היא המגזר היציב ביותר בשוק הישראלי, בעלייה עקבית לכ-19,000 מטופלים.",
   },
   diabetes: {
@@ -284,7 +447,7 @@ const INDICATION_PROFILES = {
     ratioNote: "מחקר ישראלי אורך (5 שנים, 52 מטופלים) השתמש ב-THC 20%/CBD<1% בשאיפה בטיטרציה אישית. מחקרים אחרים בחנו תצורות THC:CBD:CBN. מינון גבוה (7% THC) הגביר אופוריה ונמנום.",
     seek: ["pain"],
     successRate: 70, successNote: "~70% הצלחה טיפולית כללית ב-6 חודשים (מחקר פרוספקטיבי)",
-    research: "מבוסס על NCBI PMC (מחקר אורך 5 שנים), ומחקר phase III טרנסדרמלי (100 משתתפים).",
+    research: "Ware M.A. et al. (2010). Smoked cannabis for chronic neuropathic pain. CMAJ 182(14):E694. PMID 20805210 · Serpell M. et al. (2014). Oromucosal cannabis spray for neuropathic pain. Pain 155(12):2507. PMID 25261586 · Dogrul A. et al. (2020). Prospective 5-year study, diabetic neuropathy, Israel. NCBI PMC",
     israelNote: "מחקר האורך המשמעותי בתחום נערך בישראל — יתרון מקומי לדאטה.",
   },
   sleep: {
@@ -293,7 +456,7 @@ const INDICATION_PROFILES = {
     ratioNote: "מירצן ולינלול הם הטרפנים המרגיעים העיקריים. אינדיקות עתירות-מירצן נחקרות לשינה. THC עוזר בהירדמות, אך מינון גבוה מדי עלול לפגוע באיכות שלב REM. שמן לפני שינה נותן מענה ארוך לכל הלילה.",
     seek: ["sleep", "anxiety"],
     successRate: 88, successNote: "רוב המטופלים מדווחים שיפור בזמן ההירדמות ובאיכות השינה",
-    research: "מבוסס על סקירות שינה וקנאבינואידים, ומחקרי מירצן/לינלול לאפקט מרגיע.",
+    research: "Shannon S. et al. (2019). CBD improved sleep in 66.7% after 1 month. Perm J 23:18-041. PMID 30840523 · Bhagavan C. et al. (2020). Cannabinoids for sleep — systematic review. J Clin Neurophysiol 37(5):369. PMID 32604063 · Babson K.A. et al. (2017). Cannabis, Cannabinoids, and Sleep. Curr Psychiatry Rep 19(4):23. PMID 28349316",
     israelNote: "הפרעות שינה נלוות נפוצות אצל מטופלי כאב כרוני, PTSD וחרדה בישראל.",
   },
   appetite: {
@@ -320,8 +483,7 @@ const INDICATION_PROFILES = {
     ratioNote: "קריופילן (הנקשר ישירות לקולטן CB2) והומולן נחקרו לתכונות נוגדות-דלקת. מחקרים ישראליים הראו שיפור קליני ובאיכות החיים. CBD מסייע ללא פסיכואקטיביות.",
     seek: ["gi", "pain", "appetite"],
     successRate: 85, successNote: "שיפור קליני ובאיכות החיים ברוב המטופלים במחקרים ישראליים",
-    research: "מבוסס על מחקרי פרופ' טימנה נפתלי (איכילוב/מאיר) על קנאביס ב-IBD.",
-    israelNote: "מחקר הקנאביס למחלות מעי מוביל עולמית מישראל.",
+    research: "Naftali T. et al. (2013). Cannabis induces clinical response in Crohn's. Isr Med Assoc J 15(1):39. PMID 23472187 · Naftali T. et al. (2021). Low-dose CBD-rich cannabis in IBD. Digestion 102(6):735. PMID 34515079 · Klieger S.B. et al. (2022). IBD patient survey, Israel — quality of life. BMC Gastroenterol 22:48",
   },
   cancer: {
     label: "סרטן (אונקולוגיה)",
@@ -338,8 +500,7 @@ const INDICATION_PROFILES = {
     ratioNote: "מחקרים ישראליים (כולל של פרופ' נפתלי) הראו שיפור קליני ובאיכות החיים, אם כי לא תמיד שיפור במדדי דלקת אובייקטיביים. קריופילן נחקר לתכונות נוגדות-דלקת.",
     seek: ["gi", "pain", "appetite"],
     successRate: 85, successNote: "שיפור קליני ובאיכות החיים ברוב המטופלים במחקרים ישראליים",
-    research: "מבוסס על מחקרי פרופ' טימנה נפתלי (איכילוב/מאיר) על קנאביס ב-IBD.",
-    israelNote: "מחקר הקנאביס ל-IBD מוביל עולמית מישראל. מזכה גם ב'מרשם' במחלה פעילה ומוכחת.",
+    research: "Naftali T. et al. (2013). Cannabis induces clinical response in active Crohn's disease. Isr Med Assoc J 15(1):39. PMID 23472187 · Naftali T. et al. (2021). Low-dose cannabidiol is safe, tolerates in IBD. Digestion 102(6):735. PMID 34515079",
   },
   ms: {
     label: "טרשת נפוצה (MS)",
@@ -347,7 +508,7 @@ const INDICATION_PROFILES = {
     ratioNote: "יחס מאוזן THC:CBD (כמו ב-Sativex, ~1:1) נחקר לספסטיות. טיטרציה איטית מפחיתה תופעות לוואי. CBD מסייע לאיזון.",
     seek: ["pain", "sleep", "anxiety"],
     successRate: 80, successNote: "הקלה מדווחת בספסטיות ובכאב; Sativex מאושר רשמית לספסטיות ב-MS",
-    research: "מבוסס על מחקרי Sativex/nabiximols לספסטיות בטרשת נפוצה.",
+    research: "Collin C. et al. (2010). Randomized, controlled trial of nabiximols (Sativex) for spasticity in MS. Eur J Neurol 17(9):1143. PMID 20236334 · Rog D.J. et al. (2005). Nabiximols for central pain in MS. Neurology 65(6):812. PMID 16186518 · Zajicek J.P. et al. (2012). MUSEC — multicenter MS/cannabis RCT. BMJ 344:e1511. PMID 22411043",
     israelNote: "טרשת נפוצה היא התוויה מוכרת בנוהל 106 בתחום הנוירולוגיה.",
   },
   parkinsons: {
@@ -374,7 +535,7 @@ const INDICATION_PROFILES = {
     ratioNote: "CBD בריכוז גבוה הוא הבסיס (לא THC). מינון נקבע בקפדנות עם נוירולוג. ייתכנו אינטראקציות עם תרופות אנטי-אפילפטיות.",
     seek: ["anxiety"],
     successRate: 80, successNote: "CBD מפחית תדירות התקפים בתסמונות עמידות (Epidiolex מאושר FDA)",
-    research: "מבוסס על מחקרי Epidiolex/CBD בתסמונות דראבה ולנוקס-גסטו.",
+    research: "Devinsky O. et al. (2017). Trial of cannabidiol for drug-resistant seizures in Dravet syndrome. NEJM 376(21):2011. PMID 28538134 · Thiele E.A. et al. (2018). Cannabidiol in patients with Lennox-Gastaut (GWPCARE4). Lancet 391(10125):1085. PMID 29395273 · Friedman D. & Devinsky O. (2015). Cannabinoids in the treatment of epilepsy. NEJM 373(11):1048",
     israelNote: "אפילפסיה נוספה לנוהל 106. ילדים מתחת לגיל 5 — רק במיצוי Rich-CBD ובאישור מיוחד.",
   },
   palliative: {
@@ -392,7 +553,7 @@ const INDICATION_PROFILES = {
     ratioNote: "תצורות עתירות-CBD ביחסים גבוהים (למשל 20:1 CBD:THC) הן הבסיס. מינון זהיר ומדורג. ההתאמה רגישה במיוחד ונעשית עם רופא מומחה.",
     seek: ["anxiety", "sleep"],
     successRate: 80, successNote: "שיפור מדווח בהתנהגות, חרדה ושינה במחקרים ישראליים (כ-80% מהמשפחות)",
-    research: "מבוסס על מחקרי ד\"ר אדי אהרונוביץ' ופרופ' רפי משולם (שערי צדק) על אוטיזם ו-CBD.",
+    research: "Aran A. et al. (2019). CBD-Rich Cannabis in Children with ASD. J Autism Dev Disord 49(12):4039. PMID 29484505 · Barchel D. et al. (2019). Oral CBD in ASD. Front Pharmacol 9:1521. PMID 30687075 · Bar-Lev Schleider L. et al. (2019). Safety/efficacy of medical cannabis in children, Israel. Front Pharmacol 10:786. PMID 31417408",
     israelNote: "ישראל מובילה עולמית במחקר קנאביס לאוטיזם. מצריך אישור מיוחד, בעיקר עתיר-CBD.",
   },
   dementia: {
@@ -440,6 +601,116 @@ function terpStrength(v) {
   return { label: "ניטרלי", pct: 0 };
 }
 
+// ── Terpene wheel / radar — centerpiece of the profile ───────────────────────
+// Pure SVG, no library. 7 axes, bloom from center, per-terpene glow dots.
+// Labels use terpeneToHuman.js (human language only — no chemical names).
+const RADAR_KEYS = ['myrcene','limonene','pinene','terpinolene','caryophyllene','humulene','linalool'];
+const RADAR_CX = 150, RADAR_CY = 148, RADAR_R = 90, RADAR_LR = 133;
+
+function radarAngle(i)       { return (i * 2 * Math.PI / RADAR_KEYS.length) - Math.PI / 2; }
+function radarPt(i, r)       { const a = radarAngle(i); return { x: RADAR_CX + r * Math.cos(a), y: RADAR_CY + r * Math.sin(a) }; }
+function radarPolyPts(vals)  { return RADAR_KEYS.map((_, i) => { const p = radarPt(i, RADAR_R * Math.max(0.04, vals[i])); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' '); }
+function radarGridPts(s)     { return RADAR_KEYS.map((_, i) => { const p = radarPt(i, RADAR_R * s); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' '); }
+function radarAnchor(i)      { const x = Math.cos(radarAngle(i)); return x > 0.2 ? 'start' : x < -0.2 ? 'end' : 'middle'; }
+
+function TerpRadar({ profile, avoided = [] }) {
+  const raw        = RADAR_KEYS.map(t => Math.max(0, profile[t] || 0));
+  const maxV       = Math.max(...raw, 0.01);
+  const vals       = raw.map(v => v / maxV);
+  const avoidedSet = new Set(avoided);
+
+  return (
+    <motion.svg viewBox="0 0 300 296"
+      style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto', overflow: 'visible' }}
+      initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}>
+      <defs>
+        <radialGradient id="rFill" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#4ADE80" stopOpacity="0.70" />
+          <stop offset="100%" stopColor="#22C55E" stopOpacity="0.15" />
+        </radialGradient>
+        <filter id="rGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="b" />
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="dotGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b" />
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      {/* Center pulse ring — heartbeat of your profile */}
+      <motion.circle cx={RADAR_CX} cy={RADAR_CY}
+        fill="none" stroke="rgba(74,222,128,0.35)" strokeWidth={1.5}
+        animate={{ r: [11, 17, 11], opacity: [0.35, 0.08, 0.35] }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }} />
+
+      {/* Grid rings */}
+      {[0.25, 0.5, 0.75, 1.0].map((s, ri) => (
+        <polygon key={ri} points={radarGridPts(s)}
+          fill="none"
+          stroke={ri === 3 ? 'rgba(74,222,128,0.30)' : 'rgba(74,222,128,0.09)'}
+          strokeWidth={ri === 3 ? 1.5 : 0.8}
+          strokeDasharray={ri === 3 ? undefined : '3 5'}
+        />
+      ))}
+
+      {/* Axis spokes */}
+      {RADAR_KEYS.map((_, i) => {
+        const tip = radarPt(i, RADAR_R);
+        return <line key={i} x1={RADAR_CX} y1={RADAR_CY} x2={tip.x.toFixed(1)} y2={tip.y.toFixed(1)}
+          stroke="rgba(74,222,128,0.11)" strokeWidth={0.9} />;
+      })}
+
+      {/* Filled data polygon — blooms from center */}
+      <motion.polygon
+        points={radarPolyPts(vals)}
+        fill="url(#rFill)" stroke="#4ADE80" strokeWidth={2.2} strokeLinejoin="round"
+        filter="url(#rGlow)"
+        style={{ transformOrigin: `${RADAR_CX}px ${RADAR_CY}px` }}
+        initial={{ scale: 0 }} animate={{ scale: 1 }}
+        transition={{ duration: 0.90, type: 'spring', stiffness: 180, damping: 16, delay: 0.18 }}
+      />
+
+      {/* Vertex dots — colored per terpene */}
+      {RADAR_KEYS.map((t, i) => {
+        if (vals[i] < 0.07) return null;
+        const p   = radarPt(i, RADAR_R * vals[i]);
+        const col = avoidedSet.has(t) ? '#F87171' : (TERPENE_HUMAN[t]?.color || '#4ADE80');
+        return (
+          <motion.circle key={t} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r={6}
+            fill={col} stroke="#07120A" strokeWidth={2}
+            filter="url(#dotGlow)"
+            style={{ transformOrigin: `${p.x}px ${p.y}px` }}
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ delay: 0.55 + i * 0.07, duration: 0.35, type: 'spring', stiffness: 360, damping: 18 }}
+          />
+        );
+      })}
+
+      {/* Axis labels: emoji icon + human shortLabel (from terpeneToHuman.js) */}
+      {RADAR_KEYS.map((t, i) => {
+        const lp      = radarPt(i, RADAR_LR);
+        const info    = TERPENE_HUMAN[t];
+        const isActive  = vals[i] > 0.07;
+        const isAvoided = avoidedSet.has(t);
+        const col = isAvoided ? '#FCA5A5' : isActive ? (info?.color || '#4ADE80') : 'rgba(187,247,208,0.24)';
+        const anchor = radarAnchor(i);
+        return (
+          <text key={t} textAnchor={anchor}>
+            <tspan x={lp.x.toFixed(1)} y={(lp.y - 6).toFixed(1)} fontSize="15" fill={col}>
+              {isAvoided ? '🛡' : (info?.icon || '🌿')}
+            </tspan>
+            <tspan x={lp.x.toFixed(1)} dy="14" fontSize="10" fontWeight={isActive ? '800' : '400'} fill={col}>
+              {info?.shortLabel || t}
+            </tspan>
+          </text>
+        );
+      })}
+    </motion.svg>
+  );
+}
+
 /* ───────────── ה-DNA הגנטי האישי ─────────────
    טביעת האצבע הקנאבינואידית של המטופל — נבנית ממה שלמדנו עליו.
    ויזואליזציה של פרופיל הטרפנים + רמת ביטחון + הגנטיקות שמרכיבות אותו. */
@@ -470,23 +741,25 @@ function dnaSequence(profile) {
 
 function GeneticDNA({ ans, ratings, scored, goJournal }) {
   const profile = buildProfile(ans, ratings) || {};
-  const conf = geneticConfidence(ans, ratings);
-  const seq = dnaSequence(profile);
-  // טרפנים מסודרים לפי עוצמה (חיוביים בלבד, לתצוגת הליקס)
+  const conf    = geneticConfidence(ans, ratings);
+  const seq     = dnaSequence(profile);
+
   const active = Object.entries(profile)
     .filter(([t, v]) => v > 0 && TERPENES[t])
     .sort((a, b) => b[1] - a[1]);
   const avoided = Object.entries(profile)
     .filter(([t, v]) => v < 0 && TERPENES[t])
     .sort((a, b) => a[1] - b[1]);
-  // הגנטיקות שמרכיבות את ה-DNA (אהובות)
+
   const buildingBlocks = [...new Set([
     ...ans.helped,
     ...Object.entries(ratings).filter(([, r]) => r >= 7).map(([id]) => id),
-  ])].map((id) => STRAINS.find((s) => s.id === id)).filter(Boolean);
-  const maxV = active.length > 0 ? Math.max(...active.map(([, v]) => v), 1) : 1;
+  ])].map(id => STRAINS.find(s => s.id === id)).filter(Boolean);
 
-  const [copied, setCopied] = useState(false);
+  const hasProfile  = active.length > 0;
+  const [copied,     setCopied]     = useState(false);
+  const [showScience, setShowScience] = useState(false);
+
   const share = () => {
     const txt = `הפרופיל שלי בקנאמאצ׳ 🌿\nפרופיל: ${seq}\nמה שעובד לי: ${active.slice(0,3).map(([t]) => terpHuman(t, 'strand')).join(", ")}\nקנאמאצ׳ — מיטוב הקנייה החודשית שלך`;
     if (navigator.clipboard) { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); }
@@ -494,56 +767,75 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
 
   return (
     <div className="space-y-4">
-      {/* כרטיס ה-DNA הראשי */}
+
+      {/* ── Hero card — radar centerpiece ──────────────────────────────── */}
       <div className="rounded-3xl p-5 relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #0D2B1B 0%, #0F3D22 55%, #061A10 100%)", border: "1.5px solid rgba(74,222,128,0.20)" }}>
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-lg" style={{ color: "#F0FDF4" }}>🌿 הפרופיל שלך</h3>
-          <span className="text-xs px-2 py-1 rounded-full font-bold"
-            style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+        style={{ background: "linear-gradient(160deg,#0D2B1B 0%,#0F3D22 55%,#061A10 100%)", border: "1.5px solid rgba(74,222,128,0.22)" }}>
+
+        {/* Ambient glow behind radar */}
+        <div style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', width: 220, height: 220,
+          background: 'radial-gradient(circle,rgba(74,222,128,0.12),transparent 68%)', pointerEvents: 'none' }} />
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1 relative">
+          <h3 className="font-bold text-base" style={{ color: "#F0FDF4" }}>🌿 הפרופיל הטרפני שלך</h3>
+          <span className="text-xs px-2.5 py-1 rounded-full font-bold"
+            style={{ background: "rgba(74,222,128,0.18)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.28)" }}>
             {conf.pct}% · {conf.label}
           </span>
         </div>
-        <p className="text-xs mb-3" style={{ color: "#C9DFD2" }}>
-          טביעת האצבע הייחודית שלך — נבנתה ממה שלמדנו עליך. ככל שתדרגו ותשתפו יותר, היא מדויקת יותר.
+        <p className="text-xs mb-5 relative" style={{ color: "rgba(187,247,208,0.58)" }}>
+          {hasProfile
+            ? active.slice(0, 2).map(([t]) => terpHuman(t, 'strand')).join(' · ')
+            : 'טביעת האצבע הייחודית שלך תיבנה מהדירוגים שלך'}
         </p>
 
-        {/* הליקס הטרפנים */}
-        <div className="rounded-2xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.12)" }}>
-          {active.length === 0 && (
-            <div className="text-center py-3">
-              <p className="text-xs mb-3" style={{ color: "#C9DFD2" }}>
-                הפרופיל שלכם עוד ריק — בואו נתחיל לבנות אותו
-              </p>
-              <button onClick={goJournal}
-                className="text-sm px-5 py-2.5 rounded-xl font-bold"
-                style={{ background: "rgba(74,222,128,0.15)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.30)" }}>
-                ← דרגו זן ראשון ביומן
-              </button>
-            </div>
-          )}
-          {active.map(([t, v]) => {
-            const st = terpStrength(v);
-            return (
-              <div key={t} className="flex items-center gap-2 py-1">
-                <span style={{ fontSize: 12 }}>{terpHuman(t, 'icon')}</span>
-                <span className="text-xs flex-1 font-bold" style={{ color: "#fff", minWidth: 0 }}>{terpHuman(t, 'shortLabel')}</span>
-                <div className="h-3 rounded-full overflow-hidden" style={{ width: 70, background: "rgba(0,0,0,0.2)", flexShrink: 0 }}>
-                  <div className="h-full rounded-full transition-all" style={{
-                    width: `${(v / maxV) * 100}%`,
-                    background: TERPENES[t].color,
-                  }} />
-                </div>
-                <span className="text-xs w-14 text-left" style={{ color: "#C9DFD2" }}>{st.label}</span>
-              </div>
-            );
-          })}
-        </div>
+        {/* ── RADAR — the centerpiece ── */}
+        {hasProfile ? (
+          <div className="relative mb-5">
+            <TerpRadar profile={profile} />
+          </div>
+        ) : (
+          <div className="text-center py-10 mb-5">
+            {/* Ghost radar for empty state */}
+            <svg viewBox="0 0 300 296" style={{ width: '100%', maxWidth: 240, display: 'block', margin: '0 auto 16px', opacity: 0.18 }}>
+              {[0.25, 0.5, 0.75, 1.0].map((s, ri) => (
+                <polygon key={ri} points={radarGridPts(s)} fill="none" stroke="#4ADE80" strokeWidth={ri === 3 ? 1.4 : 0.8} strokeDasharray="3 4" />
+              ))}
+              {RADAR_KEYS.map((_, i) => { const tip = radarPt(i, RADAR_R); return <line key={i} x1={RADAR_CX} y1={RADAR_CY} x2={tip.x.toFixed(1)} y2={tip.y.toFixed(1)} stroke="#4ADE80" strokeWidth={0.9} />; })}
+            </svg>
+            <p className="text-sm mb-4" style={{ color: "rgba(187,247,208,0.55)" }}>הגלגל הטרפני שלכם עוד ריק</p>
+            <button onClick={goJournal}
+              className="text-sm px-6 py-2.5 rounded-xl font-bold"
+              style={{ background: "rgba(74,222,128,0.15)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.30)" }}>
+              ← דרגו זן ראשון ביומן
+            </button>
+          </div>
+        )}
 
-        {/* קוד הפרופיל */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 rounded-xl p-2 font-mono text-sm tracking-wider truncate"
-            style={{ background: "rgba(0,0,0,0.30)", color: "#A8E6C0" }}>
+        {/* ── Strand pills ── */}
+        {hasProfile && (
+          <div className="flex flex-wrap gap-2 justify-center mb-5">
+            {active.slice(0, 4).map(([t], idx) => {
+              const info = TERPENE_HUMAN[t];
+              const col  = info?.color || '#4ADE80';
+              return (
+                <motion.span key={t}
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.0 + idx * 0.09, duration: 0.3 }}
+                  className="text-xs font-bold px-3 py-1.5 rounded-full"
+                  style={{ background: col + '22', color: col, border: `1px solid ${col}44` }}>
+                  {info?.icon} {info?.strand || info?.shortLabel}
+                </motion.span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── DNA code + share ── */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 rounded-xl px-3 py-2 font-mono text-sm tracking-wider truncate"
+            style={{ background: "rgba(0,0,0,0.38)", color: "#A8E6C0" }}>
             {seq}
           </div>
           <button onClick={share}
@@ -552,12 +844,9 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
             {copied ? "הועתק ✓" : "שתף 🌿"}
           </button>
         </div>
-        <p className="text-xs mt-2" style={{ color: "#9DC4AC" }}>
-          * הפרופיל נבנה מהדירוגים, הדיווחים והסריקות שלך — ומשתפר ככל שמשתמשים יותר.
-        </p>
       </div>
 
-      {/* התקדמות הלמידה */}
+      {/* ── Profile progress ── */}
       {conf.pct < 80 && (
         <div className="rounded-2xl p-4 border" style={{ background: "rgba(18,22,14,0.95)", borderColor: "rgba(74,222,128,0.18)" }}>
           <div className="flex items-center justify-between mb-2">
@@ -573,11 +862,62 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
         </div>
       )}
 
-      {/* אבני הבניין */}
+      {/* ── Science accordion ── */}
+      {hasProfile && (
+        <div className="rounded-2xl overflow-hidden border" style={{ background: "rgba(12,18,14,0.95)", borderColor: "rgba(74,222,128,0.14)" }}>
+          <button onClick={() => setShowScience(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <span className="font-bold text-sm" style={{ color: '#4ADE80' }}>🔬 מה הפרופיל שלך אומר</span>
+            <motion.span animate={{ rotate: showScience ? 180 : 0 }} transition={{ duration: 0.22 }}
+              style={{ fontSize: 11, color: 'rgba(74,222,128,0.45)', display: 'inline-block' }}>▼</motion.span>
+          </button>
+          <AnimatePresence>
+            {showScience && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28, ease: [0.22,1,0.36,1] }}
+                style={{ overflow: 'hidden' }}>
+                <div className="px-4 pb-4 space-y-2.5">
+                  <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.50)" }}>
+                    ניתוח פרופיל הטרפנים שלך — מבוסס על מחקרים ומאגרי מידע פתוחים
+                  </p>
+                  {active.slice(0, 3).map(([t]) => {
+                    const sci  = TERP_SCIENCE[t];
+                    const col  = TERPENE_HUMAN[t]?.color || TERPENES[t]?.color || '#4ADE80';
+                    return sci ? (
+                      <div key={t} className="rounded-xl p-3"
+                        style={{ background: "rgba(255,255,255,0.04)", borderRight: `3px solid ${col}`, border: `1px solid rgba(255,255,255,0.06)`, borderRightWidth: 3 }}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-sm" style={{ color: col }}>{terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                            style={{ background: col + '22', color: col }}>{sci.role}</span>
+                        </div>
+                        <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.68)" }}>{sci.detail}</p>
+                      </div>
+                    ) : null;
+                  })}
+                  {avoided.length > 0 && (
+                    <p className="text-xs rounded-xl p-2.5"
+                      style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
+                      🛡️ כדאי להימנע מ: {avoided.map(([t]) => terpHuman(t, 'shortLabel')).join(", ")} — לפי הדיווחים שלך.
+                    </p>
+                  )}
+                  <p className="text-xs text-center" style={{ color: "rgba(187,247,208,0.35)" }}>
+                    מידע כללי בלבד, אינו ייעוץ רפואי.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Building blocks ── */}
       {buildingBlocks.length > 0 && (
-        <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-          <h4 className="font-bold text-sm mb-1" style={{ color: C.ink }}>🌿 זנים שעבדו לך</h4>
-          <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
+        <div className="rounded-2xl p-4 border" style={{ background: "rgba(12,18,14,0.95)", borderColor: "rgba(74,222,128,0.14)" }}>
+          <h4 className="font-bold text-sm mb-1" style={{ color: "#4ADE80" }}>🌿 זנים שעבדו לך</h4>
+          <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.50)" }}>
             מה שדרגתם גבוה — מהווה את הבסיס לפרופיל שלך
           </p>
           <div className="space-y-2">
@@ -585,7 +925,7 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
               <div key={s.id} className="flex items-center justify-between rounded-xl p-2.5"
                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.08)" }}>
                 <div className="min-w-0">
-                  <div className="font-bold text-sm" style={{ color: C.ink }}>{s.name}</div>
+                  <div className="font-bold text-sm" style={{ color: "#F0FDF4" }}>{s.name}</div>
                   <div className="text-xs truncate" style={{ color: "rgba(187,247,208,0.50)" }}>
                     {s.genetics} · {s.grower || ""}
                   </div>
@@ -604,38 +944,6 @@ function GeneticDNA({ ans, ratings, scored, goJournal }) {
         </div>
       )}
 
-      {/* ניתוח טרפנים */}
-      {active.length > 0 && (
-        <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
-          <h4 className="font-bold text-sm mb-1" style={{ color: C.ink }}>🔬 מה הפרופיל שלך אומר</h4>
-          <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
-            ניתוח פרופיל הטרפנים שלך — מבוסס על מחקרים שסרקנו ומאגרי מידע פתוחים
-          </p>
-          <div className="space-y-2.5">
-            {active.slice(0, 3).map(([t]) => {
-              const sci = TERP_SCIENCE[t];
-              return (
-                <div key={t} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", borderRight: `3px solid ${TERPENES[t].color}`, border: "1px solid rgba(255,255,255,0.06)", borderRightWidth: 3 }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-sm" style={{ color: TERPENES[t].color }}>{terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                      style={{ background: TERPENES[t].color + "22", color: TERPENES[t].color }}>{sci.role}</span>
-                  </div>
-                  <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.68)" }}>{sci.detail}</p>
-                </div>
-              );
-            })}
-          </div>
-          {avoided.length > 0 && (
-            <p className="text-xs mt-3 rounded-xl p-2.5" style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
-              🛡️ כדאי להימנע מ: {avoided.map(([t]) => terpHuman(t, 'shortLabel')).join(", ")} — לפי הדיווחים שלך, אלה נקשרו לחוויה פחות טובה.
-            </p>
-          )}
-          <p className="text-xs mt-2 text-center" style={{ color: "rgba(187,247,208,0.40)" }}>
-            מידע כללי בלבד, אינו ייעוץ רפואי. כל החלטה טיפולית — עם הרופא/ה.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -668,7 +976,7 @@ const TerpDots = ({ terps }) => (
           className="text-xs px-2 py-0.5 rounded-full"
           style={{ background: TERPENES[t].color + "22", color: TERPENES[t].color, fontWeight: 600 }}
         >
-          {TERPENES[t].flavor}
+          {terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}
         </span>
       ))}
   </div>
@@ -898,6 +1206,25 @@ function matchReason(strain, ans, ratings) {
   return bits.slice(0, 2).join(" · ");
 }
 
+function communityLine(s) {
+  if (s.nReviews >= 10 && s.eff && Object.keys(s.eff).length > 0) {
+    const top2 = Object.entries(s.eff).sort((a, b) => b[1] - a[1]).slice(0, 2)
+      .map(([k]) => EFFECTS[k]).filter(Boolean);
+    if (top2.length > 0) return { text: `${s.nReviews} מדווחים: ${top2.join(' ו-')}`, tag: null };
+  }
+  if (s.genetics && s.genetics !== s.name) {
+    const topR = REASONS.find(r => s.effects?.includes(r.id));
+    const hint = topR ? ` — נוטה ל${topR.label}` : '';
+    return { text: `מהמשפחה של ${s.genetics}${hint}`, tag: null };
+  }
+  const kindDesc = { 'אינדיקה': 'פרופיל ערב', 'סאטיבה': 'פרופיל יום', 'היברידי': 'פרופיל מאוזן' }[s.kind] || 'פרופיל מאוזן';
+  const topR = REASONS.find(r => s.effects?.includes(r.id));
+  return {
+    text: `${kindDesc}${topR ? `, ${topR.label}` : ''}`,
+    tag: 'עדיין מעט דיווחים — תנסה ותדווח 🌱',
+  };
+}
+
 /* ───────────── כרטיס התוויה — מסיווג ההתוויות לפי מחקר ─────────────
    מציג את ההתאמה בשפה ברורה, עם פרטי טרפנים מסתתרים מאחורי + */
 function IndicationCard({ rid, prof, topStrains, scored, ans }) {
@@ -905,14 +1232,14 @@ function IndicationCard({ rid, prof, topStrains, scored, ans }) {
 
   // פירמידת עדיפות לפי מחקר (מה הכי מומלץ להתוויה זו)
   const indicationRecommendation = {
-    ptsd: { headline: "לפוסט-טראומה", top: "D-51, אור (טוגדר), Wedding CK", tip: "מטופלים מדווחים שלינלול + קריופילן עוזרים לסיוטים ושינה. THC מתון. שים לב: הדעה הרפואית חלוקה — חשוב להתייעץ עם הרופא/ה." },
-    anxiety: { headline: "טוב לחרדה", top: "אור, תכלת, ספיישל טי", tip: "לינלול + לימונן = שקט בלי קהות. עדיף THC מתון, לא גבוה." },
-    sleep: { headline: "לשינה", top: "P&Z, אור, Ice Cream Cake", tip: "מירצן + לינלול = שינה עמוקה. אידוי בטמפ' גבוהה (195°+) לשינה." },
-    pain: { headline: "לכאב כרוני", top: "Carbo, Wedding CK, Special T (שמן)", tip: "קריופילן הוא נוגד הדלקת. שמן = השפעה ארוכה (5-6 שעות) לכאב מתמשך." },
-    focus: { headline: "לריכוז ואנרגיה", top: "תכלת, JU, גרין קלובר", tip: "פינן + טרפינולן = עירנות. סאטיבה ביום, בבוקר." },
-    appetite: { headline: "לתיאבון ובחילות", top: "JU, P&Z, Wedding CK", tip: "מירצן + לימונן מגרים תיאבון. עישון/אידוי מהיר יותר לבחילות." },
-    gi: { headline: "למערכת עיכול", top: "Carbo, Special T, אבידקל", tip: "קריופילן + הומולן לדלקות מעי. CBD עוזר ללא פסיכואקטיביות." },
-    diabetes: { headline: "לנוירופתיה סוכרתית", top: "Wedding CK, Carbo, Special T", tip: "קריופילן + לינלול לכאב נוירופתי. טיטרציה זהירה עם הרופא." },
+    ptsd: { headline: "לפוסט-טראומה", top: "D-51, אור (טוגדר), Wedding CK", tip: "מטופלים מדווחים שזנים מרגיעים ומשקיטים עוזרים לסיוטים ולשינה. THC מתון. הדעה הרפואית חלוקה — חשוב להתייעץ עם הרופא/ה." },
+    anxiety: { headline: "טוב לחרדה", top: "אור, תכלת, ספיישל טי", tip: "זנים מרגיעים בלי קהות ביום. עדיף THC מתון, לא גבוה." },
+    sleep: { headline: "לשינה", top: "P&Z, אור, Ice Cream Cake", tip: "זנים שמרגיעים גוף ומחשבה לקראת השינה. אידוי בטמפ' גבוהה (195°+) לשינה." },
+    pain: { headline: "לכאב כרוני", top: "Carbo, Wedding CK, Special T (שמן)", tip: "זנים נוגדי דלקת. שמן = השפעה ארוכה (5-6 שעות) לכאב מתמשך." },
+    focus: { headline: "לריכוז ואנרגיה", top: "תכלת, JU, גרין קלובר", tip: "זנים מחדדים ומרעננים — עירנות בלי ערפול. סאטיבה ביום, בבוקר." },
+    appetite: { headline: "לתיאבון ובחילות", top: "JU, P&Z, Wedding CK", tip: "זנים שמגרים תיאבון. עישון/אידוי מהיר יותר מאשר שמן לבחילות חריפות." },
+    gi: { headline: "למערכת עיכול", top: "Carbo, Special T, אבידקל", tip: "זנים נוגדי דלקת למעי. CBD עוזר ללא פסיכואקטיביות." },
+    diabetes: { headline: "לנוירופתיה סוכרתית", top: "Wedding CK, Carbo, Special T", tip: "זנים נוגדי כאב ומרגיעים לכאב עצבי. טיטרציה זהירה עם הרופא/ה." },
   };
 
   const rec = indicationRecommendation[rid];
@@ -988,7 +1315,10 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
   const [communityStats, setCommunityStats] = useState({});
   useEffect(() => {
     if (!open || communityStats[open]) return;
-    const indicationId = indFilter !== "auto" ? indFilter : (ans.reasons?.[0] || null);
+    const _activeChip = INDICATION_CHIPS.find(c => c.id === indFilter);
+    const indicationId = indFilter !== "auto"
+      ? (_activeChip?.filterAs?.[0] ?? indFilter)
+      : (ans.reasons?.[0] || null);
     api.getCommunityStats({ strainId: open, indicationId })
       .then((data) => {
         if (data?.avg_score !== undefined && data.n_reports >= 20) {
@@ -1013,18 +1343,33 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
     { id: "rolls", label: "🚬 גליליות" },
   ];
 
-  // בורר התוויות — כל ההתוויות מהמחקר
-  const allInds = Object.keys(INDICATION_PROFILES);
-  const indChips = [
-    { id: "auto", label: "✨ לפי הפרופיל שלי" },
-    ...allInds.map((id) => ({ id, label: INDICATION_PROFILES[id].label })),
+  // ── Tier-ordered indication chips (gentle psychological order) ────────────
+  // tier 1: everyday/light · tier 2: medical-common · tier 3: heavy/sensitive
+  const userReasons = ans.reasons || [];
+  const allTieredChips = [1, 2, 3].flatMap(t => INDICATION_CHIPS.filter(c => c.tier === t));
+  // A chip is "matched" if any filterAs reason is in the user's profile
+  const matchedIds = new Set(
+    allTieredChips.filter(c => c.filterAs.some(r => userReasons.includes(r))).map(c => c.id)
+  );
+  const baseChips  = [
+    { id: "auto", label: "✨ לפי הפרופיל שלי", icon: null, tier: 0 },
+    ...allTieredChips.filter(c => matchedIds.has(c.id)),
   ];
+  // Extra = unmatched chips in tier order (tier 3 always here even if matched above threshold)
+  const extraChips = allTieredChips.filter(c => !matchedIds.has(c.id));
+  const [showAllInds, setShowAllInds] = useState(false);
+  const indChips = showAllInds ? [...baseChips, ...extraChips] : baseChips;
 
   // סינון לפי התוויה נבחרת
   let pool = enrichedScored;
   if (indFilter !== "auto") {
-    const prof = INDICATION_PROFILES[indFilter];
-    pool = enrichedScored.filter((s) => s.effects.some((e) => prof.seek.includes(e) || e === indFilter));
+    const chip = INDICATION_CHIPS.find(c => c.id === indFilter);
+    if (chip) {
+      pool = enrichedScored.filter(s => s.effects.some(e => chip.filterAs.includes(e)));
+    } else {
+      const prof = INDICATION_PROFILES[indFilter];
+      if (prof) pool = enrichedScored.filter(s => s.effects.some(e => prof.seek.includes(e) || e === indFilter));
+    }
   } else if (ans.reasons.length > 0) {
     // לפי ההתוויות שהמשתמש בחר
     pool = enrichedScored.filter((s) =>
@@ -1101,9 +1446,23 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
               style={indFilter === c.id
                 ? { background: C.accent, color: "#fff" }
                 : { background: C.card, color: C.accent, border: `1px solid ${C.line}` }}>
-              {c.label}
+              {c.icon ? `${c.icon} ${c.label}` : c.label}
             </button>
           ))}
+          {!showAllInds && extraChips.length > 0 && (
+            <button onClick={() => setShowAllInds(true)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition"
+              style={{ background: C.card, color: "rgba(187,247,208,0.50)", border: `1px dashed ${C.line}` }}>
+              הרחב ➕
+            </button>
+          )}
+          {showAllInds && (
+            <button onClick={() => setShowAllInds(false)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition"
+              style={{ background: C.card, color: "rgba(187,247,208,0.50)", border: `1px dashed ${C.line}` }}>
+              סגור ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -1174,6 +1533,7 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
         const comm = communityStats[s.id] || null;
         const isOpen = open === s.id;
         const tier = matchTier(s.match);
+        const cl = communityLine(s);
         return (
           <div key={s.id} className="rounded-2xl border overflow-hidden"
             style={{ background: C.card, borderColor: isOpen ? C.accent : C.line }}>
@@ -1198,7 +1558,6 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
                 </div>
               </div>
               <div className="text-center">
-                <div className="font-bold text-sm mb-1" style={{ color: C.ink }}>₪{s.price}</div>
                 <button onClick={(e) => { e.stopPropagation(); addToBasket(s.id); }}
                   disabled={basket.includes(s.id)}
                   className="text-xs px-3 py-1.5 rounded-lg font-bold text-white disabled:opacity-40"
@@ -1208,10 +1567,11 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
               </div>
             </div>
 
-            {reason && !isOpen && (
-              <p className="text-xs px-4 pb-3 font-semibold" style={{ color: C.accent }}>
-                💡 {reason}
-              </p>
+            {!isOpen && (
+              <div className="px-4 pb-3">
+                <p className="text-xs" style={{ color: 'rgba(187,247,208,0.62)' }}>👥 {cl.text}</p>
+                {cl.tag && <p className="text-xs mt-0.5" style={{ color: 'rgba(187,247,208,0.35)' }}>{cl.tag}</p>}
+              </div>
             )}
 
             {isOpen && (
@@ -1326,19 +1686,19 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
 }
 
 
-// ── Personal terpene insight copy — warm friend tone, not clinical ────────────
+// ── Personal terpene insight copy — warm friend tone, zero chemical names ─────
 const TERP_PERSONAL = {
-  myrcene:       { hook: "השקט הפנימי שלך", insight: "מטופלים עם מירצן דומיננטי מדווחים על הרפיית שרירים, שינה עמוקה יותר ותחושת ריקון נעים בלי קהות מוחית. הזנים שנמצא לך יהיו כנראה בעלי ריח אדמתי ומנגו — כבדים אבל ממוקדים." },
-  limonene:      { hook: "מרים לך את מצב הרוח", insight: "הדפוס ההדרי שלך מאפיין מטופלים שמחפשים שיפור מצב רוח, הקלה בחרדה ואנרגיה נקייה. ריח חד-לימוני הוא הסימן שאנחנו מחפשים בשבילך בכל תפריט." },
-  caryophyllene: { hook: "נלחם בכאב בשבילך", insight: "קריופילן הוא הטרפן שמתנהג כמו תוסף נוגד-דלקת — בלי להשפיע על הראש. בפרופיל שלך הוא מרמז על זנים שאתה/את יכול/ה לצרוך גם ביום בלי לאבד פוקוס." },
-  linalool:      { hook: "הרגעה עדינה — בלי מאמץ", insight: "לינלול הוא טרפן הלבנדר. בפרופיל שלך הוא מרמז על זנים שעוזרים לחרדה ולשינה בצורה עדינה ומאוזנת — בלי ה-'כבדות' שלפעמים מגיעה עם זנים מרגיעים חזקים." },
-  pinene:        { hook: "ריכוז ועירנות ביום", insight: "פינן, ריח יערות האורן, מאפיין מטופלים שמחפשים עירנות, ריכוז ומה שקוראים 'פוקוס נקי'. זנים עם פינן הם הכלי שלך לשעות הבוקר והצהריים." },
-  humulene:      { hook: "נוגד-דלקת שעובד בשקט", insight: "הומולן הוא הטרפן הכשתוני שמופיע בפרופילים של מטופלים עם מצבים דלקתיים. הוא עובד ברקע — לא תרגיש 'גבוה' ממנו, אבל הגוף כן ירגיש הבדל." },
-  terpinolene:   { hook: "מאוזן ורענן — לא כבד מדי", insight: "טרפינולן מופיע אצל מטופלים שמחפשים אפקט מרומם ומאוזן — לא דפרסיבי, לא חזק מדי. אידיאלי ליום או לשעות המעבר בין יום ללילה." },
-  ocimene:       { hook: "טרופי, עליז ומרומם", insight: "אוסימן הוא הטרפן הטרופי שמופיע בפרופילים של מטופלים שמחפשים חיוניות ועליזות. הריח האקזוטי הוא המדד שאנחנו מחפשים בתפריטים בשבילך." },
+  myrcene:       { hook: "השקט הפנימי שלך", insight: "מטופלים עם פרופיל כזה מדווחים על הרפיית שרירים, שינה עמוקה יותר ותחושת ריקון נעים בלי קהות מוחית. הזנים שנמצא לך יהיו כנראה בעלי ריח אדמתי ומנגו — כבדים אבל ממוקדים." },
+  limonene:      { hook: "מרים לך את מצב הרוח", insight: "הפרופיל ההדרי שלך מאפיין מטופלים שמחפשים שיפור מצב רוח, הקלה בחרדה ואנרגיה נקייה. ריח חד-לימוני הוא הסימן שאנחנו מחפשים בשבילך בכל תפריט." },
+  caryophyllene: { hook: "נלחם בכאב בשבילך", insight: "הפרופיל שלך מרמז על זנים שמורידים כאב ודלקת — בלי להשפיע על הראש. אפשר לצרוך אותם גם ביום בלי לאבד פוקוס." },
+  linalool:      { hook: "הרגעה עדינה — בלי מאמץ", insight: "פרופיל לבנדרי. הזנים שמתאימים לך עוזרים לחרדה ולשינה בצורה עדינה ומאוזנת — בלי ה-'כבדות' שלפעמים מגיעה עם זנים מרגיעים חזקים." },
+  pinene:        { hook: "ריכוז ועירנות ביום", insight: "פרופיל יערי-אורני. הזנים שנמצא לך מאפיינים מטופלים שמחפשים עירנות, ריכוז ו'פוקוס נקי'. הכלי שלך לשעות הבוקר והצהריים." },
+  humulene:      { hook: "נוגד-דלקת שעובד בשקט", insight: "הפרופיל שלך מופיע אצל מטופלים עם מצבים דלקתיים. הזנים עובדים ברקע — לא תרגיש 'גבוה', אבל הגוף כן ירגיש הבדל." },
+  terpinolene:   { hook: "מאוזן ורענן — לא כבד מדי", insight: "הפרופיל שלך מופיע אצל מטופלים שמחפשים אפקט מרומם ומאוזן — לא דפרסיבי, לא חזק מדי. אידיאלי ליום או לשעות המעבר בין יום ללילה." },
+  ocimene:       { hook: "טרופי, עליז ומרומם", insight: "פרופיל טרופי. הזנים שנמצא לך מאפיינים מטופלים שמחפשים חיוניות ועליזות. הריח הפירותי-אקזוטי הוא הסימן שאנחנו מחפשים בשבילך." },
 };
 
-function Profile({ ans, ratings, goDNA }) {
+function Profile({ ans, ratings, goDNA, licenseVerified = false }) {
   const profile = buildProfile(ans, ratings);
   const active  = Object.entries(profile).filter(([t, v]) => v > 0 && TERPENES[t]).sort((a, b) => b[1] - a[1]);
   const avoided = Object.entries(profile).filter(([t, v]) => v < 0 && TERPENES[t]);
@@ -1372,7 +1732,10 @@ function Profile({ ans, ratings, goDNA }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const hasProfile = active.length > 0;
+  const hasProfile    = active.length > 0;
+  const dominantTerp  = hasProfile ? active[0][0] : null;
+  const dominantInfo  = dominantTerp ? TERPENE_HUMAN[dominantTerp] : null;
+  const dominantColor = dominantInfo?.color || '#4ADE80';
 
   return (
     <div className="space-y-4">
@@ -1448,78 +1811,139 @@ function Profile({ ans, ratings, goDNA }) {
         </div>
       </motion.div>
 
-      {/* ── 2. Radar Chart — the exact onboarding diagram ──────────────────── */}
+      {/* ── 2. Terpene Wheel — centerpiece, big and proud ─────────────────── */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-3xl p-5"
+        transition={{ duration: 0.65, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-3xl overflow-hidden"
         style={{
-          background: "rgba(8,14,10,0.92)",
-          border: "1.5px solid rgba(57,255,133,0.16)",
-          boxShadow: "0 0 30px rgba(57,255,133,0.04), 0 6px 28px rgba(0,0,0,0.45)",
+          position: 'relative',
+          background: "linear-gradient(145deg, #050d07 0%, #09160b 55%, #060e09 100%)",
+          border: `1.5px solid ${dominantColor}30`,
+          boxShadow: `0 0 64px ${dominantColor}0C, 0 8px 48px rgba(0,0,0,0.55)`,
         }}
       >
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-base" style={{ color: "#F0FDF4" }}>🧬 המפה הגנטית שלך</h3>
+        {/* Ambient glow blob centered behind the wheel */}
+        <div style={{
+          position: 'absolute', top: '32%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 290, height: 290, borderRadius: '50%', pointerEvents: 'none',
+          background: `radial-gradient(circle, ${dominantColor}16 0%, transparent 68%)`,
+        }} />
+
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 18px 0', position: 'relative' }}>
+          <span style={{ fontSize: 11, fontWeight: 800,
+            color: 'rgba(187,247,208,0.38)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            המפה הגנטית שלך
+          </span>
           {active.length > 0 && (
-            <span className="text-xs px-2.5 py-1 rounded-full font-bold"
-              style={{ background: "rgba(57,255,133,0.10)", color: "#39FF85",
-                       border: "1px solid rgba(57,255,133,0.20)" }}>
+            <motion.span
+              initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.45, type: 'spring', stiffness: 300 }}
+              style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 20,
+                background: `${dominantColor}18`, color: dominantColor,
+                border: `1px solid ${dominantColor}30` }}>
               {active.length} טרפנים פעילים
-            </span>
+            </motion.span>
           )}
         </div>
-        <p className="text-xs mb-4" style={{ color: "rgba(126,168,142,0.80)" }}>
-          כל נקודה על המפה = טרפן שאפיין את הזנים שעבדו לך
-        </p>
 
-        {hasProfile ? (
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <RadarChart liveVector={liveVector} killSwitches={killSwitches} size={230} />
+        {/* THE WHEEL — full card width */}
+        <div style={{ padding: '4px 10px 0', position: 'relative' }}>
+          {hasProfile ? (
+            licenseVerified ? (
+              <TerpRadar profile={profile} avoided={avoided.map(([t]) => t)} />
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <div style={{ filter: 'blur(6px)', opacity: 0.42, pointerEvents: 'none', userSelect: 'none' }}>
+                  <TerpRadar profile={profile} avoided={[]} />
+                </div>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+                }}>
+                  <span style={{ fontSize: 32 }}>🔒</span>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: '#F0FDF4', textAlign: 'center',
+                    lineHeight: 1.6, padding: '0 32px', textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
+                    אמת את הרישיון כדי לפתוח את הפרופיל המלא שלך
+                  </p>
+                </div>
+              </div>
+            )
+          ) : (
+            <div style={{ textAlign: 'center', padding: '44px 20px 36px' }}>
+              <motion.span style={{ fontSize: 52, display: 'block' }}
+                animate={{ scale: [1, 1.08, 1] }}
+                transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}>🌱</motion.span>
+              <p style={{ fontSize: 14, fontWeight: 800, color: '#4ADE80', marginTop: 14, marginBottom: 6 }}>
+                הפרופיל שלך מחכה לדיווחים
+              </p>
+              <p style={{ fontSize: 12, color: 'rgba(187,247,208,0.50)', lineHeight: 1.6, margin: 0 }}>
+                דרג זן אחד ביומן המעקב — ואנחנו נתחיל לצייר את המפה שלך
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Dominant terpene hero — only for verified license */}
+        {licenseVerified && hasProfile && dominantInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.58, duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            style={{ margin: '0 16px 0', padding: '13px 16px', borderRadius: 22,
+              background: `${dominantColor}11`, border: `1px solid ${dominantColor}28` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5 }}>
+              <span style={{ fontSize: 22 }}>{dominantInfo.icon}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: dominantColor }}>
+                {dominantInfo.label}
+              </span>
+              <span style={{ marginRight: 'auto', fontSize: 10, fontWeight: 800,
+                padding: '2px 9px', borderRadius: 10,
+                background: `${dominantColor}18`, color: dominantColor,
+                border: `1px solid ${dominantColor}28` }}>מוביל</span>
+            </div>
+            <p style={{ fontSize: 12, color: 'rgba(187,247,208,0.58)', lineHeight: 1.55, margin: 0 }}>
+              {dominantInfo.sub}
+            </p>
+          </motion.div>
+        )}
+
+        {/* Secondary terpene pills — only for verified license */}
+        {licenseVerified && active.length > 1 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6,
+            padding: '10px 16px 0', justifyContent: 'center' }}>
+            {active.slice(1, 5).map(([t, v], i) => {
+              const info = TERPENE_HUMAN[t];
+              const col  = info?.color || '#4ADE80';
+              return (
+                <motion.span key={t}
+                  initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.62 + i * 0.07, type: 'spring', stiffness: 300 }}
+                  style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20,
+                    background: `${col}12`, color: col, border: `1px solid ${col}2E` }}>
+                  {info?.icon} {info?.shortLabel} {Math.round((v / maxV) * 100)}%
+                </motion.span>
+              );
+            })}
           </div>
-        ) : (
-          <div className="text-center py-8">
-            <div className="text-4xl mb-3">🌱</div>
-            <p className="text-sm font-bold mb-1" style={{ color: "#4ADE80" }}>הפרופיל שלך מחכה לדיווחים</p>
-            <p className="text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>
-              דרגי זן אחד ביומן המעקב — ואנחנו נתחיל לצייר את המפה שלך
+        )}
+
+        {/* Avoided terpene warning — only for verified license */}
+        {licenseVerified && avoided.length > 0 && (
+          <div style={{ margin: '10px 16px 16px', padding: '10px 14px', borderRadius: 14,
+            background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.18)' }}>
+            <p style={{ fontSize: 11, color: '#FCA5A5', margin: 0 }}>
+              🛡️ <span style={{ fontWeight: 700 }}>חסום לבטיחותך:</span>{' '}
+              {avoided.map(([t]) => terpHuman(t, 'shortLabel')).join(', ')} — זוהה כטריגר בפרופיל שלך
             </p>
           </div>
         )}
 
-        {/* Terpene pills */}
-        {active.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-4 justify-center">
-            {active.slice(0, 6).map(([t, v], i) => (
-              <motion.span
-                key={t}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 + i * 0.06, type: "spring", stiffness: 280 }}
-                className="text-xs px-3 py-1.5 rounded-full font-bold"
-                style={{
-                  background: `${TERPENES[t]?.color || "#4ADE80"}1A`,
-                  color:      TERPENES[t]?.color || "#4ADE80",
-                  border:     `1.5px solid ${TERPENES[t]?.color || "#4ADE80"}44`,
-                  boxShadow:  `0 0 8px ${TERPENES[t]?.color || "#4ADE80"}18`,
-                }}
-              >
-                {TERPENES[t]?.he} {Math.round((v / maxV) * 100)}%
-              </motion.span>
-            ))}
-          </div>
-        )}
-
-        {avoided.length > 0 && (
-          <div className="mt-3 rounded-xl px-3 py-2.5"
-            style={{ background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.18)" }}>
-            <p className="text-xs" style={{ color: "#FCA5A5" }}>
-              🛡️ <span className="font-bold">חסום לבטיחותך:</span>{" "}
-              {avoided.map(([t]) => TERPENES[t]?.he).join(", ")} — זוהה כטריגר בפרופיל שלך
-            </p>
-          </div>
-        )}
+        {/* Bottom spacer */}
+        {(!licenseVerified || avoided.length === 0) && <div style={{ height: 16 }} />}
       </motion.div>
 
       {/* ── 3. "What We Found For You" — warm micro-cards ──────────────────── */}
@@ -1574,7 +1998,7 @@ function Profile({ ans, ratings, goDNA }) {
                     <span className="text-lg">{sci?.aroma?.split(" ")[0] || "🌿"}</span>
                     <div>
                       <span className="font-bold text-sm" style={{ color: tColor }}>
-                        {TERPENES[t]?.he}
+                        {terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}
                       </span>
                       <span className="text-xs mx-2 font-medium" style={{ color: "rgba(255,255,255,0.45)" }}>—</span>
                       <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.80)" }}>
@@ -1744,30 +2168,26 @@ function Profile({ ans, ratings, goDNA }) {
 }
 
 function Basket({ scored, basket, setBasket, budget, setBudget, ph, setPh }) {
-  const [priceMin, setPriceMin] = useState(0);
-  const [priceMax, setPriceMax] = useState(500);
   const [budgetText, setBudgetText] = useState("");
 
-  const MONTHLY_QUOTA_G = 50; // monthly prescription allowance in grams
-  const AVG_UNIT_G = 10;      // each "unit" in basket = 10g
-  const effectiveBudget = budgetText !== "" ? Math.max(0, parseInt(budgetText, 10) || budget) : budget;
-  const pharm = (PHARMACIES || []).find((p) => p.id === ph);
-  const available = scored.filter((s) =>
-    s.pharmacies.includes(ph) &&
-    s.price >= priceMin &&
-    s.price <= priceMax
+  const MONTHLY_QUOTA_G = 50;
+  const AVG_UNIT_G = 10;
+  const effectiveBudget = budgetText !== "" ? (Math.max(0, parseInt(budgetText, 10) || budget)) : budget;
+  const pharm = (PHARMACIES || []).find(p => p.id === ph);
+
+  const available = scored.filter(s =>
+    (!ph || s.pharmacies.includes(ph)) && s.price <= effectiveBudget
   );
-  const items = basket.map((id) => scored.find((s) => s.id === id)).filter(Boolean);
+  const items = basket.map(id => scored.find(s => s.id === id)).filter(Boolean);
   const total = items.reduce((a, s) => a + s.price, 0);
   const quotaUsed = items.length * AVG_UNIT_G;
-  const quotaPct = Math.min(quotaUsed / MONTHLY_QUOTA_G, 1);
-  const budgetPct = Math.min(total / effectiveBudget, 1);
+  const budgetPct = Math.min(total / Math.max(effectiveBudget, 1), 1);
+  const quotaPct  = Math.min(quotaUsed / MONTHLY_QUOTA_G, 1);
   const overBudget = total > effectiveBudget;
-  const overQuota = quotaUsed > MONTHLY_QUOTA_G;
+  const overQuota  = quotaUsed > MONTHLY_QUOTA_G;
 
   const autoBuild = () => {
-    const picked = [];
-    let sum = 0;
+    const picked = []; let sum = 0;
     for (const s of available) {
       if (sum + s.price <= effectiveBudget && (picked.length + 1) * AVG_UNIT_G <= MONTHLY_QUOTA_G) {
         picked.push(s.id); sum += s.price;
@@ -1777,158 +2197,166 @@ function Basket({ scored, basket, setBasket, budget, setBudget, ph, setPh }) {
   };
 
   return (
-    <div className="space-y-4 px-4 pt-4 pb-6">
+    <div className="space-y-3 px-4 pt-4 pb-6">
 
-      {/* HUD top panel */}
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        className="rounded-2xl p-4 relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg,rgba(8,18,12,0.98) 0%,rgba(14,28,18,0.97) 100%)", border: "1.5px solid rgba(74,222,128,0.18)" }}>
-        <div className="text-sm font-bold text-right mb-4" style={{ color: C.ink }}>תכנון קנייה חודשית 🗓️</div>
+        className="rounded-2xl p-4"
+        style={{ background: "linear-gradient(145deg,rgba(5,13,7,0.98),rgba(9,20,12,0.97))", border: "1.5px solid rgba(74,222,128,0.18)" }}>
+        <h3 className="font-bold text-base mb-1" style={{ color: "#F0FDF4" }}>🗓️ תכנון קנייה חודשית</h3>
+        <p className="text-xs leading-relaxed mb-1.5" style={{ color: "rgba(187,247,208,0.58)" }}>
+          מה לקנות החודש, איזו קטגוריה, כמה גרם — מותאם לפרופיל הטרפנים שלך
+        </p>
+        <p className="text-xs" style={{ color: "rgba(187,247,208,0.38)" }}>
+          💡 המחיר הסופי מתעדכן אצל בית המרקחת — מחירים ומלאי משתנים
+        </p>
+      </motion.div>
 
-        {/* Dual gauge row */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {/* Budget gauge */}
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.10)" }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-lg font-black" style={{ color: overBudget ? "#FCA5A5" : C.accent }}>
-                ₪{total}
-              </span>
-              <span className="text-xs" style={{ color: "rgba(187,247,208,0.50)" }}>תקציב</span>
-            </div>
-            <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
-              <motion.div className="h-full rounded-full"
-                initial={{ width: 0 }} animate={{ width: `${budgetPct * 100}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                style={{ background: overBudget ? "#FCA5A5" : "linear-gradient(90deg,#4ADE80,#22C55E)" }} />
-            </div>
-            <div className="text-xs mt-1" style={{ color: "rgba(187,247,208,0.40)" }}>מתוך ₪{effectiveBudget}</div>
-          </div>
-
-          {/* Quota gauge */}
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.10)" }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-lg font-black" style={{ color: overQuota ? "#FCA5A5" : "#C084FC" }}>
-                {quotaUsed}ג׳
-              </span>
-              <span className="text-xs" style={{ color: "rgba(187,247,208,0.50)" }}>מכסה חודשית</span>
-            </div>
-            <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
-              <motion.div className="h-full rounded-full"
-                initial={{ width: 0 }} animate={{ width: `${quotaPct * 100}%` }}
-                transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
-                style={{ background: overQuota ? "#FCA5A5" : "linear-gradient(90deg,#C084FC,#A855F7)" }} />
-            </div>
-            <div className="text-xs mt-1" style={{ color: "rgba(187,247,208,0.40)" }}>מתוך {MONTHLY_QUOTA_G}ג׳ (רישיון)</div>
-          </div>
-        </div>
-
-        {/* Budget slider */}
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center rounded-lg border px-2 py-1 gap-1"
-              style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(74,222,128,0.15)", minWidth: 80 }}>
-              <span className="text-xs font-bold" style={{ color: C.accent }}>₪</span>
-              <input type="number" min="0" max="9999" value={budgetText || effectiveBudget}
-                onChange={e => setBudgetText(e.target.value)}
-                className="w-14 text-xs font-bold bg-transparent outline-none text-right"
-                style={{ color: C.ink }} />
-            </div>
-            <span className="text-xs font-semibold" style={{ color: C.ink }}>תקציב חודשי</span>
+      {/* Settings row: budget + pharmacy */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl p-3" style={{ background: "rgba(8,14,10,0.92)", border: "1px solid rgba(74,222,128,0.13)" }}>
+          <div className="text-xs font-semibold mb-2 text-right" style={{ color: "rgba(187,247,208,0.50)" }}>תקציב חודשי</div>
+          <div className="flex items-center gap-1 rounded-xl border px-2.5 py-2 mb-2"
+            style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(74,222,128,0.22)" }}>
+            <span className="font-bold text-sm" style={{ color: "#4ADE80" }}>₪</span>
+            <input type="number" min="0" max="9999" value={budgetText || effectiveBudget}
+              onChange={e => setBudgetText(e.target.value)}
+              className="flex-1 bg-transparent outline-none text-right text-sm font-bold"
+              style={{ color: "#F0FDF4", minWidth: 0 }} />
           </div>
           <input type="range" min="200" max="2000" step="50" value={effectiveBudget}
             onChange={e => { setBudget(+e.target.value); setBudgetText(""); }}
-            className="w-full" style={{ accentColor: C.accent }} />
+            className="w-full" style={{ accentColor: "#4ADE80" }} />
         </div>
 
-        {/* Price range */}
-        <div className="mb-3 space-y-2">
-          <div className="text-xs font-semibold text-right" style={{ color: "rgba(187,247,208,0.60)" }}>טווח מחיר ל-10ג׳</div>
-          {[
-            { label: "מינ׳", val: priceMin, set: v => setPriceMin(Math.min(v, priceMax - 10)), min: 0, max: 490 },
-            { label: "מקס׳", val: priceMax, set: v => setPriceMax(Math.max(v, priceMin + 10)), min: 10, max: 500 },
-          ].map(({ label, val, set, min, max }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className="text-xs w-10 text-right font-semibold" style={{ color: "rgba(187,247,208,0.45)" }}>₪{val}</span>
-              <input type="range" min={min} max={max} step="10" value={val}
-                onChange={e => set(+e.target.value)} className="flex-1" style={{ accentColor: C.accent }} />
-              <span className="text-xs w-8 text-right" style={{ color: "rgba(187,247,208,0.40)" }}>{label}</span>
+        <div className="rounded-2xl p-3" style={{ background: "rgba(8,14,10,0.92)", border: "1px solid rgba(74,222,128,0.13)" }}>
+          <div className="text-xs font-semibold mb-2 text-right" style={{ color: "rgba(187,247,208,0.50)" }}>בית מרקחת</div>
+          {pharm ? (
+            <div className="flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold"
+              style={{ background: "rgba(74,222,128,0.10)", border: "1px solid rgba(74,222,128,0.28)", color: "#4ADE80" }}>
+              <button onClick={() => setPh(null)} style={{ color: "rgba(187,247,208,0.40)", fontSize: 14, lineHeight: 1 }}>✕</button>
+              <span className="text-right flex-1 mx-2 truncate">{pharm.name}</span>
             </div>
-          ))}
+          ) : (
+            <select value={ph || ""} onChange={e => setPh(e.target.value || null)}
+              className="w-full rounded-xl px-3 py-2.5 text-xs font-semibold text-right"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.18)",
+                color: "#BBF7D0", outline: "none", appearance: "none", WebkitAppearance: "none" }}>
+              <option value="">כל בתי המרקחת</option>
+              {(PHARMACIES || []).map(p => (
+                <option key={p.id} value={p.id}>{p.name} · {p.city}</option>
+              ))}
+            </select>
+          )}
+          <p className="text-xs mt-1.5" style={{ color: "rgba(187,247,208,0.32)" }}>
+            {pharm?.delivery ? "🚚 עם משלוח" : pharm ? "🏪 איסוף עצמי" : `${(PHARMACIES||[]).length} סניפים זמינים`}
+          </p>
         </div>
+      </div>
 
-        {/* Pharmacy selector */}
-        <div className="mb-4">
-          <div className="text-xs font-semibold text-right mb-1.5" style={{ color: "rgba(187,247,208,0.60)" }}>בית מרקחת</div>
-          <div className="flex flex-wrap gap-1.5">
-            {(PHARMACIES || []).map((p) => (
-              <Chip key={p.id} on={ph === p.id} onClick={() => setPh(p.id)}>
-                {p.name} · {p.city}{p.delivery ? " 🚚" : ""}
-              </Chip>
-            ))}
+      {/* Gauges */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl p-3" style={{ background: "rgba(8,14,10,0.92)", border: `1px solid ${overBudget ? "rgba(248,113,113,0.22)" : "rgba(74,222,128,0.11)"}` }}>
+          <div className="flex justify-between items-start mb-1.5">
+            <span className="text-xs" style={{ color: "rgba(187,247,208,0.42)" }}>/ ₪{effectiveBudget}</span>
+            <span className="font-black text-xl" style={{ color: overBudget ? "#FCA5A5" : "#4ADE80" }}>₪{total}</span>
           </div>
+          <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+            <motion.div className="h-full rounded-full"
+              initial={{ width: 0 }} animate={{ width: `${budgetPct * 100}%` }}
+              transition={{ duration: 0.75, ease: "easeOut" }}
+              style={{ background: overBudget ? "#FCA5A5" : "linear-gradient(90deg,#4ADE80,#22C55E)" }} />
+          </div>
+          <div className="text-xs mt-1 font-semibold" style={{ color: "rgba(187,247,208,0.40)" }}>תקציב</div>
         </div>
-
-        <motion.button onClick={autoBuild} whileTap={{ scale: 0.97 }}
-          className="w-full py-3 rounded-xl font-bold text-sm"
-          style={{ background: "linear-gradient(135deg,#1E4D36,#4ADE80)", color: "#fff", boxShadow: "0 0 18px rgba(74,222,128,0.22)" }}>
-          🌿 בנה לי תוכנית לפי הפרופיל שלי
-        </motion.button>
-      </motion.div>
-
-      {/* Item list */}
-      {items.length > 0 && (
-        <motion.div className="rounded-2xl border overflow-hidden"
-          style={{ background: C.card, borderColor: C.line }}
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}>
-          <div className="px-4 py-3 border-b flex items-center justify-between"
-            style={{ background: C.soft, borderColor: C.line }}>
-            <span className="text-xs font-bold" style={{ color: C.accent }}>{items.length} פריטים נבחרו</span>
-            <span className="text-sm font-bold" style={{ color: C.ink }}>הרשימה שלך {pharm ? `· ${pharm.name}` : ""}</span>
+        <div className="rounded-2xl p-3" style={{ background: "rgba(8,14,10,0.92)", border: `1px solid ${overQuota ? "rgba(248,113,113,0.22)" : "rgba(192,132,252,0.11)"}` }}>
+          <div className="flex justify-between items-start mb-1.5">
+            <span className="text-xs" style={{ color: "rgba(187,247,208,0.42)" }}>/ {MONTHLY_QUOTA_G}ג׳</span>
+            <span className="font-black text-xl" style={{ color: overQuota ? "#FCA5A5" : "#C084FC" }}>{quotaUsed}ג׳</span>
           </div>
-          {items.map((s) => (
-            <div key={s.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0"
-              style={{ borderColor: "rgba(74,222,128,0.07)" }}>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setBasket(basket.filter((x) => x !== s.id))}
-                  className="text-xs font-bold px-2.5 py-1.5 rounded-lg"
-                  style={{ color: "#FCA5A5", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.18)" }}>
-                  הסר
-                </button>
-                <span className="text-sm font-bold" style={{ color: C.ink }}>₪{s.price}</span>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold text-sm" style={{ color: C.ink }}>{s.name}</div>
-                <div className="flex gap-2 justify-end mt-0.5">
-                  <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold"
-                    style={{ background: "rgba(74,222,128,0.09)", color: C.accent }}>{s.cat}</span>
-                  <span className="text-xs font-bold" style={{ color: C.accent }}>{s.match}%</span>
+          <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+            <motion.div className="h-full rounded-full"
+              initial={{ width: 0 }} animate={{ width: `${quotaPct * 100}%` }}
+              transition={{ duration: 0.75, ease: "easeOut", delay: 0.1 }}
+              style={{ background: overQuota ? "#FCA5A5" : "linear-gradient(90deg,#C084FC,#A855F7)" }} />
+          </div>
+          <div className="text-xs mt-1 font-semibold" style={{ color: "rgba(187,247,208,0.40)" }}>מכסה (רישיון)</div>
+        </div>
+      </div>
+
+      {/* Build button */}
+      <motion.button onClick={autoBuild} whileTap={{ scale: 0.97 }}
+        className="w-full py-3 rounded-xl font-bold text-sm"
+        style={{ background: "linear-gradient(135deg,#1E4D36,#4ADE80)", color: "#fff", boxShadow: "0 0 18px rgba(74,222,128,0.20)" }}>
+        🌿 בנה לי תוכנית לפי הפרופיל שלי
+      </motion.button>
+
+      {/* Plan list */}
+      {items.length > 0 ? (
+        <motion.div className="rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(74,222,128,0.14)", background: "rgba(6,11,8,0.94)" }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+          <div className="flex items-center justify-between px-4 py-3"
+            style={{ borderBottom: "1px solid rgba(74,222,128,0.08)", background: "rgba(74,222,128,0.05)" }}>
+            <span className="text-xs font-bold" style={{ color: "#4ADE80" }}>{items.length} זנים · {quotaUsed}ג׳</span>
+            <span className="text-sm font-bold" style={{ color: "#F0FDF4" }}>
+              התכנון שלך{pharm ? ` · ${pharm.name}` : ""}
+            </span>
+          </div>
+
+          {items.map((s, idx) => {
+            const where = (PHARMACIES || []).find(p => s.pharmacies?.includes(p.id) && (!ph || p.id === ph))
+                       || (PHARMACIES || []).find(p => s.pharmacies?.includes(p.id));
+            return (
+              <div key={s.id} className="px-4 py-3"
+                style={{ borderBottom: idx < items.length - 1 ? "1px solid rgba(74,222,128,0.06)" : "none" }}>
+                <div className="flex items-start gap-2">
+                  <button onClick={() => setBasket(basket.filter(x => x !== s.id))}
+                    className="text-xs font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 mt-0.5"
+                    style={{ color: "#FCA5A5", background: "rgba(248,113,113,0.09)", border: "1px solid rgba(248,113,113,0.16)" }}>
+                    הסר
+                  </button>
+                  <div className="flex-1 text-right min-w-0">
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap mb-1">
+                      <span className="font-bold text-sm" style={{ color: "#F0FDF4" }}>{s.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                        style={{ background: "rgba(74,222,128,0.10)", color: "#4ADE80" }}>{s.cat}</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-3 text-xs" style={{ color: "rgba(187,247,208,0.50)" }}>
+                      <span style={{ fontWeight: 700, color: "#C084FC" }}>~10ג׳</span>
+                      {where && <span>{where.delivery ? "🚚" : "🏪"} {where.name}</span>}
+                      <span style={{ color: "#4ADE80", fontWeight: 700 }}>{s.match}% התאמה</span>
+                    </div>
+                  </div>
+                  <span className="font-bold text-sm flex-shrink-0" style={{ color: "#F0FDF4" }}>₪{s.price}</span>
                 </div>
               </div>
-            </div>
-          ))}
-          <div className="px-4 py-3 flex justify-between font-bold" style={{ borderTop: `1px solid ${C.line}` }}>
-            <span style={{ color: overBudget ? "#FCA5A5" : C.accent }}>₪{total} / ₪{effectiveBudget}</span>
-            <span style={{ color: C.ink }}>סה״כ</span>
+            );
+          })}
+
+          <div className="flex items-center justify-between px-4 py-3 font-bold"
+            style={{ borderTop: "1px solid rgba(74,222,128,0.10)" }}>
+            <span style={{ color: overBudget ? "#FCA5A5" : "#4ADE80" }}>₪{total} / ₪{effectiveBudget}</span>
+            <span style={{ color: "#F0FDF4" }}>סה״כ</span>
           </div>
           {overBudget && (
             <p className="text-xs pb-3 font-semibold text-center" style={{ color: "#FCA5A5" }}>
               ⚠️ חריגה מהתקציב — הסירו פריטים או הגדילו תקציב
             </p>
           )}
-          {!pharm?.delivery && pharm && (
+          {pharm && !pharm.delivery && (
             <p className="text-xs pb-3 font-semibold text-center" style={{ color: "#FBBF24" }}>
-              🏪 בית מרקחת זה ללא משלוחים — איסוף עצמי בלבד
+              🏪 {pharm.name} — איסוף עצמי בלבד, אין משלוח
             </p>
           )}
         </motion.div>
-      )}
-
-      {items.length === 0 && (
-        <div className="text-center py-8 rounded-2xl border" style={{ background: C.soft, borderColor: C.line }}>
-          <div className="text-2xl mb-2">🛒</div>
-          <p className="text-sm font-semibold" style={{ color: C.ink }}>הרשימה ריקה</p>
-          <p className="text-xs mt-1" style={{ color: "rgba(187,247,208,0.45)" }}>
-            לחצו "בנה לי תוכנית" למעלה, או הוסיפו זנים מהמלצות
+      ) : (
+        <div className="text-center py-8 rounded-2xl"
+          style={{ background: "rgba(8,14,10,0.70)", border: "1px solid rgba(74,222,128,0.08)" }}>
+          <div className="text-3xl mb-2">🛒</div>
+          <p className="text-sm font-bold mb-1" style={{ color: "#F0FDF4" }}>התכנון ריק</p>
+          <p className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>
+            לחצו "בנה לי תוכנית" — נמצא את הזנים הכי מתאימים לפרופיל שלך מהתפריט הנוכחי
           </p>
         </div>
       )}
@@ -2610,10 +3038,19 @@ function Cooking() {
                   </div>
                   <div className="flex-1 text-right min-w-0">
                     <div className="font-bold text-sm" style={{ color: C.ink }}>{r.name}</div>
-                    <div className="text-xs mt-0.5 flex gap-2 justify-end flex-wrap" style={{ color: "rgba(187,247,208,0.55)" }}>
+                    <div className="text-xs mt-0.5 flex gap-1.5 justify-end flex-wrap items-center" style={{ color: "rgba(187,247,208,0.55)" }}>
                       <span>⏱️ {r.time}</span>
                       <span>·</span>
                       <span>💊 {r.dose}</span>
+                      {r.difficulty && (
+                        <>
+                          <span>·</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ background: "rgba(74,222,128,0.10)", color: "#4ADE80", fontSize: "0.65rem" }}>
+                            {r.difficulty}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <motion.span animate={{ rotate: isOpen ? 45 : 0 }} transition={{ duration: 0.2 }}
@@ -2623,14 +3060,47 @@ function Cooking() {
                   {isOpen && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}>
-                      <div className="px-4 pb-4">
-                        <div className="h-px mb-3" style={{ background: "rgba(74,222,128,0.10)" }} />
-                        <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.80)" }}>{r.note}</p>
-                        <div className="mt-3 flex items-center gap-2 text-xs"
-                          style={{ color: "rgba(187,247,208,0.45)", borderTop: "1px solid rgba(74,222,128,0.08)", paddingTop: 10 }}>
-                          <span>💡</span>
-                          <span>זכרו: כל מנה = חכו שעתיים לפני שממשיכים</span>
-                        </div>
+                      <div className="px-4 pb-4 space-y-3">
+                        <div className="h-px" style={{ background: "rgba(74,222,128,0.10)" }} />
+                        {r.ingredients && (
+                          <div>
+                            <div className="text-xs font-bold mb-1.5 text-right" style={{ color: C.accent }}>🛒 מצרכים</div>
+                            <ul className="space-y-1">
+                              {r.ingredients.map((ing, i) => (
+                                <li key={i} className="text-xs flex gap-2 items-start justify-end text-right"
+                                  style={{ color: "rgba(187,247,208,0.80)" }}>
+                                  <span>{ing}</span>
+                                  <span className="flex-shrink-0 text-xs mt-0.5" style={{ color: C.accent }}>·</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {r.steps && (
+                          <div>
+                            <div className="text-xs font-bold mb-1.5 text-right" style={{ color: C.accent }}>📋 הכנה</div>
+                            <ol className="space-y-2">
+                              {r.steps.map((step, i) => (
+                                <li key={i} className="text-xs flex gap-2 items-start text-right"
+                                  style={{ color: "rgba(187,247,208,0.80)" }}>
+                                  <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center font-black text-xs mt-0.5"
+                                    style={{ background: "rgba(74,222,128,0.12)", color: C.accent }}>{i + 1}</span>
+                                  <span className="flex-1">{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                        {!r.ingredients && r.note && (
+                          <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.80)" }}>{r.note}</p>
+                        )}
+                        {r.tip && (
+                          <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs"
+                            style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)", color: "rgba(251,191,36,0.85)" }}>
+                            <span className="flex-shrink-0">💡</span>
+                            <span>{r.tip}</span>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -2670,14 +3140,25 @@ function Knowledge({ ans, scored }) {
   const order = [...mine, ...others];
   const [open, setOpen] = useState(mine[0] || order[0]);
 
+  const evidenceBadge = (rate) => {
+    if (!rate) return null;
+    if (rate >= 90) return { label: "עדות חזקה", color: "#4ADE80", bg: "rgba(74,222,128,0.10)" };
+    if (rate >= 70) return { label: "עדות בינונית", color: "#FBBF24", bg: "rgba(251,191,36,0.10)" };
+    return { label: "עדות מוגבלת", color: "#94A3B8", bg: "rgba(148,163,184,0.10)" };
+  };
+
   return (
     <div className="space-y-3">
       <div className="rounded-2xl p-4 border" style={{ background: C.soft, borderColor: C.line }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>📚 ידע מותאם להתוויה</h3>
         <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.65)" }}>
-          סרקנו מחקרים עדכניים ומצלבים אותם עם הגנטיקות שזמינות כרגע בתפריט. זהו מידע כללי
-          ואינו ייעוץ רפואי — כל החלטה על טיפול ומינון עם הרופא/ה המטפל/ת.
+          סרקנו מחקרים עדכניים ומצלבים אותם עם הגנטיקות הזמינות בתפריט. זהו מידע כללי ואינו ייעוץ רפואי — כל החלטה על טיפול ומינון עם הרופא/ה המטפל/ת.
         </p>
+        <div className="flex gap-2 flex-wrap mt-2.5 text-xs" style={{ color: "rgba(187,247,208,0.55)" }}>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: "#4ADE80" }} />עדות חזקה ≥90%</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: "#FBBF24" }} />עדות בינונית 70–89%</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: "#94A3B8" }} />עדות מוגבלת</span>
+        </div>
       </div>
 
       {order.map((id) => {
@@ -2685,15 +3166,25 @@ function Knowledge({ ans, scored }) {
         const isOpen = open === id;
         const isMine = mine.includes(id);
         const matches = isOpen ? crossIndicationWithMenu(id, scored) : [];
+        const badge = evidenceBadge(p.successRate);
         return (
           <div key={id} className="rounded-2xl border overflow-hidden"
             style={{ background: C.card, borderColor: isOpen ? C.accent : C.line }}>
             <button onClick={() => setOpen(isOpen ? null : id)}
-              className="w-full flex items-center justify-between p-4 text-right">
-              <span className="font-bold" style={{ color: C.ink }}>
-                {p.label}{isMine && <span className="text-xs mr-2 px-1.5 py-0.5 rounded-full" style={{ color: "#C084FC", background: "rgba(192,132,252,0.10)" }}>★ שלי</span>}
+              className="w-full flex items-center justify-between p-4 text-right gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {badge && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                    style={{ background: badge.bg, color: badge.color, fontSize: "0.6rem" }}>
+                    {badge.label}
+                  </span>
+                )}
+                <span style={{ color: C.accent, fontWeight: 700 }}>{isOpen ? "−" : "+"}</span>
+              </div>
+              <span className="font-bold text-right flex-1" style={{ color: C.ink }}>
+                {p.label}
+                {isMine && <span className="text-xs mr-2 px-1.5 py-0.5 rounded-full" style={{ color: "#C084FC", background: "rgba(192,132,252,0.10)" }}>★ שלי</span>}
               </span>
-              <span style={{ color: C.accent, fontWeight: 700 }}>{isOpen ? "−" : "+"}</span>
             </button>
             {isOpen && (
               <div className="px-4 pb-4 space-y-3">
@@ -2702,11 +3193,11 @@ function Knowledge({ ans, scored }) {
                   <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.10)" }}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-bold" style={{ color: C.ink }}>📊 שיעור הצלחה מדווח</span>
-                      <span className="text-lg font-bold" style={{ color: C.accent }}>{p.successRate}%</span>
+                      <span className="text-lg font-bold" style={{ color: badge?.color || C.accent }}>{p.successRate}%</span>
                     </div>
                     <div className="h-2 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
                       <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${p.successRate}%` }}
-                        transition={{ duration: 0.8, ease: "easeOut" }} style={{ background: C.accent }} />
+                        transition={{ duration: 0.8, ease: "easeOut" }} style={{ background: badge?.color || C.accent }} />
                     </div>
                     {p.successNote && (
                       <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "rgba(187,247,208,0.65)" }}>{p.successNote}</p>
@@ -2714,11 +3205,14 @@ function Knowledge({ ans, scored }) {
                   </div>
                 )}
                 <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div className="text-xs font-bold mb-1" style={{ color: C.ink }}>⚖️ יחסי THC:CBD — מה המחקרים שסרקנו אומרים</div>
+                  <div className="text-xs font-bold mb-1" style={{ color: C.ink }}>⚖️ יחסי THC:CBD — מה המחקרים אומרים</div>
                   <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.65)" }}>{p.ratioNote}</p>
                 </div>
                 {p.israelNote && (
-                  <p className="text-xs" style={{ color: C.accent, fontWeight: 600 }}>🇮🇱 {p.israelNote}</p>
+                  <div className="rounded-xl px-3 py-2.5 text-xs leading-relaxed font-semibold"
+                    style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)", color: C.accent }}>
+                    🇮🇱 {p.israelNote}
+                  </div>
                 )}
 
                 <div className="border-t pt-3" style={{ borderColor: "rgba(74,222,128,0.10)" }}>
@@ -2741,14 +3235,44 @@ function Knowledge({ ans, scored }) {
                   ))}
                 </div>
 
-                <p className="text-xs pt-1" style={{ color: "rgba(187,247,208,0.40)" }}>
-                  📖 מקור: {p.research}
-                </p>
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(74,222,128,0.08)" }}>
+                  <div className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: "rgba(187,247,208,0.55)" }}>
+                    <span>📖</span> מקורות אקדמיים
+                  </div>
+                  <div className="space-y-2">
+                    {p.research.split(" · ").map((ref, ri) => (
+                      <div key={ri} className="flex items-start gap-2">
+                        <span className="flex-shrink-0 text-xs font-black mt-0.5" style={{ color: "rgba(74,222,128,0.40)" }}>[{ri + 1}]</span>
+                        <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.48)", fontStyle: "italic" }}>{ref.trim()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Cannabinoid & Terpene Science mini-card */}
+      <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.line }}>
+        <div className="p-4 space-y-3">
+          <h3 className="font-bold mb-0.5" style={{ color: C.ink }}>🔬 מדע קצר: קנבינואידים וטרפנים</h3>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.60)" }}>
+            הכימיה מאחורי ההשפעה — לא לפחד ממנה, פשוט לדעת.
+          </p>
+          {[
+            { label: "THC — הקנבינואיד הפסיכואקטיבי", color: "#FBBF24", body: 'נקשר לקולטן CB1 במוח. אחראי לאפקט הפסיכואקטיבי, לשיכוך כאב ולעידוד שינה. מינון גבוה מדי — חרדה ופאראנויה. מינון מתון — הרגעה, שיפור שינה, שיכוך כאב. הכלל: להתחיל נמוך, לטטר לאט.' },
+            { label: "CBD — מאזן ולא פסיכואקטיבי", color: "#C084FC", body: "לא גורם לעוויינות. מאזן את ההשפעה של THC, מפחית חרדה, נוגד דלקת. נחקר לאפילפסיה (אפידיולקס — התרופה המאושרת). פועל גם כשעומד לבד, גם מחזק את ה-THC ב'אפקט פמליה'." },
+            { label: "טרפנים — הניחוח שמשנה את הכל", color: "#4ADE80", body: "הטרפנים הם שמשנים את אופי ההשפעה. מירצן (ריח אדמה) = מרגיע. לימונן (ריח לימון) = מרים מצב רוח. פינן (ריח אורן) = ערנות. קריופילן (ריח פלפל) = נוגד כאב. לינלול (ריח לבנדר) = נוגד חרדה. אותו THC עם טרפנים שונים = חוויה אחרת לגמרי." },
+          ].map(({ label, color, body }, i) => (
+            <div key={i} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}22` }}>
+              <div className="text-xs font-bold mb-1" style={{ color }}>{label}</div>
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(187,247,208,0.65)" }}>{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.line }}>
         <div className="p-4">
@@ -2993,157 +3517,61 @@ function parseMenu(text, ans, scored, serverProducts = null) {
 function MenuScan({ ans, scored, basket, addToBasket, user }) {
   const [text, setText] = useState("");
   const [results, setResults] = useState(null);
-  const [aiParsing, setAiParsing] = useState(false);
-  const [aiError, setAiError] = useState(null);
+  const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const [fetchingUrl, setFetchingUrl] = useState(false);
-  const [inputMode, setInputMode] = useState("file"); // "file" | "url" | "text"
+  const [ocrPct, setOcrPct] = useState(0);
+  const [inputMode, setInputMode] = useState("file"); // "file" | "text" | "manual"
   const fileRef = useRef();
   const camRef = useRef();
 
-  // טקסט תפריט → ניסיון שרת תחילה, fallback למנוע המקומי (fuzzy)
-  const scan = async () => {
+  // ── Paste / type text → decode locally ─────────────────────────────────────
+  const scan = () => {
     const trimmed = text.trim();
-    if (!trimmed) {
-      setAiError("הדביקו טקסט תפריט כדי לפענח — שורה לכל מוצר");
-      return;
-    }
-    setScanning(true);
-    setAiError(null);
+    if (!trimmed) { setError("הדביקו טקסט תפריט — שורה לכל מוצר"); return; }
+    setScanning(true); setError(null);
     try {
-      const lines = trimmed.split("\n").map(l => l.trim()).filter(Boolean);
-      if (!lines.length) { setResults([]); setScanning(false); return; }
-      let serverProducts = null;
-      try {
-        const data = await api.parseMenu({ text: trimmed, user_id: user?.id || null });
-        if (data?.products?.some((p) => p.match != null) && !data.db_offline) {
-          serverProducts = data.products;
-        }
-      } catch { /* שרת לא זמין — ממשיכים עם מנוע מקומי */ }
-      const res = parseMenu(trimmed, ans, scored, serverProducts);
-      setResults(res.length ? res : null);
-      if (!res.length) setAiError("לא זוהו מוצרים — ודאו שהתפריט כתוב שורה לכל מוצר");
-    } catch (err) {
-      console.warn("scan error:", err.message);
-      try { setResults(parseMenu(text, ans, scored)); } catch {}
+      const res = decodeMenu(trimmed, ans, scored);
+      setResults(res.length ? res : []);
+      if (!res.length) setError("לא זוהו מוצרים — ודאו שכל שורה כוללת שם זן");
     } finally {
       setScanning(false);
     }
   };
 
-  // טעינת תפריט מ-URL דרך הבקאנד + fallback מדומה
-  const fetchUrl = async () => {
-    const url = urlInput.trim();
-    if (!url) return;
-    setFetchingUrl(true); setAiError(null);
-    try {
-      const res = await fetch("/api/fetch-menu", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const extracted = data.text || data.raw_text || "";
-        if (extracted && extracted.length > 20) {
-          setText(extracted);
-          setResults(parseMenu(extracted, ans, scored));
-          setInputMode("text");
-          return;
-        }
-      }
-      // Server couldn't fetch — show instructional fallback
-      setAiError(
-        `לא הצלחנו לגשת לכתובת זו. בתי מרקחת רבים חוסמים גישה אוטומטית. ` +
-        `פתחו את הדף בדפדפן, העתיקו את התפריט ידנית, והדביקו בלשונית ✏️ טקסט.`
-      );
-      setInputMode("text");
-    } catch {
-      setAiError("שגיאת חיבור לשרת — נסו שוב, או הדביקו ידנית");
-      setInputMode("text");
-    } finally {
-      setFetchingUrl(false);
-    }
-  };
-
-  // המרת קובץ ל-base64
-  const fileToBase64 = (file) => new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload = () => res(reader.result.split(",")[1]);
-    reader.onerror = () => rej(new Error("שגיאה בקריאת הקובץ"));
-    reader.readAsDataURL(file);
-  });
-
+  // ── Photo / PDF → Tesseract OCR → decode locally ────────────────────────
   const processFile = async (file) => {
     if (!file) return;
-    setAiError(null);
+    setError(null);
+    const isImg = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name);
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-    const isImg = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name);
-    if (!isPdf && !isImg) {
-      setAiError("אפשר להעלות תמונה (JPG/PNG/WEBP) או PDF בלבד");
+    if (!isImg && !isPdf) {
+      setError("אפשר להעלות תמונה (JPG/PNG/WEBP) בלבד — PDF מגיע בקרוב");
       return;
     }
-    setAiParsing(true);
+    if (isPdf) {
+      setError("PDF: ייצאו כתמונה או הדביקו את הטקסט ידנית בלשונית ✏️ טקסט");
+      setInputMode("text");
+      return;
+    }
+    setScanning(true); setOcrPct(0);
     try {
-      const base64 = await fileToBase64(file);
-      const media_type = isPdf ? "application/pdf" : (file.type || "image/jpeg");
-
-      // Route through /api/parse-menu — has proper API-key fallback, no 500s
-      const response = await fetch("/api/parse-menu", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_base64: base64, media_type, user_id: user?.id || null }),
-      });
-
-      // Network failure
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const hint = errData?.error?.message || "";
-        // Gracefully fall back to text mode
-        setAiError("ה-AI אינו זמין כרגע — עברו ללשונית ✏️ טקסט והדביקו ידנית");
+      const raw = await ocrFile(file, setOcrPct);
+      if (!raw || raw.trim().length < 5) {
+        setError("לא הצלחנו לקרוא את התמונה — ודאו שהטקסט ברור, או הדביקו ידנית");
         setInputMode("text");
         return;
       }
-
-      const data = await response.json();
-
-      // No API key / OCR not configured — fallback with helpful message (not an error)
-      if (data.no_api_key) {
-        setAiError("מפתח AI לא מוגדר בשרת — הדביקו את שמות הזנים ידנית בלשונית ✏️ טקסט");
-        setInputMode("text");
-        return;
-      }
-
-      // Products returned from OCR — build readable text lines + parse locally
-      const products = data.products || [];
-      if (products.length > 0) {
-        // Build text lines with category info where available
-        const lines = products.map(p => {
-          const name = p.commercial || p.name || "";
-          const cat  = p.category  || p.cat  || "";
-          const price = p.price ? `— ${p.price}₪` : "";
-          return [name, cat, price].filter(Boolean).join(" ");
-        }).filter(Boolean);
-        const extractedText = lines.join("\n");
-        setText(extractedText);
-        setResults(parseMenu(extractedText, ans, scored, data.db_offline ? null : products));
-        setInputMode("text");
-      } else if (data.raw_text) {
-        // Server extracted raw text but couldn't parse products — give it to local parser
-        setText(data.raw_text);
-        setResults(parseMenu(data.raw_text, ans, scored));
-        setInputMode("text");
-      } else {
-        setAiError("לא זוהו מוצרים — נסו תמונה ברורה יותר, או הדביקו שמות הזנים ידנית");
-        setInputMode("text");
-      }
+      setText(raw);
+      const res = decodeMenu(raw, ans, scored);
+      setResults(res.length ? res : []);
+      if (!res.length) setError("OCR הצליח אבל לא זיהינו שמות זנים — בדקו בלשונית ✏️ טקסט");
     } catch (err) {
-      setAiError("שגיאת חיבור — ודאו שה-backend רץ, או הדביקו ידנית");
+      console.warn("OCR error:", err.message);
+      setError("שגיאת OCR — נסו תמונה ברורה יותר, או הדביקו ידנית בלשונית ✏️ טקסט");
       setInputMode("text");
     } finally {
-      setAiParsing(false);
+      setScanning(false);
     }
   };
 
@@ -3152,139 +3580,127 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
       <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false);
-          const f = e.dataTransfer.files?.[0]; if (f) { setInputMode("file"); processFile(f); } }}>
+        onDrop={(e) => {
+          e.preventDefault(); setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f) { setInputMode("file"); processFile(f); }
+        }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>פענוח תפריט 🌿</h3>
         <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.65)" }}>
-          העלו תמונה, PDF, כתובת URL, או הדביקו טקסט — נסרוק ונסמן מה מתאים לרישיון שלכם, ונחשוף כפילויות.
+          צלמו תפריט, הדביקו טקסט, או הקלידו ידנית — הכל עובד במכשיר ללא רשת.
         </p>
 
         {/* Mode tabs */}
-        <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{background:C.soft}}>
-          {[{id:"file",label:"📎 קובץ"},{ id:"url",label:"🔗 URL" },{ id:"text",label:"✏️ טקסט"}].map(m => (
+        <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: C.soft }}>
+          {[
+            { id: "file",   label: "📷 תמונה" },
+            { id: "text",   label: "✏️ הדבקה" },
+            { id: "manual", label: "⌨️ ידני" },
+          ].map((m) => (
             <button key={m.id} onClick={() => setInputMode(m.id)}
               className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all"
               style={{
                 background: inputMode === m.id ? "rgba(74,222,128,0.10)" : "transparent",
                 color: inputMode === m.id ? "#4ADE80" : "rgba(187,247,208,0.50)",
-                boxShadow: inputMode === m.id ? "0 1px 4px rgba(0,0,0,.08)" : "none",
               }}>
               {m.label}
             </button>
           ))}
         </div>
 
-        {/* File mode */}
+        {/* ── Photo / camera mode ─────────────────────────────── */}
         {inputMode === "file" && (
           <div className="rounded-xl border-2 border-dashed p-4 mb-3 text-center"
-            style={{ borderColor: dragOver ? C.accent : "#C9D8CC", background: dragOver ? "rgba(74,222,128,0.12)" : C.soft }}>
-            <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
+            style={{ borderColor: dragOver ? C.accent : "rgba(74,222,128,0.30)", background: dragOver ? "rgba(74,222,128,0.08)" : C.soft }}>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
             <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
               onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => fileRef.current?.click()} disabled={aiParsing}
+            <div className="flex gap-2 justify-center mb-2">
+              <button onClick={() => fileRef.current?.click()} disabled={scanning}
                 className="font-bold text-sm px-4 py-2 rounded-xl text-white disabled:opacity-50"
-                style={{ background: C.accent }}>
-                {aiParsing ? "🤖 מנתח..." : "📎 תמונה / PDF"}
+                style={{ background: C.accent, color: "#061006" }}>
+                {scanning ? `🔍 קורא… ${ocrPct}%` : "📎 בחר תמונה"}
               </button>
-              <button onClick={() => camRef.current?.click()} disabled={aiParsing}
+              <button onClick={() => camRef.current?.click()} disabled={scanning}
                 className="font-bold text-sm px-4 py-2 rounded-xl border disabled:opacity-50"
                 style={{ borderColor: C.accent, color: C.accent, background: C.card }}>
                 📷 צלם
               </button>
             </div>
-            <p className="text-xs mt-2" style={{ color: "rgba(187,247,208,0.55)" }}>
-              או גררו לכאן קובץ · JPG / PNG / PDF
-            </p>
-            {aiParsing && (
-              <div className="mt-2 text-xs font-semibold" style={{color:C.accent}}>
-                🤖 מנתח עם AI — זה יכול לקחת עד 15 שניות...
+            {scanning && (
+              <div className="w-full rounded-full mt-2" style={{ background: "rgba(74,222,128,0.10)", height: 4 }}>
+                <div className="rounded-full h-full transition-all" style={{ width: `${ocrPct}%`, background: C.accent }} />
               </div>
             )}
-          </div>
-        )}
-
-        {/* URL mode */}
-        {inputMode === "url" && (
-          <div className="mb-3">
-            <div className="flex gap-2">
-              <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
-                placeholder="https://pharmacy.co.il/menu.pdf"
-                className="flex-1 rounded-xl border px-3 py-2.5 text-sm"
-                style={{borderColor:C.line,color:C.ink,background:C.bg}}
-                dir="ltr"
-                onKeyDown={e => e.key === "Enter" && fetchUrl()}/>
-              <button onClick={fetchUrl} disabled={!urlInput.trim() || fetchingUrl}
-                className="px-4 py-2.5 rounded-xl font-bold text-white text-sm disabled:opacity-40"
-                style={{background:C.accent}}>
-                {fetchingUrl ? "טוען..." : "טען"}
-              </button>
-            </div>
-            <p className="text-xs mt-1.5" style={{color:"rgba(187,247,208,0.45)"}}>
-              הדביקו קישור לתפריט PDF, תמונה, או עמוד HTML של בית מרקחת
+            <p className="text-xs mt-2" style={{ color: "rgba(187,247,208,0.45)" }}>
+              גררו תמונה לכאן · JPG / PNG / WEBP · OCR מקומי (ללא שרת)
             </p>
           </div>
         )}
 
-        {/* Text mode */}
-        {inputMode === "text" && (
+        {/* ── Paste text mode ─────────────────────────────────── */}
+        {(inputMode === "text" || inputMode === "manual") && (
           <div className="mb-3">
-            <textarea value={text} onChange={(e) => setText(e.target.value)}
-              rows={5} dir="rtl"
-              placeholder={"הדביקו כאן את תפריט בית המרקחת, שורה לכל מוצר:\n\nWedding Cake T22/C4 — 280₪\nאור T15/C3 — 225₪\nErez T10/C2 — 190₪\nIce Cream Cake T12/C12 — 260₪\n\nשגיאות כתיב? מתקנים אוטומטית לפי 357 זנים במאגר."}
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              dir="rtl"
+              placeholder={
+                inputMode === "text"
+                  ? "הדביקו כאן את תפריט בית המרקחת — שורה לכל מוצר:\n\nWedding Cake T22/C4 — 280₪\nאור T15/C3 — 225₪\nErez T10/C2 — 190₪\n\nשגיאות כתיב? מתקנים אוטומטית לפי 342 זנים."
+                  : "הקלידו שמות זנים שרואים על המדף — שורה לכל מוצר:\n\nOG Kush T20/C4 300 nis\nנורית T18/C3 250 שח"
+              }
               className="w-full rounded-xl border p-3 text-sm"
-              style={{ borderColor: C.line, color: C.ink, background: C.bg, resize: "vertical" }} />
+              style={{ borderColor: C.line, color: C.ink, background: C.bg, resize: "vertical" }}
+            />
           </div>
         )}
 
-        {aiError && (
-          <div className="mb-3 p-2.5 rounded-xl" style={{background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.20)"}}>
-            <p className="text-xs font-semibold" style={{color:"#FCA5A5"}}>⚠️ {aiError}</p>
-            {aiError.includes("API") && (
-              <p className="text-xs mt-1" style={{color:"rgba(252,165,165,0.70)"}}>
-                עברו ללשונית "טקסט" והדביקו את התפריט ישירות — הפענוח המקומי עובד ללא API.
-              </p>
-            )}
+        {/* ── Error banner ─────────────────────────────────────── */}
+        {error && (
+          <div className="mb-3 p-2.5 rounded-xl" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.20)" }}>
+            <p className="text-xs font-semibold" style={{ color: "#FCA5A5" }}>⚠️ {error}</p>
           </div>
         )}
 
+        {/* ── License filter badge ──────────────────────────────── */}
         {ans.cats.length > 0 && (
-          <div className="mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
-            style={{background:C.soft,border:`1px solid ${C.line}`}}>
-            <span className="text-xs" style={{color:"rgba(187,247,208,0.65)"}}>
-              🔒 מסנן לפי רישיונך: <span className="font-bold" style={{color:C.ink}}>{ans.cats.join(", ")}</span>
+          <div className="mb-3 px-3 py-2 rounded-xl" style={{ background: C.soft, border: `1px solid ${C.line}` }}>
+            <span className="text-xs" style={{ color: "rgba(187,247,208,0.65)" }}>
+              🔒 מסנן לפי רישיונך: <span className="font-bold" style={{ color: C.ink }}>{ans.cats.join(", ")}</span>
             </span>
           </div>
         )}
 
+        {/* ── Action row ───────────────────────────────────────── */}
         <div className="flex gap-2 mt-1">
-          {inputMode === "text" && (
+          {(inputMode === "text" || inputMode === "manual") && (
             <button onClick={() => setText(SAMPLE_MENU)}
               className="px-3 py-2.5 rounded-xl text-xs font-bold border"
               style={{ borderColor: C.line, color: "rgba(187,247,208,0.55)" }}>
               דוגמה
             </button>
           )}
-          <button
-            disabled={(inputMode === "text" && (!text.trim() || scanning)) || aiParsing || fetchingUrl}
-            className="flex-1 py-2.5 rounded-xl font-bold text-white disabled:opacity-40"
-            style={{ background: C.accent }}
-            onClick={() => {
-              if (inputMode === "text") scan();
-              else if (inputMode === "url") fetchUrl();
-            }}>
-            {scanning || aiParsing || fetchingUrl ? "🌿 מנתח…" : "🔍 פענח את התפריט"}
-          </button>
+          {(inputMode === "text" || inputMode === "manual") && (
+            <button
+              disabled={!text.trim() || scanning}
+              className="flex-1 py-2.5 rounded-xl font-bold disabled:opacity-40"
+              style={{ background: C.accent, color: "#061006" }}
+              onClick={scan}>
+              {scanning ? "🔍 מנתח…" : "🔍 פענח"}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* סקלטון טעינה — בזמן עיבוד שרת או מקומי */}
-      {(scanning || aiParsing) && (
-        <LoadingSkeleton message="מנתח ומחפש התאמות לפרופיל שלך… 🔍🌿" rows={3} />
+      {/* ── OCR loading skeleton ──────────────────────────────── */}
+      {scanning && inputMode === "file" && (
+        <LoadingSkeleton message={`קורא תמונה עם OCR… ${ocrPct}% 🔍`} rows={3} />
       )}
 
-      {/* תוצאות: אותה גנטיקה שמות שונים */}
+      {/* ── Duplicate genetics alert ──────────────────────────── */}
       {!scanning && results && (() => {
         const byGen = {};
         results.forEach((r) => {
@@ -3318,7 +3734,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
         ) : null;
       })()}
 
-      {/* רשימת התוצאות */}
+      {/* ── Empty state ───────────────────────────────────────── */}
       {results && results.length === 0 && (
         <div className="rounded-2xl p-5 text-center" style={{ background: C.card, border: `1px dashed ${C.line}` }}>
           <div className="text-3xl mb-2">🤷</div>
@@ -3327,68 +3743,87 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
         </div>
       )}
 
+      {/* ── Results list ──────────────────────────────────────── */}
       {results && results.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-semibold" style={{ color: C.ink }}>
-            {results.length} מוצרים פוענחו · ממוינים לפי התאמה אליכם
+            {results.length} מוצרים · ממוינים לפי התאמה לפרופיל שלך
           </p>
           {results.map((r, i) => (
             <div key={i} className="rounded-2xl p-3 border flex items-center gap-3"
               style={{
                 background: C.card,
-                borderColor: r.match >= 85 ? C.accent : C.line,
+                borderColor: r.match >= 85 ? C.accent : r.unknown ? "rgba(255,165,64,0.25)" : C.line,
                 opacity: r.inLicense ? 1 : 0.5,
               }}>
-              {r.match !== null ? <MatchRing pct={r.match} /> : (
-                <div className="text-center" style={{ width: 52 }}>
-                  <div className="text-lg">❔</div>
+              {/* Match ring or unknown badge */}
+              {r.match !== null ? (
+                <MatchRing pct={r.match} />
+              ) : (
+                <div className="text-center flex-shrink-0" style={{ width: 48 }}>
+                  <div className="text-xl">❔</div>
                   <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>חדש</div>
                 </div>
               )}
+
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold" style={{ color: C.ink }}>{r.name}</span>
                   {r.fuzzyMatch && (
-                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.10)", color: "#FBBF24" }}
+                    <span className="text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: "rgba(251,191,36,0.10)", color: "#FBBF24" }}
                       title={`זוהה מתוך: "${r.origLine}"`}>✏️ תוקן</span>
                   )}
-                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: r.isOil ? "rgba(167,139,250,0.10)" : "rgba(74,222,128,0.09)", color: r.isOil ? "#C084FC" : "#4ADE80" }}>
+                  <span className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ background: r.isOil ? "rgba(167,139,250,0.10)" : "rgba(74,222,128,0.09)", color: r.isOil ? "#C084FC" : "#4ADE80" }}>
                     {r.isOil ? "💧 שמן" : "🌿 תפרחת"}
                   </span>
-                  {r.genetics && r.genetics !== "—" && <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: "rgba(167,139,250,0.10)", color: "#C084FC" }}>🌿 {r.genetics}</span>}
-                  {r.cat && <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: C.soft, color: C.accent }}>{r.cat}</span>}
+                  {r.genetics && r.genetics !== "—" && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: "rgba(167,139,250,0.10)", color: "#C084FC" }}>🌿 {r.genetics}</span>
+                  )}
+                  {r.cat && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: C.soft, color: C.accent }}>{r.cat}</span>
+                  )}
                 </div>
-                {r.decodedNote && (
-                  <p className="text-xs mt-0.5 font-semibold" style={{ color: "#C084FC" }}>
-                    🔓 פיענחנו עבורכם: {r.decodedNote}
+
+                {/* Unknown product message */}
+                {r.unknown && (
+                  <p className="text-xs mt-0.5 font-semibold" style={{ color: "#FFA040" }}>
+                    את זה אני עוד לא מכיר. תנסה ותדווח 🌱
                   </p>
                 )}
-                {r.isOil && r.geneticNote && (
-                  <p className="text-xs mt-0.5" style={{ color: r.geneticInfo === "none" ? "rgba(187,247,208,0.45)" : "#FBBF24" }}>
-                    {r.geneticInfo === "none" ? "⚠️ " : "📋 "}{r.geneticNote}
-                  </p>
-                )}
+
+                {/* Alt genetic suggestion for unknown */}
                 {r.altGenetic && (
                   <p className="text-xs mt-0.5" style={{ color: C.accent }}>
-                    💡 לא במאגר — אך {r.altGenetic.name} ({r.altGenetic.genetics}) באותה קטגוריה מתאים לכם {r.altGenetic.match}%
+                    💡 {r.altGenetic.name} ({r.altGenetic.genetics}) — אותה קטגוריה, {r.altGenetic.match}% התאמה
                   </p>
                 )}
+
                 <p className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.55)" }}>
-                  {!r.inLicense ? "מחוץ לקטגוריות הרישיון שלכם"
-                    : r.match === null ? "זן שלא ניסיתם — אם תנסו, דרגו ביומן ונלמד אותו"
-                    : r.match >= 85 ? "התאמה מצוינת לפרופיל שלכם 💚"
-                    : r.match >= 72 ? "התאמה טובה" : "פחות מתאים למה שעבד לכם בעבר"}
+                  {!r.inLicense
+                    ? "מחוץ לקטגוריות הרישיון שלכם"
+                    : r.unknown
+                    ? "זן לא מוכר — נסה ודווח ביומן"
+                    : r.match === null
+                    ? "זן שלא ניסיתם — אם תנסו, דרגו ביומן ונלמד אותו"
+                    : r.match >= 85
+                    ? "התאמה מצוינת לפרופיל שלכם 💚"
+                    : r.match >= 72
+                    ? "התאמה טובה"
+                    : "פחות מתאים למה שעבד לכם בעבר"}
                 </p>
               </div>
-              <div className="text-center">
+
+              <div className="text-center flex-shrink-0">
                 {r.price && <div className="font-bold text-sm mb-1" style={{ color: C.ink }}>₪{r.price}</div>}
                 {r.known && r.inLicense && (
                   <button onClick={() => addToBasket(r.known.id)}
                     disabled={basket.includes(r.known.id)}
                     className="text-xs px-3 py-1.5 rounded-lg font-bold text-white disabled:opacity-40"
-                    style={{ background: C.accent }}>
+                    style={{ background: C.accent, color: "#061006" }}>
                     {basket.includes(r.known.id) ? "בתכנון ✓" : "+ לתכנון"}
                   </button>
                 )}
@@ -3411,13 +3846,16 @@ const MOODS = [
 ];
 
 function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked, setChecked, notifs, setNotifs }) {
-  const [mood, setMood] = useState(null);
-  const [vapeG, setVapeG]   = useState(0);
-  const [dropsN, setDropsN] = useState(0);
-  const [smokeG, setSmokeG] = useState(0);
-  const [savedOk, setSavedOk] = useState(false);
+  const [mood, setMood]             = useState(null);
+  const [method, setMethod]         = useState(null);   // "vape"|"oil"|"smoke"|null
+  const [amount, setAmount]         = useState(0);      // grams or drops
+  const [helped, setHelped]         = useState(null);   // true|false|null
+  const [sideEffect, setSideEffect] = useState(null);   // string chip or null
+  const [strainInput, setStrainInput] = useState("");
+  const [savedOk, setSavedOk]       = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [newBadge, setNewBadge] = useState(null);
+  const [newBadge, setNewBadge]     = useState(null);
+  const [showNotifs, setShowNotifs] = useState(false);
 
   const NOTIF_OPTS = [
     { k: "daily", label: "תזכורת יומית", sub: "כל ערב ב-20:00" },
@@ -3452,21 +3890,28 @@ function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked,
     const wasChecked = checked;
     if (!wasChecked) { setStreak(s => s + 1); setChecked(true); }
     const moodObj = MOODS.find(m => m.id === mood);
+    const methodLabels = { vape: "💨 אידוי", oil: "💧 שמן", smoke: "🚬 עישון" };
+    const amountLabel  = method === "oil"
+      ? (amount > 0 ? `${amount} טיפות` : "")
+      : (amount > 0 ? `${amount.toFixed(1)}ג׳` : "");
     try {
       const prev = JSON.parse(localStorage.getItem("cm_checkins") || "[]");
       prev.push({
-        date: new Date().toLocaleDateString("he-IL"),
-        mood: moodObj?.e || "😐",
-        use: [smokeG > 0 && `עישון ${smokeG.toFixed(1)}ג׳`, vapeG > 0 && `אידוי ${vapeG.toFixed(1)}ג׳`, dropsN > 0 && `טיפות ${dropsN}`].filter(Boolean).join(" · ") || "ללא",
-        note: "",
+        date:       new Date().toLocaleDateString("he-IL"),
+        time:       new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
+        mood:       moodObj?.e || "😐",
+        method:     method ? methodLabels[method] : "ללא",
+        amount:     amountLabel,
+        strain:     strainInput.trim() || "",
+        helped:     helped === true ? "עזר ✓" : helped === false ? "לא עזר ✗" : "",
+        sideEffect: sideEffect || "",
       });
-      localStorage.setItem("cm_checkins", JSON.stringify(prev.slice(-30)));
+      localStorage.setItem("cm_checkins", JSON.stringify(prev.slice(-60)));
     } catch {}
 
-    // Badge unlock check
-    const newStreak = wasChecked ? streak : streak + 1;
+    const newStreak   = wasChecked ? streak : streak + 1;
     const ratingCount = Object.keys(ratings).length;
-    const unlocked = badges.find(b => !b.on && (b.threshold === newStreak || b.threshold === ratingCount));
+    const unlocked    = badges.find(b => !b.on && (b.threshold === newStreak || b.threshold === ratingCount));
     if (unlocked) { setNewBadge(unlocked); setTimeout(() => setNewBadge(null), 3000); }
 
     setSavedOk(true);
@@ -3595,34 +4040,107 @@ function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked,
             })}
           </div>
 
-          {/* Sliders */}
-          <p className="text-xs font-semibold mb-3 text-right" style={{ color: "rgba(187,247,208,0.65)" }}>כמה צרכת?</p>
-          <div className="space-y-3 mb-4">
+          {/* Method chips */}
+          <p className="text-xs font-semibold mb-2 text-right" style={{ color: "rgba(187,247,208,0.60)" }}>איך לקחת?</p>
+          <div className="flex gap-2 mb-4">
             {[
-              { icon: "💨", label: "אידוי", unit: "גרם", val: vapeG, set: setVapeG, max: 5, step: 0.1 },
-              { icon: "💧", label: "שמן", unit: "טיפות", val: dropsN, set: setDropsN, max: 40, step: 1 },
-              { icon: "🚬", label: "עישון", unit: "גרם", val: smokeG, set: setSmokeG, max: 5, step: 0.1 },
-            ].map(({ icon, label, unit, val, set, max, step }) => (
-              <div key={label} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold" style={{ color: val > 0 ? C.accent : "rgba(187,247,208,0.45)" }}>
-                    {val > 0 ? (step === 1 ? val : val.toFixed(1)) : "—"} {val > 0 ? unit : ""}
-                  </span>
-                  <span className="text-xs font-semibold" style={{ color: C.ink }}>{icon} {label}</span>
-                </div>
-                <input type="range" min={0} max={max} step={step} value={val}
-                  onChange={e => set(step === 1 ? parseInt(e.target.value) : parseFloat(e.target.value))}
-                  className="w-full" style={{ accentColor: C.accent, height: 4 }} />
+              { id: "vape",  icon: "💨", label: "אידוי" },
+              { id: "oil",   icon: "💧", label: "שמן" },
+              { id: "smoke", icon: "🚬", label: "עישון" },
+            ].map(m => {
+              const active = method === m.id;
+              return (
+                <button key={m.id} onClick={() => { setMethod(active ? null : m.id); setAmount(0); }}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all"
+                  style={{
+                    background:   active ? "rgba(74,222,128,0.13)" : "rgba(255,255,255,0.04)",
+                    borderColor:  active ? "#4ADE80" : "rgba(255,255,255,0.08)",
+                    color:        active ? "#4ADE80" : "rgba(187,247,208,0.55)",
+                  }}>
+                  <div className="text-base">{m.icon}</div>
+                  <div className="mt-0.5">{m.label}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Amount slider — only when method is selected */}
+          {method && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl p-3 mb-4"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.10)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold" style={{ color: "#4ADE80" }}>
+                  {amount > 0
+                    ? (method === "oil" ? `${amount} טיפות` : `${amount.toFixed(1)}ג׳`)
+                    : "—"}
+                </span>
+                <span className="text-xs font-semibold" style={{ color: "rgba(187,247,208,0.60)" }}>
+                  {method === "oil" ? "מספר טיפות" : "כמות בגרמים"}
+                </span>
               </div>
+              <input type="range"
+                min={0} max={method === "oil" ? 40 : 5} step={method === "oil" ? 1 : 0.1}
+                value={amount}
+                onChange={e => setAmount(method === "oil" ? parseInt(e.target.value) : parseFloat(e.target.value))}
+                className="w-full" style={{ accentColor: "#4ADE80" }} />
+              {method === "smoke" && (
+                <p className="text-xs mt-2" style={{ color: "rgba(248,113,113,0.75)" }}>
+                  🚭 אידוי בריא ויעיל פי 2.5 מעישון — מומלץ לעבור
+                </p>
+              )}
+            </motion.div>
+          )}
+
+          {/* Helped quick-log */}
+          <p className="text-xs font-semibold mb-2 text-right" style={{ color: "rgba(187,247,208,0.60)" }}>עזר לך?</p>
+          <div className="flex gap-2 mb-4">
+            {[
+              { val: true,  icon: "👍", label: "עזר", col: "#4ADE80" },
+              { val: null,  icon: "🤷", label: "בסדר", col: "rgba(187,247,208,0.45)" },
+              { val: false, icon: "👎", label: "לא עזר", col: "#FCA5A5" },
+            ].map(opt => {
+              const active = helped === opt.val && opt.val !== null ? true : helped === null && opt.val === null;
+              return (
+                <button key={opt.label}
+                  onClick={() => setHelped(helped === opt.val ? null : opt.val)}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold border"
+                  style={{
+                    background:  active ? `${opt.col}18` : "rgba(255,255,255,0.04)",
+                    borderColor: active ? opt.col : "rgba(255,255,255,0.08)",
+                    color:       active ? opt.col : "rgba(187,247,208,0.45)",
+                  }}>
+                  <div className="text-base">{opt.icon}</div>
+                  <div className="mt-0.5">{opt.label}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Side effects quick-chips */}
+          <p className="text-xs font-semibold mb-2 text-right" style={{ color: "rgba(187,247,208,0.60)" }}>
+            תופעות לוואי? <span style={{ color: "rgba(187,247,208,0.35)", fontWeight: 400 }}>(לא חובה)</span>
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {["יובש בפה", "עייפות", "חרדה", "ראש כבד", "עלייה בדופק", "עיניים אדומות"].map(se => (
+              <button key={se} onClick={() => setSideEffect(sideEffect === se ? null : se)}
+                className="text-xs px-2.5 py-1 rounded-full border font-semibold"
+                style={{
+                  background:  sideEffect === se ? "rgba(248,113,113,0.14)" : "rgba(255,255,255,0.04)",
+                  borderColor: sideEffect === se ? "#FCA5A5" : "rgba(255,255,255,0.08)",
+                  color:       sideEffect === se ? "#FCA5A5" : "rgba(187,247,208,0.45)",
+                }}>
+                {se}
+              </button>
             ))}
           </div>
 
-          {smokeG > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="mb-3 text-xs rounded-xl p-2.5" style={{ background: "rgba(248,113,113,0.08)", color: "#FCA5A5", border: "1px solid rgba(248,113,113,0.15)" }}>
-              🚭 אידוי בריא ויעיל פי 2.5 מעישון — מומלץ מאוד לעבור
-            </motion.div>
-          )}
+          {/* Optional strain */}
+          <input type="text" value={strainInput} onChange={e => setStrainInput(e.target.value)}
+            placeholder="☘️ איזה זן לקחת? (לא חובה)"
+            className="w-full rounded-xl border px-3 py-2.5 text-xs text-right mb-4"
+            style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(74,222,128,0.12)",
+              color: "#F0FDF4", outline: "none" }} />
 
           {/* Save button with dopamine flash */}
           <div className="relative">
@@ -3709,23 +4227,54 @@ function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked,
           </div>
         ) : (
           <div className="relative">
-            <div className="absolute right-5 top-0 bottom-0 w-px" style={{ background: C.line }} />
+            <div className="absolute right-5 top-0 bottom-0 w-px" style={{ background: "rgba(74,222,128,0.10)" }} />
             {TIMELINE.map((e, i) => (
               <motion.div key={i} className="flex gap-4 mb-3 items-start"
-                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 + i * 0.07 }}>
                 <div className="flex-1 text-right min-w-0">
-                  <div className="rounded-xl border p-3" style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(74,222,128,0.08)" }}>
-                    <div className="flex items-center justify-end gap-2 mb-1">
-                      <span className="text-xs font-semibold" style={{ color: "rgba(187,247,208,0.45)" }}>{e.date}</span>
-                      <span className="text-lg">{e.mood}</span>
+                  <div className="rounded-2xl p-3" style={{ background: "rgba(8,14,10,0.90)", border: "1px solid rgba(74,222,128,0.09)" }}>
+                    {/* Row 1: date + time + mood */}
+                    <div className="flex items-center justify-end gap-2 mb-2">
+                      <span className="text-xs" style={{ color: "rgba(187,247,208,0.38)" }}>{e.date}{e.time ? ` · ${e.time}` : ""}</span>
+                      <span className="text-xl">{e.mood}</span>
                     </div>
-                    <p className="text-xs font-semibold mb-0.5" style={{ color: C.ink }}>{e.use}</p>
-                    {e.note && <p className="text-xs" style={{ color: "rgba(187,247,208,0.50)" }}>{e.note}</p>}
+                    {/* Row 2: method + amount + strain */}
+                    {(e.method && e.method !== "ללא") || e.strain ? (
+                      <p className="text-xs font-semibold mb-1.5" style={{ color: "#F0FDF4" }}>
+                        {[e.method !== "ללא" ? e.method : null, e.amount || null, e.strain ? `· ${e.strain}` : null]
+                          .filter(Boolean).join(" ")}
+                      </p>
+                    ) : null}
+                    {/* Row 3: use (old format fallback) */}
+                    {!e.method && e.use && e.use !== "ללא" && (
+                      <p className="text-xs font-semibold mb-1.5" style={{ color: "#F0FDF4" }}>{e.use}</p>
+                    )}
+                    {/* Row 4: helped + side effect */}
+                    {(e.helped || e.sideEffect) && (
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {e.helped && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                            style={{ background: e.helped.startsWith("עזר") ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.10)",
+                              color: e.helped.startsWith("עזר") ? "#4ADE80" : "#FCA5A5",
+                              border: `1px solid ${e.helped.startsWith("עזר") ? "rgba(74,222,128,0.25)" : "rgba(248,113,113,0.22)"}` }}>
+                            {e.helped}
+                          </span>
+                        )}
+                        {e.sideEffect && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                            style={{ background: "rgba(248,113,113,0.09)", color: "#FCA5A5",
+                              border: "1px solid rgba(248,113,113,0.18)" }}>
+                            {e.sideEffect}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="w-10 flex justify-center pt-3 flex-shrink-0">
-                  <div className="w-2.5 h-2.5 rounded-full border-2" style={{ background: C.card, borderColor: C.accent }} />
+                <div className="w-10 flex justify-center pt-3.5 flex-shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full border-2"
+                    style={{ background: "#050d07", borderColor: "#4ADE80" }} />
                 </div>
               </motion.div>
             ))}
@@ -3733,35 +4282,42 @@ function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked,
         )}
       </div>
 
-      {/* Notifications */}
+      {/* Notifications — collapsed */}
       <motion.div className="rounded-2xl border overflow-hidden"
         initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.3 }}
         style={{ background: C.card, borderColor: C.line }}>
-        <div className="px-4 py-3 border-b text-right text-sm font-bold"
-          style={{ background: C.soft, borderColor: C.line, color: C.ink }}>
-          התראות 🔔
-        </div>
-        {NOTIF_OPTS.map((n) => (
-          <div key={n.k} className="flex items-center justify-between px-4 py-3 border-b last:border-0"
-            style={{ borderColor: "rgba(74,222,128,0.07)" }}>
-            <button onClick={() => setNotifs({ ...notifs, [n.k]: !notifs[n.k] })}
-              className="w-11 h-6 rounded-full transition-all relative flex-shrink-0"
-              style={{ background: notifs[n.k] ? C.accent : "rgba(255,255,255,0.10)" }}>
-              <motion.span className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
-                animate={{ right: notifs[n.k] ? 2 : 22 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.30)" }} />
-            </button>
-            <div className="text-right ml-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>{n.label}</div>
-              <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>{n.sub}</div>
-            </div>
+        <button onClick={() => setShowNotifs(v => !v)}
+          className="w-full px-4 py-3 flex items-center justify-between"
+          style={{ background: C.soft }}>
+          <motion.span animate={{ rotate: showNotifs ? 90 : 0 }} transition={{ duration: 0.2 }}
+            style={{ color: C.accent, fontWeight: 700 }}>›</motion.span>
+          <div className="text-right text-sm font-bold" style={{ color: C.ink }}>
+            הגדרות התראות 🔔
           </div>
-        ))}
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.4 }}>
-        <div className="text-sm font-bold text-right mb-3" style={{ color: C.ink }}>⭐ דירוג מוצרים</div>
-        <Feedback ans={ans} scored={scored} ratings={ratings} setRatings={setRatings} />
+        </button>
+        <AnimatePresence>
+          {showNotifs && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}>
+              {NOTIF_OPTS.map((n) => (
+                <div key={n.k} className="flex items-center justify-between px-4 py-3 border-b last:border-0"
+                  style={{ borderColor: "rgba(74,222,128,0.07)" }}>
+                  <button onClick={() => setNotifs({ ...notifs, [n.k]: !notifs[n.k] })}
+                    className="w-11 h-6 rounded-full transition-all relative flex-shrink-0"
+                    style={{ background: notifs[n.k] ? C.accent : "rgba(255,255,255,0.10)" }}>
+                    <motion.span className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      animate={{ right: notifs[n.k] ? 2 : 22 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.30)" }} />
+                  </button>
+                  <div className="text-right ml-3">
+                    <div className="text-sm font-semibold" style={{ color: C.ink }}>{n.label}</div>
+                    <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>{n.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
@@ -4167,7 +4723,7 @@ function StrainDetailDrawer({ strain, onClose }) {
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
                 {topTerps.map(([t,v]) => (
                   <div key={t} style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,color:TERPENES[t]?.color||"#BBF7D0",width:62,textAlign:"right",flexShrink:0,fontWeight:700}}>{TERPENES[t]?.he||t}</span>
+                    <span style={{fontSize:11,color:TERPENES[t]?.color||"#BBF7D0",width:80,textAlign:"right",flexShrink:0,fontWeight:700}}>{terpHuman(t,'icon')} {terpHuman(t,'shortLabel')}</span>
                     <div style={{flex:1,height:4,borderRadius:2,background:"rgba(255,255,255,0.06)"}}>
                       <motion.div initial={{width:0}} animate={{width:`${(v/maxTerp)*100}%`}} transition={{duration:.7,ease:"easeOut"}}
                         style={{height:"100%",borderRadius:2,background:TERPENES[t]?.color||"#4ADE80",boxShadow:`0 0 6px ${TERPENES[t]?.color||"#4ADE80"}88`}} />
@@ -4460,54 +5016,30 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
         </div>
       </motion.div>
 
-      {/* ── Phase 6: Flagship CTAs — Menu Decoder + Community ─────────────── */}
+      {/* ── Flagship CTA — Menu Decoder ──────────────────────────────────────── */}
       <motion.div
         initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
         transition={{ delay:0.18 }}
-        style={{ display:"flex", gap:10, padding:"10px 14px 4px", flexShrink:0 }}>
-        {/* Menu Decoder */}
+        style={{ padding:"10px 14px 4px", flexShrink:0 }}>
         <motion.button
           onClick={() => goTab("menu")}
-          whileHover={{ scale:1.03, boxShadow:"0 0 20px rgba(57,255,133,0.25)" }}
-          whileTap={{ scale:0.96 }}
+          whileHover={{ scale:1.02, boxShadow:"0 0 24px rgba(57,255,133,0.22)" }}
+          whileTap={{ scale:0.97 }}
           style={{
-            flex:1, padding:"12px 10px", borderRadius:16, textAlign:"center",
+            width:"100%", padding:"13px 14px", borderRadius:16,
+            display:"flex", alignItems:"center", gap:12,
             background:"rgba(57,255,133,0.07)", border:"1.5px solid rgba(57,255,133,0.28)",
             cursor:"pointer", fontFamily:"'Heebo',sans-serif",
           }}>
-          <p style={{ fontSize:22, marginBottom:3 }}>📸</p>
-          <p style={{ fontSize:12, fontWeight:800, color:"#39FF85", margin:0 }}>
-            מפענח תפריט
-          </p>
-          <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
-            סרוק ואני אגיד מה לקחת
-          </p>
-        </motion.button>
-        {/* Community — license gated */}
-        <motion.button
-          onClick={() => goTab("community")}
-          whileHover={{ scale:1.03, boxShadow:"0 0 20px rgba(200,85,255,0.22)" }}
-          whileTap={{ scale:0.96 }}
-          style={{
-            flex:1, padding:"12px 10px", borderRadius:16, textAlign:"center",
-            background:"rgba(200,85,255,0.07)",
-            border:`1.5px solid ${licenseVerified ? "rgba(200,85,255,0.30)" : "rgba(200,85,255,0.15)"}`,
-            cursor:"pointer", fontFamily:"'Heebo',sans-serif", position:"relative",
-          }}>
-          {!licenseVerified && (
-            <span style={{
-              position:"absolute", top:6, left:8, fontSize:9, fontWeight:800,
-              color:"rgba(200,85,255,0.55)", background:"rgba(200,85,255,0.12)",
-              borderRadius:8, padding:"1px 5px",
-            }}>🔒 רישיון</span>
-          )}
-          <p style={{ fontSize:22, marginBottom:3 }}>🌿</p>
-          <p style={{ fontSize:12, fontWeight:800, color:"#C855FF", margin:0 }}>
-            קהילה
-          </p>
-          <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
-            אנשים עם פרופיל דומה לך
-          </p>
+          <span style={{ fontSize:24 }}>📸</span>
+          <div style={{ textAlign:"right" }}>
+            <p style={{ fontSize:13, fontWeight:800, color:"#39FF85", margin:0 }}>
+              מפענח תפריט
+            </p>
+            <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
+              סרוק תפריט בית מרקחת — אגיד מה מתאים לך
+            </p>
+          </div>
         </motion.button>
       </motion.div>
 
@@ -5459,403 +5991,6 @@ function LicenseUpload({ go, setCats, onVerify, onSkip }) {
 
 /* ───────────── איתור בתי מרקחת ───────────── */
 
-/* ───────────── עוזר AI אישי ───────────── */
-
-function buildKnowledgeContext(ans) {
-  const userReasons = ans.reasons || [];
-  const sections = [];
-
-  // Indication-specific clinical evidence
-  const matchedIndications = KB_INDICATIONS.indications.filter((ind) =>
-    userReasons.some((r) => ind.id.includes(r) || r.includes(ind.id))
-  );
-  if (matchedIndications.length > 0) {
-    sections.push("=== ידע אקדמי-קליני להתוויות המשתמש ===");
-    matchedIndications.forEach((ind) => {
-      const bestStudy = ind.key_studies[0];
-      const tcRec = Object.entries(ind.cannabinoid_profiles)
-        .map(([type, p]) => `${type}: ${p.categories?.slice(0,2).join("/")} — ${p.best_for}`)
-        .join("; ");
-      const topTerps = ind.terpenes.primary.join(", ");
-      sections.push(
-        `• ${ind.he} (${ind.en}): רמת ראיות — ${ind.evidence_level}. ` +
-        `מחקר מרכזי: ${bestStudy.ref} — "${bestStudy.finding}". ` +
-        `פרופילי קנבינואידים מומלצים: ${tcRec}. ` +
-        `טרפנים מרכזיים: ${topTerps}. ` +
-        `הערה קלינית: ${ind.clinical_notes_he}`
-      );
-    });
-  }
-
-  // Cannabinoid product categories relevant to user's T/C categories
-  if (ans.cats && ans.cats.length > 0) {
-    const relevantCats = KB_CANNABINOIDS.product_categories.categories.filter((cat) =>
-      ans.cats.some((c) => cat.examples_tc?.some((tc) => tc.includes(c.split("/")[0])))
-    ).slice(0, 3);
-    if (relevantCats.length > 0) {
-      sections.push("\n=== פרופיל קנבינואידים לפי קטגוריית הרישיון ===");
-      relevantCats.forEach((cat) => {
-        sections.push(`• ${cat.code} (${cat.he}): שימוש עיקרי — ${cat.primary_use}. זמן מתן: ${cat.timing}. ${cat.note || cat.caution || ""}`);
-      });
-    }
-  }
-
-  // Israeli product recommendations for top indications
-  const quickmap = KB_PRODUCTS.indication_to_product_quickmap.quickmap;
-  const productRecs = userReasons
-    .filter((r) => quickmap[r])
-    .map((r) => {
-      const q = quickmap[r];
-      return `${r}: מוצרים ראשיים → ${q.primary.slice(0,2).join(", ")}. הסיבה: ${q.reasoning}`;
-    });
-  if (productRecs.length > 0) {
-    sections.push("\n=== המלצות מוצרים ישראליים להתוויות המשתמש ===");
-    productRecs.forEach((rec) => sections.push(`• ${rec}`));
-  }
-
-  // Terpene science for top form preferences
-  if (ans.flavors && ans.flavors.length > 0) {
-    const flavorToTerpene = {
-      earthy: "myrcene", spicy: "caryophyllene", pepper: "caryophyllene",
-      lavender: "linalool", floral: "linalool", citrus: "limonene",
-      lemon: "limonene", pine: "pinene", herbal: "myrcene",
-      woody: "humulene", mango: "myrcene",
-    };
-    const matchedTerpIds = [...new Set(ans.flavors.map((f) => flavorToTerpene[f]).filter(Boolean))];
-    const terpDetails = matchedTerpIds.map((tid) =>
-      KB_TERPENES.terpenes.find((t) => t.id === tid)
-    ).filter(Boolean).slice(0, 2);
-    if (terpDetails.length > 0) {
-      sections.push("\n=== ידע מדעי על טרפנים המועדפים על המשתמש ===");
-      terpDetails.forEach((t) => {
-        const topApp = Object.entries(t.clinical_applications)
-          .sort((a, b) => (b[1].strength.includes("strong") ? 1 : 0) - (a[1].strength.includes("strong") ? 1 : 0))
-          .slice(0, 2)
-          .map(([k, v]) => `${k}: ${v.strength}`)
-          .join(", ");
-        sections.push(`• ${t.name_he} (${t.name_en}): ${t.pharmacology.mechanisms.slice(0,120)}... שימושים: ${topApp}`);
-      });
-    }
-  }
-
-  return sections.length > 0 ? sections.join("\n") : "";
-}
-
-function buildAgentContext(ans, ratings, user) {
-  const profile = buildProfile(ans, ratings);
-  const dnaSeq = dnaSequence(profile);
-  const dnaConf = geneticConfidence(ans, ratings);
-  const topTerps = Object.entries(profile).filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1]).slice(0, 5)
-    .map(([t, v]) => `${TERPENES[t].he} (${TERPENES[t].flavor}, עוצמה: ${terpStrength(v).label})`).join(", ");
-  const lowTerps = Object.entries(profile).filter(([, v]) => v < 0)
-    .sort((a, b) => a[1] - b[1]).slice(0, 3)
-    .map(([t]) => TERPENES[t].he).join(", ");
-  const helpedStrains = (ans.helped || []).map(id => STRAINS.find(s => s.id === id)?.name).filter(Boolean).join(", ");
-  const notHelpedStrains = (ans.notHelped || []).map(id => STRAINS.find(s => s.id === id)?.name).filter(Boolean).join(", ");
-  const strainsDb = STRAINS.map((s) =>
-    `${s.name} (גנטיקה: ${s.genetics}${s.grower ? `, מגדל: ${s.grower}` : ""}, ${s.lineage}) | ${s.type === "oil" ? "שמן" : "תפרחת"} | ${s.cat} | ${s.kind} | ₪${s.price}`
-  ).join("\n");
-  const codeMap = Object.entries(MENU_CODE_MAP).map(([c, m]) =>
-    `${c} = ${m.note}${m.aka?.length ? ` (ידוע גם: ${m.aka.join(", ")})` : ""}`).join("\n");
-  const patterns = computeInsights(ans, ratings, scoreAll(ans, ratings))
-    .map((i) => `- ${i.title}: ${i.body}`).join("\n");
-  const indResearch = ans.reasons.filter((r) => INDICATION_PROFILES[r])
-    .map((r) => { const p = INDICATION_PROFILES[r];
-      return `${p.label}: ${p.summary} יחסים: ${p.ratioNote}`; }).join("\n") || "אין";
-  return `אתה "צמח" — העוזר האישי באפליקציית קנאמאצ׳ לקנאביס רפואי בישראל. ענה בעברית, קצר וידידותי (2-4 משפטים אלא אם נדרש יותר).
-המקורות שלך: תפריטי בתי מרקחת ישראלים, חוות דעת מטופלים מהקהילה (iCan, HighTherapy, Telegram), דיווחי אצוות מהשטח, ניסיון מצטבר של קהילת המטופלים — לא ספרות אקדמית יבשה. הציג ידע מעשי ורלוונטי.
-
-פרופיל ה-DNA הקנאבינואידי של המשתמש (${user?.name || "המשתמש"}):
-- רצף DNA: ${dnaSeq} | ביטחון: ${dnaConf.pct}% (${dnaConf.label})
-- קטגוריות רישיון: ${ans.cats.join(", ") || "לא צוין"}
-- התוויות: ${ans.reasons.map((r) => REASONS.find((x) => x.id === r)?.label).join(", ") || "לא צוין"}
-- צורות צריכה: ${ans.form.join(", ") || "לא צוין"}
-- טרפנים שעובדים לו (מהחזק לחלש): ${topTerps || "עדיין לומדים"}
-- טרפנים שפחות: ${lowTerps || "אין"}
-- זנים שעזרו בעבר: ${helpedStrains || "לא צוין"}
-- זנים שלא עזרו: ${notHelpedStrains || "אין"}
-- דירוגים: ${Object.entries(ratings).map(([id, r]) => `${STRAINS.find((s) => s.id === id)?.name}: ${r}/10`).join(", ") || "אין עדיין"}
-
-דפוסים שזוהו אצל המשתמש (השתמש בהם בתשובות כשרלוונטי):
-${patterns || "- אין עדיין מספיק נתונים"}
-
-מאגר הזנים (תפריטי בתי מרקחת ישראלים):
-${strainsDb}
-
-מילון קודי תפריט → גנטיקה ושמות נרדפים (אם המשתמש שואל על קוד כמו D-51):
-${codeMap}
-
-ידע מעשי על ההתוויות של המשתמש (מניסיון מטופלים בישראל):
-${indResearch}
-
-דרכי מתן מהשטח (אותה גנטיקה נותנת חוויה שונה לפי דרך המתן):
-- אידוי: השפעה תוך 3-10 דק', עד ~3 שעות. היעיל ביותר, בריא יותר. מאפשר טיטרציה.
-- עישון: דומה לאידוי בזמן, אך בזבזני ומזיק יותר. תפרחת נקייה בלבד.
-- שמן: השפעה איטית (15 דק'-שעתיים) אך ארוכה (5-6 שעות). לכאב כרוני ושינה רציפה.
-
-כללים מחייבים:
-1. לעולם אל תמליץ על מינונים, כמויות או שינוי טיפול — הפנה לרופא המטפל.
-2. השתמש בפרופיל כדי להתאים תשובות אישית ("בהתאם לזה שלינלול עובד לך...").
-3. לשאלות על מוצרים לקנייה (מאדים וכו') — השתמש בחיפוש אינטרנט ותן אפשרויות בישראל.
-4. אם נשאל על נהיגה — אסור לנהוג תחת השפעה בישראל, גם עם רישיון.
-5. אל תמליץ על ערבוב טבק — להפך, הזהר מפניו: מגביר תלות (עד פי 4), מזיק לבריאות ומטשטש את ההשפעה הטיפולית. אם המשתמש מעשן — המלץ תפרחת נקייה, ועדיף אידוי.
-6. אל תענה על שאלות שאינן קשורות לקנאביס רפואי, לאפליקציה או לבריאות המשתמש בהקשר זה.
-7. אתה מלווה וחבר, לא איש מכירות: הסבר תמיד *למה* משהו מתאים, הצג גם את החיסרון או החלופה הזולה, ועזור למקסם את הטיפול גם רפואית וגם כלכלית.
-8. כשמדובר ב-PTSD: היה כן — מטופלים רבים מדווחים הקלה (סיוטים, שינה), אך הראיות מוגבלות והמועצה הלאומית ל-PTSD בישראל המליצה דווקא נגד. אל תציג קנאביס כטיפול מוכח ל-PTSD. הצג את שני הצדדים והפנה לרופא.
-9. כשמדובר בטרפנים/אפקט נלווה: הצג כ"מצפן מבוסס-ראיות, לא ערובה". יש ראיה קלינית תומכת (לימונן+THC, Johns Hopkins 2024) אך גם ספקנות מדעית לגיטימית.
-10. כלל "החבר המהימן" — RWE (Real-World Evidence): כשאתה מציין נתוני קהילה מהאפליקציה (דיווחי מטופלים מצטברים), השתמש תמיד בניסוח זה:
-    ✓ "מטופלים שדיווחו על כך — לא הוכחה קלינית"
-    ✓ "X% מהמדווחים אצלנו ציינו שיפור ב..."
-    ✓ "מה שמטופלים דומים לך מספרים מהשטח..."
-    ✓ "הדאטה שלנו מראה — אבל כל מטופל שונה"
-    ✗ לעולם לא: "מחקרים הראו" כשמדובר בדאטת משתמשים בלבד; "מוכח"; "יעיל ל..." ללא הסתייגות
-    הניסוח הזה הוא לא רק משפטי — הוא כנות אמיתית שבונה אמון. מטופלים רוצים לדעת מה עבד לאחרים כמוהם, לא הבטחות.
-
-יכולות מיוחדות שלך:
-א. ניתוח תמונות: אם המשתמש מעלה תמונה של תפרחת, אתה יכול לבדוק סימני עובש (קורי עכביש לבנים-אפורים, כתמים, ריח אמוניה), איכות (טריכומים, צבע, מבנה), ויובש. אם אתה מזהה משהו חשוד שנראה כמו עובש — הזהר בבירור שלא לצרוך ולהתייעץ עם בית המרקחת. אם אינך בטוח, אמור זאת בכנות.
-ב. אחסון: ידע מלא — מיכל זכוכית אטום, מקום קריר וחשוך, הרחק מאור שמש וחום. לחות אידיאלית 55-62% RH. שקיות לחות (Boveda 62% וכו') מומלצות מאוד לשמירה על טריות הטרפנים ומניעת עובש/יובש יתר. אל תאחסן במקפיא (הטריכומים נשברים). תפרחת יבשה מדי = טרפנים מתנדפים ושיעול; לחה מדי = סכנת עובש.
-ג. מידע "לסטלן": אתה מבין גם את הצד החווייתי. אם נשאל שאלות יומיומיות (מאנצ'יז, יובש בפה, עיניים אדומות, איך להתפכח, מה לעשות אם לקחתי יותר מדי, מוזיקה/אוכל) — ענה בידע מעשי, חברי וקליל, תוך שמירה על בטיחות. למשל: ליובש בפה — מים; אם לקחת יותר מדי — אל פאניקה, זה חולף, שב/שכב במקום נוח, מים, ופלפל שחור/לימון נחשבים לעזרה עממית.
-ד. הומור: יש לך חוש הומור! אתה יכול לזרוק בדיחה קנאביסטית קלילה כשמתאים, או אם מבקשים. שמור על זה ידידותי ולא וולגרי. דוגמאות לסגנון: "למה הצמח הלך לטיפול? כי היו לו יותר מדי ג'וינטים תקועים" · "מה אמרה האינדיקה לסאטיבה? תירגע אחי". אל תגזים — בדיחה אחת במקום הנכון שווה יותר מעשר.`;
-}
-
-const QUICK_QS = [
-  "📸 העלו תמונה ואבדוק אם יש עובש",
-  "איך מאחסנים תפרחת נכון?",
-  "כדאי לי שקית לחות (Boveda)?",
-  "איזה זן הכי מתאים לי לערב?",
-  "לקחתי יותר מדי — מה עושים?",
-  "ספר לי בדיחה 😄",
-];
-
-function Assistant({ ans, ratings, user }) {
-  const [msgs, setMsgs] = useState([
-    { role: "assistant", content: T.ai.greeting },
-  ]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [pendingImg, setPendingImg] = useState(null); // {data, mediaType, preview}
-  const [dragOver, setDragOver] = useState(false);
-  const fileRef = useRef();
-  const camRef = useRef();
-  const scrollRef = useRef();
-
-  const fileToImg = (file) => new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith("image/")) { reject(new Error("רק תמונות")); return; }
-    const reader = new FileReader();
-    reader.onload = () => resolve({
-      data: reader.result.split(",")[1],
-      mediaType: file.type,
-      preview: reader.result,
-    });
-    reader.onerror = () => reject(new Error("שגיאת קריאה"));
-    reader.readAsDataURL(file);
-  });
-
-  const handleFile = async (file) => {
-    try { setPendingImg(await fileToImg(file)); }
-    catch { /* ignore non-images */ }
-  };
-
-  const send = async (text) => {
-    const q = (text || input).trim();
-    if ((!q && !pendingImg) || busy) return;
-
-    // בונים הודעת משתמש (טקסט + אולי תמונה)
-    const userContent = [];
-    if (pendingImg) userContent.push({
-      type: "image",
-      source: { type: "base64", media_type: pendingImg.mediaType, data: pendingImg.data },
-    });
-    userContent.push({ type: "text", text: q || "תבדוק לי את התמונה הזו בבקשה 🌿" });
-
-    const displayMsg = { role: "user", content: q || "📸 (תמונה)", img: pendingImg?.preview };
-    const apiMsg = { role: "user", content: userContent };
-
-    const newDisplay = [...msgs, displayMsg];
-    setMsgs(newDisplay);
-    setInput("");
-    setPendingImg(null);
-    setBusy(true);
-
-    // היסטוריה ל-API (ממירים display→api)
-    const apiHistory = msgs.map((m) => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : m.content,
-    }));
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system: buildAgentContext(ans, ratings, user),
-          messages: [...apiHistory, apiMsg],
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `שגיאת שרת ${res.status}`);
-      const reply = (data.content || [])
-        .map((b) => (b.type === "text" ? b.text : ""))
-        .filter(Boolean).join("\n")
-        || "מצטער, משהו השתבש. נסו שוב.";
-      setMsgs([...newDisplay, { role: "assistant", content: reply }]);
-    } catch (e) {
-      console.error("[chat] send error:", e.message);
-      setMsgs([...newDisplay, { role: "assistant", content: `שגיאת חיבור — ${e.message || "נסו שוב בעוד רגע."}` }]);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const AvatarPlant = () => (
-    <div className="relative flex items-center justify-center" style={{ width: 72, height: 84, flexShrink: 0 }}>
-      <motion.div
-        animate={{ scale: [0.8, 1.18, 0.8], opacity: [0.25, 0.55, 0.25] }}
-        transition={{ duration: 3.8, repeat: Infinity }}
-        style={{
-          position: "absolute", inset: -14,
-          background: "radial-gradient(circle, rgba(74,222,128,0.24) 0%, transparent 70%)",
-          borderRadius: "50%", pointerEvents: "none",
-        }}
-      />
-      <motion.span
-        animate={{ rotate: [-6, 6, -6], y: [0, -9, 0], scale: [1, 1.12, 1] }}
-        transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          fontSize: 52,
-          filter: "drop-shadow(0 0 20px rgba(74,222,128,0.85)) drop-shadow(0 4px 12px rgba(0,0,0,0.70))",
-          lineHeight: 1, display: "block",
-        }}
-      >
-        🌿
-      </motion.span>
-      <motion.div
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
-        style={{
-          position: "absolute", inset: 0,
-          border: "1.5px dashed rgba(74,222,128,0.18)",
-          borderRadius: "50%", pointerEvents: "none",
-        }}
-      />
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col" style={{ minHeight: "60vh", fontFamily:"'Heebo',sans-serif" }}
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false);
-        const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}>
-
-      {/* ── Floating AI Avatar Header ── */}
-      <div className="flex items-center gap-4 rounded-2xl p-4 mb-4"
-        style={{ background:"linear-gradient(135deg,#0D1C14,#111A22)", border:"1px solid rgba(57,255,133,.18)" }}>
-        <AvatarPlant />
-        <div className="flex-1 min-w-0">
-          <div className="font-bold text-base" style={{ color:"#EBF6ED" }}>צמח — העוזר האישי שלך</div>
-          <div className="text-xs mt-0.5" style={{ color:"#7EA88E" }}>
-            מכיר את הפרופיל שלך · עונה בעברית · מוגבל לתחום הרפואי בלבד
-          </div>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"/>
-            <span className="text-xs" style={{ color:"#39FF85" }}>מחובר למאגר הנתונים</span>
-          </div>
-        </div>
-        <div className="flex gap-1.5">
-          <button onClick={() => fileRef.current?.click()} title="העלאת תמונה"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-sm transition-all"
-            style={{ background:"rgba(57,255,133,.1)", border:"1px solid rgba(57,255,133,.22)" }}>📎</button>
-          <button onClick={() => camRef.current?.click()} title="צילום"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-sm transition-all"
-            style={{ background:"rgba(57,255,133,.1)", border:"1px solid rgba(57,255,133,.22)" }}>📷</button>
-        </div>
-      </div>
-
-      {dragOver && (
-        <div className="rounded-2xl p-6 mb-3 text-center border-2 border-dashed"
-          style={{ borderColor:"#39FF85", background:"rgba(57,255,133,.06)", color:"#39FF85" }}>
-          📸 שחררו כאן את התמונה ואבדוק אותה
-        </div>
-      )}
-
-      <div ref={scrollRef} className="flex-1 space-y-3 mb-3 overflow-y-auto">
-        {msgs.length === 1 && (
-          <div className="grid grid-cols-1 gap-2 mt-1">
-            {QUICK_QS.map((q, i) => (
-              <button key={i} onClick={() => {
-                if (q.startsWith("📸")) { fileRef.current?.click(); }
-                else { send(q); }
-              }}
-                className="w-full text-right rounded-2xl px-4 py-3 text-sm font-medium transition-all"
-                style={{ background:"rgba(57,255,133,.06)", border:"1px solid rgba(57,255,133,.18)", color:"#BBF7D0" }}>
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-        {msgs.map((m, i) => (
-          <div key={i} className={`p-4 text-sm whitespace-pre-wrap leading-relaxed ${m.role === "assistant" ? "chat-bubble-ai" : "chat-bubble-user"}`}
-            style={{
-              color: m.role === "user" ? "#EBF6ED" : "#D4EED9",
-              marginRight: m.role === "user" ? 32 : 0,
-              marginLeft:  m.role === "user" ? 0 : 32,
-            }}>
-            {m.img && (
-              <img src={m.img} alt="תמונה" className="rounded-xl mb-2 max-w-full"
-                style={{ maxHeight: 200 }} />
-            )}
-            {m.role === "assistant" && (
-              <span className="inline-block text-sm mr-1" style={{ color:"#39FF85" }}>🌿</span>
-            )}
-            {m.content}
-          </div>
-        ))}
-        {busy && (
-          <div className="chat-bubble-ai p-4 text-sm flex items-center gap-2" style={{ marginLeft:32 }}>
-            <span className="flex gap-1">
-              {[0,1,2].map(i => (
-                <span key={i} className="w-2 h-2 rounded-full bg-green-400 animate-bounce"
-                  style={{ animationDelay:`${i*0.15}s` }}/>
-              ))}
-            </span>
-            <span style={{ color:"#7EA88E" }}>צמח חושב...</span>
-          </div>
-        )}
-      </div>
-
-      {pendingImg && (
-        <div className="flex items-center gap-2 mb-2 p-2.5 rounded-2xl"
-          style={{ background:"rgba(57,255,133,.07)", border:"1px solid rgba(57,255,133,.18)" }}>
-          <img src={pendingImg.preview} alt="" className="rounded-xl"
-            style={{ width:42, height:42, objectFit:"cover" }} />
-          <span className="text-xs flex-1" style={{ color:"#A8C3B2" }}>תמונה מצורפת — הוסיפו שאלה או שלחו</span>
-          <button onClick={() => setPendingImg(null)} className="text-xs px-2 font-bold"
-            style={{ color:"#FF6B6B" }}>✕</button>
-        </div>
-      )}
-
-      <input ref={fileRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-
-      <div className="flex gap-2 sticky bottom-0 pt-2 pb-1"
-        style={{ background: C.bg }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="שאלו אותי כל דבר בנושא הרישיון שלכם..."
-          className="flex-1 p-3.5 text-sm min-w-0 chat-input" />
-        <button onClick={() => send()} disabled={busy || (!input.trim() && !pendingImg)}
-          className="px-6 rounded-2xl font-bold text-sm disabled:opacity-35 transition-all"
-          style={{ background:"#39FF85", color:"#061006", boxShadow:"0 2px 14px rgba(57,255,133,.3)" }}>
-          שלח
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /* ───────────── מנוע תובנות — זיהוי דפוסים ───────────── */
 
@@ -6018,47 +6153,10 @@ const TOPICS = [
 ];
 
 async function moderatePost(text) {
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        max_tokens: 200,
-        messages: [{
-          role: "user",
-          content: `אתה שומר הסף של קהילת מטופלי קנאביס רפואי בישראל. הקהילה היא לשיתוף חוויות אישיות בלבד — שום מסחר ושום קידום מכירות.
-
-חסום (verdict: "block") כל פוסט שמכיל אחד מאלה, גם אם הוא מנוסח בעקיפין או בסלנג:
-- ניסיון למכור, לקנות, להחליף או להשיג קנאביס מחוץ לבתי מרקחת מורשים (כולל מכירה חוזרת של מוצרים מבית מרקחת)
-- מילות קוד מוכרות לסחר: "כיוונים", "יש אצלי", "יש לי עודף", "מחפש ספק", "ממעשנים למעשנים" בהקשר עסקה
-- הזמנה לעבור לערוץ פרטי לעסקה: "עברו לפרטי", "דברו איתי בפרטי", קישורי t.me, כינויי בוטים (@...bot), מספרי טלפון, וואטסאפ, סיגנל
-- שפת מודעות סוחרים: הבטחות משלוח ("משלוח עד הבית", "הגעה תוך שעתיים", "כל הארץ"), "ללא מרשם", "ללא רישיון", מחירונים, "מבצע", "הנחה למטופלים", רשימות אזורי חלוקה
-- דירוג או המלצה על "ספק"/"שליח"/מוכר — להבדיל מדירוג זן או בית מרקחת מורשה
-- אסטרוטרפינג: "חוויה אישית" שהיא בפועל פרסומת — שפה שיווקית, קריאה לפעולה, קישור או הפניה לגורם מסחרי
-- המלצות מינון רפואיות ("קח X מ"ג", "תכפיל את המנה")
-
-אשר (verdict: "ok") שיתוף חוויות אמיתי: מה עבד ומה לא, השוואות בין זנים ובתי מרקחת מורשים, טיפים לחיסכון בקנייה חוקית, שאלות ותמיכה.
-
-שים לב: מותר למשתמשים לציין מחירים בבתי מרקחת מורשים בהקשר השוואתי. ההבדל: השוואת מחירים חוקית = ok, הצעת מחיר לעסקה ישירה = block.
-
-ענה אך ורק ב-JSON תקין, בלי שום טקסט נוסף:
-{"verdict": "ok" או "block", "reason": "הסבר קצר בעברית למה (רק אם block)"}
-
-הפוסט לבדיקה:
-"""${text}"""`,
-        }],
-      }),
-    });
-    const data = await res.json();
-    const raw = (data.content || []).map((b) => b.text || "").join("").replace(/```json|```/g, "").trim();
-    return JSON.parse(raw);
-  } catch {
-    // גיבוי בסיסי אם ה-API לא זמין — דפוסי סחר מוכרים
-    const redFlags = /למכירה|מוכר |קונה |טלגרם|וואטסאפ|סיגנל|ספק|עודף.*גרם|מחיר לגרם|כיוונים|עברו לפרטי|דברו בפרטי|t\.me|@\w+bot|ללא מרשם|ללא רישיון|משלוח עד הבית|הגעה תוך|מבצע.*גרם/i;
-    return redFlags.test(text)
-      ? { verdict: "block", reason: "זוהה דפוס מסחר מוכר (בדיקה מקומית)" }
-      : { verdict: "ok" };
-  }
+  const redFlags = /למכירה|מוכר |קונה |טלגרם|וואטסאפ|סיגנל|ספק|עודף.*גרם|מחיר לגרם|כיוונים|עברו לפרטי|דברו בפרטי|t\.me|@\w+bot|ללא מרשם|ללא רישיון|משלוח עד הבית|הגעה תוך|מבצע.*גרם/i;
+  return redFlags.test(text)
+    ? { verdict: "block", reason: "זוהה דפוס מסחר מוכר" }
+    : { verdict: "ok" };
 }
 
 // Blurred ghost posts shown behind the FOMO gate
@@ -6080,51 +6178,71 @@ function CommunityLicenseGate({ onUnlock }) {
 
   const handleImage = async (file) => {
     if (!file?.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      setImgPreview(e.target.result);
-      setStage("scanning");
-      const base64 = e.target.result.split(",")[1];
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            max_tokens: 300,
-            messages: [{
-              role: "user",
-              content: [
-                { type:"image", source:{ type:"base64", media_type: file.type, data: base64 } },
-                { type:"text", text:`זהו רישיון קנאביס רפואי ישראלי. חלץ:
-1. מספר הרישיון (License ID)
-2. תאריך תפוגה (תוקף עד / בתוקף עד)
-3. קטגוריות הרישיון (T/C) אם מופיעות
+    setStage("scanning");
+    setImgPreview(null); // don't show preview — we discard the image after OCR
+    try {
+      // 1. Strip EXIF/GPS metadata from the file before processing
+      const cleanFile = await stripExif(file);
 
-ענה אך ורק ב-JSON: {"licenseId":"...","expiry":"MM/YYYY","cats":["T18/C3"]}
-אם לא ניתן לקרוא — {"error":"cannot_read"}` }
-              ],
-            }],
-          }),
-        });
-        const data = await res.json();
-        const raw = (data.content || []).map(b => b.text || "").join("").replace(/```json|```/g,"").trim();
-        const parsed = JSON.parse(raw);
-        if (parsed.error) throw new Error("cannot_read");
-        setExtracted(parsed);
-        const expDate = parsed.expiry ? new Date("01/" + parsed.expiry) : null;
-        localStorage.setItem("cm_license_data", JSON.stringify({
-          id: parsed.licenseId, expiry: parsed.expiry,
-          cats: parsed.cats || [], scannedAt: Date.now(),
-        }));
-        setStage("success");
-      } catch {
-        // Backend not available — fall back to quick visual verification
-        setExtracted({ licenseId: "מאומת", expiry: "03/2027", cats: ["T18/C3","T15/C3"] });
-        localStorage.setItem("cm_license_data", JSON.stringify({ id:"manual", expiry:"03/2027", cats:[], scannedAt:Date.now() }));
-        setStage("success");
+      // 2. OCR — offline, no server
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker(["heb", "eng"], 1, { logger: () => {} });
+      const blob = cleanFile instanceof Blob ? cleanFile : file;
+      const { data: { text } } = await worker.recognize(blob);
+      await worker.terminate();
+      // Image (cleanFile) is not stored anywhere — only text survives this point
+
+      // 3. Parse fields
+      const tcMatches = [...text.matchAll(/T\s*(\d{1,2})\s*[\/\\]\s*C\s*(\d{1,2})/gi)];
+      const cats = [...new Set(tcMatches.map(m => `T${m[1]}/C${m[2]}`))];
+
+      let expiry = null;
+      const expiryFull = text.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/);
+      if (expiryFull) expiry = `${expiryFull[3]}-${expiryFull[2].padStart(2,'0')}-${expiryFull[1].padStart(2,'0')}`;
+      if (!expiry) {
+        const isoM = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (isoM) expiry = `${isoM[1]}-${isoM[2]}-${isoM[3]}`;
       }
-    };
-    reader.readAsDataURL(file);
+
+      const idCandidates = [...text.matchAll(/\b(\d{7,9})\b/g)].map(r => r[1]);
+      const licenseId = idCandidates.find(n => !cats.some(c => c.includes(n))) || null;
+
+      if (!expiry && cats.length === 0 && !licenseId) throw new Error("nothing_read");
+
+      // 4. Reject expired licenses before they enter the system
+      if (expiry && isLicenseExpired(expiry)) {
+        setErrorMsg("הרישיון שזיהינו פג תוקף 🛑 לא ניתן לאמת רישיון שפג — אנא חדשו אותו.");
+        setStage("error");
+        return;
+      }
+
+      // 5. Hash ID + check duplicates; warn if format invalid (OCR can mangle)
+      let idHash = null;
+      if (licenseId) {
+        if (!isValidIsraeliId(licenseId)) {
+          // Don't block — OCR may mangle digits — but flag it
+          console.warn("License ID failed check-digit:", licenseId);
+        }
+        idHash = await hashLicenseId(licenseId);
+        const existingHash = getStoredLicenseHash();
+        if (existingHash && existingHash === idHash) {
+          setErrorMsg("הרישיון הזה כבר רשום במערכת 🔒 אם מדובר בטעות, פנו לתמיכה.");
+          setStage("error");
+          return;
+        }
+      }
+
+      // 6. Store hash + meta only — never the raw ID or the image
+      storeLicenseMeta({ idHash, expiry, cats });
+      setExtracted({ cats, expiry });
+      setStage("success");
+    } catch (err) {
+      const msg = err?.message === "nothing_read"
+        ? "לא זיהינו מידע ברישיון. נסו תמונה ברורה יותר, או הכניסו פרטים ידנית."
+        : "שגיאה בסריקה. נסו שוב.";
+      setErrorMsg(msg);
+      setStage("error");
+    }
   };
 
   const handleUnlock = () => {
@@ -6850,335 +6968,99 @@ function PermissionModal({ onDone }) {
   );
 }
 
-/* ───────────── Floating Avatar Agent ───────────── */
 
-function FloatingAvatarAgent({ ans, ratings, user, goOnboarding, goDNA }) {
-  const [open, setOpen]           = useState(false);
-  const [showBubble, setShowBubble] = useState(true);
-  const [returning]               = useState(() => {
-    const seen = localStorage.getItem("cm_avatar_seen");
+/* ── Greeting-only mascot — LEFT side, no chat, no API ── */
+const GREET_LINES = {
+  new:       ["ברוך הבא ל-CannaMatch 🌿", "כיף שאתה כאן 💚"],
+  returning: ["עבר זמן, כיף שחזרת 💚", "טוב לראות אותך שוב 🌿"],
+  morning:   ["בוקר טוב ☀️", "התחלה טובה 🌿"],
+  noon:      ["צהריים טובים 🌿", "איך מרגישים? 💚"],
+  evening:   ["ערב טוב 🌙", "ערב נעים 🌿"],
+  night:     ["לילה טוב 😴 שינה רגועה", "לילה שקט 🌙"],
+};
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function GreetingMascot({ user }) {
+  const h = new Date().getHours();
+  const isNew = !localStorage.getItem("cm_avatar_seen");
+  const today = new Date().toDateString();
+  const lastGreet = localStorage.getItem("cm_last_greet");
+  const isReturning = !isNew && lastGreet && lastGreet !== today;
+  const [videoOk, setVideoOk] = useState(true);
+
+  useEffect(() => {
     localStorage.setItem("cm_avatar_seen", "1");
-    return !!seen;
-  });
-  const [msgs, setMsgs]           = useState([{ role: "assistant", content: T.ai.greeting }]);
-  const [input, setInput]         = useState("");
-  const [busy, setBusy]           = useState(false);
-  const [pendingImg, setPendingImg] = useState(null);
-  const scrollRef = useRef();
-  const fileRef   = useRef();
+    localStorage.setItem("cm_last_greet", today);
+  }, [today]);
 
-  const profileComplete = ans.cats.length > 0 && ans.reasons.length > 0;
-  const goComplete      = ans.cats.length === 0 ? goOnboarding : goDNA;
+  const greeting = isNew         ? pick(GREET_LINES.new)
+    : isReturning                 ? pick(GREET_LINES.returning)
+    : h >= 5  && h < 12          ? pick(GREET_LINES.morning)
+    : h >= 12 && h < 17          ? pick(GREET_LINES.noon)
+    : h >= 17 && h < 21          ? pick(GREET_LINES.evening)
+    :                               pick(GREET_LINES.night);
 
-  useEffect(() => {
-    const t = setTimeout(() => setShowBubble(false), 6000);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    if (scrollRef.current)
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [msgs, busy]);
-
-  const fileToImg = (file) => new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith("image/")) { reject(new Error("")); return; }
-    const r = new FileReader();
-    r.onload  = () => resolve({ data: r.result.split(",")[1], mediaType: file.type, preview: r.result });
-    r.onerror = () => reject(new Error(""));
-    r.readAsDataURL(file);
-  });
-
-  const handleFile = async (file) => {
-    try { setPendingImg(await fileToImg(file)); } catch { /* non-image */ }
-  };
-
-  const send = async (text) => {
-    const q = (text || input).trim();
-    if ((!q && !pendingImg) || busy) return;
-    const userContent = [];
-    if (pendingImg) userContent.push({ type: "image", source: { type: "base64", media_type: pendingImg.mediaType, data: pendingImg.data } });
-    userContent.push({ type: "text", text: q || "בדוק תמונה" });
-    const displayMsg = { role: "user", content: q || "📸", img: pendingImg?.preview };
-    const newDisplay = [...msgs, displayMsg];
-    setMsgs(newDisplay); setInput(""); setPendingImg(null);
-    if (!profileComplete) {
-      setMsgs([...newDisplay, { role: "assistant", content: T.avatar.profileIncomplete, cta: "complete_profile" }]);
-      return;
-    }
-    setBusy(true);
-    const apiHistory = msgs.map(m => ({ role: m.role, content: m.content }));
-    try {
-      const res  = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system: buildAgentContext(ans, ratings, user),
-          messages: [...apiHistory, { role: "user", content: userContent }],
-        }),
-      });
-      const data  = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `שגיאת שרת ${res.status}`);
-      const reply = (data.content || []).map(b => b.type === "text" ? b.text : "").filter(Boolean).join("\n") || T.errors.generic;
-      setMsgs([...newDisplay, { role: "assistant", content: reply }]);
-    } catch (err) {
-      console.error("[chat] avatar send error:", err.message);
-      setMsgs([...newDisplay, { role: "assistant", content: T.errors.network }]);
-    } finally { setBusy(false); }
-  };
-
-  /* ── shared inline styles ── */
-  const drawerStyle = {
-    position: "absolute", bottom: "calc(100% + 12px)", left: 0,
-    width: 308, height: 430,
-    background: "linear-gradient(160deg,#081410,#0D1C14)",
-    border: "1px solid rgba(57,255,133,0.24)",
-    borderRadius: 22,
-    display: "flex", flexDirection: "column",
-    overflow: "hidden",
-    boxShadow: "0 24px 64px rgba(0,0,0,0.65), 0 0 48px rgba(57,255,133,0.07)",
-  };
-  const bubbleStyle = (role) => ({
-    maxWidth: "88%",
-    marginRight: role === "user" ? 0  : 28,
-    marginLeft:  role === "user" ? 28 : 0,
-    background: role === "user"
-      ? "linear-gradient(135deg,#1B3E2A,#16302B)"
-      : "linear-gradient(135deg,rgba(16,36,22,.95),rgba(18,26,32,.95))",
-    border: `1px solid ${role === "user" ? "rgba(57,255,133,.18)" : "rgba(57,255,133,.14)"}`,
-    borderRadius: role === "user" ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
-    padding: "8px 12px",
-    color: role === "user" ? "#EBF6ED" : "#D4EED9",
-    fontSize: 12.5,
-    lineHeight: 1.55,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-  });
+  const name = user?.name?.split(" ")[0];
+  const prefersReduced = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   return (
-    <div dir="rtl" style={{ position: "fixed", left: "1rem", bottom: "0", zIndex: 9999 }}>
-
-      {/* ── Welcome Speech Bubble ── */}
-      <AnimatePresence>
-        {showBubble && !open && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 340, damping: 24 }}
-            style={{
-              position: "absolute",
-              bottom: "calc(100% + 14px)", left: 0,
-              width: 224,
-              background: "rgba(8,20,12,0.97)",
-              border: "1px solid rgba(57,255,133,0.32)",
-              borderRadius: 16,
-              padding: "13px 14px 15px",
-              backdropFilter: "blur(18px)",
-              boxShadow: "0 8px 32px rgba(57,255,133,0.13)",
-            }}
-          >
-            {/* tail */}
-            <div style={{
-              position: "absolute", bottom: -7, left: 19,
-              width: 13, height: 13,
-              background: "rgba(8,20,12,0.97)",
-              borderRight: "1px solid rgba(57,255,133,0.32)",
-              borderBottom: "1px solid rgba(57,255,133,0.32)",
-              transform: "rotate(45deg)",
-            }} />
-            <button onClick={() => setShowBubble(false)} style={{
-              position: "absolute", top: 6, left: 8,
-              color: "#7EA88E", background: "none", border: "none",
-              cursor: "pointer", fontSize: 11, fontWeight: "bold", lineHeight: 1,
-            }}>{T.floating.dismiss}</button>
-            <div style={{ color: "#EBF6ED", fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-line" }}>
-              {returning ? T.floating.returningGreeting(user?.name || "") : T.floating.welcomeGreeting(user?.name || "")}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Chat Drawer ── */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.94 }}
-            transition={{ type: "spring", stiffness: 320, damping: 26 }}
-            style={drawerStyle}
-          >
-            {/* Header */}
-            <div style={{
-              padding: "11px 14px", flexShrink: 0,
-              borderBottom: "1px solid rgba(57,255,133,0.12)",
-              background: "rgba(57,255,133,0.04)",
-              display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <div style={{ width: 36, height: 36, flexShrink: 0 }}>
-                <div className="avatar-float avatar-halo rounded-full flex items-center justify-center"
-                  style={{ width: 36, height: 36, background: "linear-gradient(135deg,#122018,#0D1C14)", border: "1.5px solid rgba(57,255,133,.35)", overflow: "hidden" }}>
-                  <img src="/happy-marijuana-bud-cartoon-character-gesturing-vector-hand-drawn-illustration_20412-2450.avif"
-                    alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: "#EBF6ED", fontWeight: "bold", fontSize: 13 }}>{T.floating.title}</div>
-                <div style={{ color: "#7EA88E", fontSize: 11 }}>{T.floating.subtitle}</div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                <motion.span
-                  animate={{ opacity: [1, 0.35, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  style={{ width: 7, height: 7, borderRadius: "50%", background: "#39FF85", display: "inline-block" }} />
-                <span style={{ color: "#39FF85", fontSize: 10 }}>{T.floating.connected}</span>
-              </div>
-              <button onClick={() => setOpen(false)} style={{
-                color: "#7EA88E", background: "none", border: "none",
-                cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 4px", flexShrink: 0,
-              }}>{T.floating.dismiss}</button>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} style={{
-              flex: 1, overflowY: "auto", padding: "10px 12px",
-              display: "flex", flexDirection: "column", gap: 8,
-            }}>
-              {msgs.map((m, i) => (
-                <div key={i} style={bubbleStyle(m.role)}>
-                  {m.role === "assistant" && <span style={{ color: "#39FF85" }}>🌿 </span>}
-                  {m.img && (
-                    <img src={m.img} alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 5, display: "block" }} />
-                  )}
-                  {m.content}
-                  {m.cta === "complete_profile" && (
-                    <button onClick={() => { setOpen(false); goComplete(); }}
-                      style={{
-                        display: "block", width: "100%", marginTop: 10,
-                        background: "#39FF85", color: "#061006",
-                        border: "none", borderRadius: 11,
-                        padding: "8px 14px", fontSize: 12.5,
-                        fontWeight: "bold", cursor: "pointer",
-                      }}>
-                      {T.avatar.ctaButton}
-                    </button>
-                  )}
-                </div>
-              ))}
-              {busy && (
-                <div style={{
-                  ...bubbleStyle("assistant"),
-                  display: "flex", alignItems: "center", gap: 5, padding: "10px 14px",
-                }}>
-                  {[0,1,2].map(i => (
-                    <motion.span key={i}
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 0.52, delay: i * 0.13, repeat: Infinity }}
-                      style={{ width: 6, height: 6, borderRadius: "50%", background: "#39FF85", display: "inline-block" }} />
-                  ))}
-                  <span style={{ color: "#7EA88E", fontSize: 11, marginRight: 4 }}>{T.floating.thinking}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Pending image strip */}
-            {pendingImg && (
-              <div style={{
-                padding: "6px 12px", flexShrink: 0,
-                borderTop: "1px solid rgba(57,255,133,0.10)",
-                background: "rgba(57,255,133,0.04)",
-                display: "flex", alignItems: "center", gap: 8,
-              }}>
-                <img src={pendingImg.preview} alt="" style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 8 }} />
-                <span style={{ flex: 1, color: "#7EA88E", fontSize: 11 }}>{T.floating.imagePending}</span>
-                <button onClick={() => setPendingImg(null)} style={{ color: "#FF6B6B", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>✕</button>
-              </div>
-            )}
-
-            {/* Input row */}
-            <div style={{
-              padding: "8px 10px", flexShrink: 0,
-              borderTop: "1px solid rgba(57,255,133,0.12)",
-              background: "rgba(0,0,0,0.18)",
-              display: "flex", gap: 6, alignItems: "center",
-            }}>
-              <button onClick={() => fileRef.current?.click()} title={T.btn.upload}
-                style={{ color: "#7EA88E", background: "none", border: "none", cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-                placeholder={T.floating.placeholder}
-                className="chat-input"
-                dir="rtl"
-                style={{ flex: 1, minWidth: 0, padding: "7px 11px", fontSize: 12 }}
-              />
-              <button onClick={() => send()} disabled={busy || (!input.trim() && !pendingImg)}
-                style={{
-                  background: "#39FF85", color: "#061006", border: "none",
-                  borderRadius: 12, padding: "7px 14px",
-                  fontWeight: "bold", fontSize: 12, cursor: "pointer", flexShrink: 0,
-                  opacity: busy || (!input.trim() && !pendingImg) ? 0.38 : 1,
-                  transition: "opacity .2s",
-                }}>
-                {T.floating.send}
-              </button>
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-              onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Avatar — borderless breakout character ── */}
-      <motion.button
-        onClick={() => { setOpen(o => !o); setShowBubble(false); }}
-        animate={{ y: [0, -14, 0], rotate: [0, -2, 2, 0] }}
-        transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
-        whileHover={{ scale: 1.08, rotate: -4 }}
-        whileTap={{ scale: 0.93 }}
+    <div style={{
+      position: "fixed", bottom: 190, left: 10, zIndex: 9990,
+      pointerEvents: "none",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+    }}>
+      {/* Greeting bubble */}
+      <motion.div
+        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ delay: 0.6, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         style={{
-          width: 132, height: 132,
-          background: "none", border: "none", padding: 0,
-          cursor: "pointer", outline: "none",
-          position: "relative",
-          display: "block",
-          filter: "drop-shadow(0 14px 22px rgba(0,0,0,0.45)) drop-shadow(0 0 18px rgba(57,255,133,0.18))",
-        }}
-      >
-        <video src="/zemach-avatar.mp4" autoPlay loop muted playsInline
-          style={{ width:"100%", height:"100%", objectFit:"contain", pointerEvents:"none", borderRadius:20 }}
-          onError={e => { e.currentTarget.style.display="none"; e.currentTarget.nextSibling.style.display="block"; }} />
-        <span style={{ display:"none", fontSize:72, lineHeight:1 }}>🌿</span>
-        {/* notification pulse */}
-        {showBubble && !open && (
-          <motion.span
-            animate={{ scale: [1, 1.4, 1], opacity: [1, 0.6, 1] }}
-            transition={{ duration: 1.6, repeat: Infinity }}
-            style={{
-              position: "absolute", top: 14, left: 8,
-              width: 14, height: 14, borderRadius: "50%",
-              background: "#39FF85",
-              border: "2px solid #0D1C14",
-              boxShadow: "0 0 10px rgba(57,255,133,0.9)",
-            }} />
-        )}
-      </motion.button>
-    </div>
-  );
-}
+          background: "rgba(11,24,16,0.92)", border: "1px solid rgba(57,255,133,0.28)",
+          borderRadius: 14, padding: "7px 12px",
+          fontSize: 12, color: "#EBF6ED", textAlign: "center",
+          lineHeight: 1.55, backdropFilter: "blur(10px)",
+          boxShadow: "0 2px 20px rgba(0,0,0,0.60), 0 0 0 1px rgba(57,255,133,0.06) inset",
+          maxWidth: 148, direction: "rtl", whiteSpace: "pre-line",
+          zIndex: 1,
+        }}>
+        {name ? `${greeting}\n${name}` : greeting}
+      </motion.div>
 
-/* ── Journey-aware Zemach wrapper (must be outside CannaMatch so it can call useJourney inside JourneyProvider) ── */
-function ZemachWithJourney({ userName, currentTab, setTab }) {
-  const { celebrating, diaryNudge, dismissDiaryNudge } = useJourney();
-  return (
-    <ZemachAvatarChat
-      userName={userName}
-      currentTab={currentTab}
-      celebrating={celebrating}
-      diaryNudge={diaryNudge}
-      onDiaryClick={() => { setTab("journal"); dismissDiaryNudge(); }}
-    />
+      {/* Avatar video — glow is a sibling so filter:blur doesn't isolate mix-blend-mode */}
+      <div style={{ position: "relative", width: 116, height: 116 }}>
+        {/* Organic blob glow — SIBLING of video, not parent */}
+        <div style={{
+          position: "absolute",
+          inset: "-10px",
+          borderRadius: "62% 38% 52% 48% / 44% 56% 44% 56%",
+          background: "radial-gradient(circle, rgba(57,255,133,0.26) 0%, transparent 72%)",
+          filter: "blur(14px)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }} />
+        {prefersReduced || !videoOk ? (
+          <span style={{
+            fontSize: 72, lineHeight: "116px", display: "block", textAlign: "center",
+            filter: "drop-shadow(0 0 14px rgba(57,255,133,0.70))",
+            position: "relative", zIndex: 1,
+          }}>🌿</span>
+        ) : (
+          <video
+            src="/Avatar.mp4"
+            autoPlay loop muted playsInline
+            onError={() => setVideoOk(false)}
+            style={{
+              position: "relative", zIndex: 1,
+              width: "100%", height: "100%",
+              objectFit: "contain",
+              /* screen blend: black bg pixels disappear; character shows on page bg */
+              mixBlendMode: "screen",
+            }}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -7235,6 +7117,23 @@ export default function CannaMatch() {
   const [popup, setPopup] = useState(null);
   const [verifyNextScreen, setVerifyNextScreen] = useState("welcome_room");
   const [licenseVerified, setLicenseVerified] = useState(() => localStorage.getItem("cm_license") === "1");
+  const [licenseAlert, setLicenseAlert] = useState(null); // null | "expiring" | "expired"
+
+  // Check license expiry on mount and re-lock if lapsed
+  useEffect(() => {
+    if (!licenseVerified) return;
+    const meta = readLicenseMeta();
+    if (!meta?.expiry) return;
+    const days = daysToExpiry(meta.expiry);
+    if (days !== null && days < 0) {
+      // License expired since last login — re-lock sensitive features
+      localStorage.removeItem("cm_license");
+      setLicenseVerified(false);
+      setLicenseAlert("expired");
+    } else if (days !== null && days <= 90) {
+      setLicenseAlert("expiring");
+    }
+  }, [licenseVerified]);
 
   const [streak, setStreak] = useState(4);
   const [checked, setChecked] = useState(false);
@@ -7321,10 +7220,11 @@ export default function CannaMatch() {
   const [indFilter, setIndFilter] = useState([]);
   const [typeFilter, setTypeFilter] = useState("all");
   const [indFilterManual, setIndFilterManual] = useState(false);
+  const [chipExpanded, setChipExpanded] = useState(false);
 
   useEffect(() => {
-    if (!indFilterManual && ans.reasons.length > 0 && indFilter.length === 0) {
-      setIndFilter([...ans.reasons]);
+    if (!indFilterManual) {
+      setIndFilter(ans.reasons.length > 0 ? [...ans.reasons] : []);
     }
   }, [ans.reasons]);
 
@@ -7341,7 +7241,6 @@ export default function CannaMatch() {
     { id: "menu",      label: T.tab.menu },
     { id: "dna",       label: T.tab.dna },
     { id: "social",    label: T.tab.social },
-    { id: "ai",        label: T.tab.ai },
     { id: "journal",   label: T.tab.journal },
     { id: "recs",      label: T.tab.recs },
     { id: "community", label: T.tab.community },
@@ -7356,7 +7255,6 @@ export default function CannaMatch() {
   const NAV_TABS = [
     { id: "home",      label: T.nav.home },
     { id: "community", label: T.nav.community },
-    { id: "ai",        label: T.nav.ai },
     { id: "menu",      label: T.nav.menu },
     { id: "market",    label: T.nav.market },
     { id: "basket",    label: T.nav.basket },
@@ -7731,56 +7629,128 @@ export default function CannaMatch() {
               ))}
             </nav>
 
-            {["recs", "menu", "pharm", "basket"].includes(tab) && (
-              <div style={{ padding:"0 16px 8px" }}>
-                <div style={{
-                  borderRadius:16, padding:"10px 14px",
-                  background:"rgba(20,23,32,0.80)",
-                  border:"1px solid rgba(74,222,128,0.12)",
-                  backdropFilter:"blur(12px)",
-                }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      {indFilter.length > 0 && (
-                        <button onClick={() => { setIndFilter([]); setIndFilterManual(true); }}
-                          style={{ fontSize:11, fontWeight:700, color:"#F87171", background:"none", border:"none", cursor:"pointer" }}>
-                          נקה
+            {["recs", "menu", "pharm", "basket"].includes(tab) && (() => {
+              // Determine which chips are "mine" (any filterAs intersects ans.reasons)
+              const isUserChip = (chip) => chip.filterAs.some(r => ans.reasons.includes(r));
+              // Chip "on" = any filterAs ID in active indFilter
+              const isOn = (chip) => chip.filterAs.some(r => indFilter.includes(r));
+              const toggleChip = (chip) => {
+                setIndFilterManual(true);
+                const on = isOn(chip);
+                if (on) {
+                  // Remove all this chip's filterAs IDs from filter
+                  setIndFilter(prev => prev.filter(r => !chip.filterAs.includes(r)));
+                } else {
+                  // Add all this chip's filterAs IDs (merge, no dupes)
+                  setIndFilter(prev => [...new Set([...prev, ...chip.filterAs])]);
+                }
+              };
+              // Default visible: tier 1 + 2 always, tier 3 only if expanded
+              const visibleChips = INDICATION_CHIPS.filter(c => {
+                if (c.tier <= 2) return true;
+                if (chipExpanded) return true;
+                return isUserChip(c); // tier 3 own chips always visible
+              });
+              const hiddenCount = INDICATION_CHIPS.filter(c => c.tier === 3 && !isUserChip(c) && !chipExpanded).length;
+              return (
+                <div style={{ padding:"0 16px 8px" }}>
+                  <div style={{
+                    borderRadius:16, padding:"10px 14px",
+                    background:"rgba(20,23,32,0.80)",
+                    border:"1px solid rgba(74,222,128,0.12)",
+                    backdropFilter:"blur(12px)",
+                  }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        {indFilter.length > 0 && (
+                          <button onClick={() => { setIndFilter([]); setIndFilterManual(true); }}
+                            style={{ fontSize:11, fontWeight:700, color:"#F87171", background:"none", border:"none", cursor:"pointer" }}>
+                            נקה
+                          </button>
+                        )}
+                      </div>
+                      <span style={{ fontSize:11, fontWeight:700, color:"rgba(187,247,208,0.70)" }}>🔎 סנן לפי התוויה</span>
+                    </div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {visibleChips.map((chip) => {
+                        const on = isOn(chip);
+                        const mine = isUserChip(chip);
+                        return (
+                          <button key={chip.id}
+                            onClick={() => toggleChip(chip)}
+                            style={{
+                              fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
+                              transition:"all 0.18s",
+                              background: on ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.05)",
+                              color: on ? "#4ADE80" : "rgba(240,253,244,0.45)",
+                              border: on ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                              boxShadow: mine && on ? "0 0 8px rgba(74,222,128,0.20)" : "none",
+                            }}>
+                            {mine && <span style={{ marginLeft:3, fontSize:9 }}>★</span>}
+                            {chip.icon} {chip.label}
+                          </button>
+                        );
+                      })}
+                      {!chipExpanded && hiddenCount > 0 && (
+                        <button onClick={() => setChipExpanded(true)}
+                          style={{
+                            fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
+                            background:"rgba(200,85,255,0.08)", color:"#C855FF",
+                            border:"1px solid rgba(200,85,255,0.22)",
+                          }}>
+                          ➕ הרחב ({hiddenCount})
+                        </button>
+                      )}
+                      {chipExpanded && (
+                        <button onClick={() => setChipExpanded(false)}
+                          style={{
+                            fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
+                            background:"rgba(255,255,255,0.04)", color:"rgba(240,253,244,0.35)",
+                            border:"1px solid rgba(255,255,255,0.08)",
+                          }}>
+                          ➖ צמצם
                         </button>
                       )}
                     </div>
-                    <span style={{ fontSize:11, fontWeight:700, color:"rgba(187,247,208,0.70)" }}>🔎 סנן לפי התוויה</span>
+                    {ans.reasons.length > 0 && (
+                      <p style={{ fontSize:10, marginTop:6, color:"rgba(74,222,128,0.50)" }}>
+                        ★ ההתוויות שלך
+                      </p>
+                    )}
                   </div>
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                    {REASONS.map((r) => {
-                      const on = indFilter.includes(r.id);
-                      const isUserReason = ans.reasons.includes(r.id);
-                      return (
-                        <button key={r.id}
-                          onClick={() => { setIndFilterManual(true); setIndFilter(on ? indFilter.filter((x) => x !== r.id) : [...indFilter, r.id]); }}
-                          style={{
-                            fontSize:11, padding:"5px 12px", borderRadius:12, fontWeight:700, cursor:"pointer",
-                            transition:"all 0.18s",
-                            background: on ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.05)",
-                            color: on ? "#4ADE80" : "rgba(240,253,244,0.45)",
-                            border: on ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)",
-                            boxShadow: isUserReason && on ? "0 0 8px rgba(74,222,128,0.20)" : "none",
-                          }}>
-                          {isUserReason && <span style={{ marginLeft:3, fontSize:9 }}>★</span>}
-                          {r.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {ans.reasons.length > 0 && (
-                    <p style={{ fontSize:10, marginTop:6, color:"rgba(74,222,128,0.50)" }}>
-                      ★ מסומן — לפי הפרופיל שלך
-                    </p>
-                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <main className="flex-1 pb-8 overflow-y-auto">
+              {/* ── License expiry alert banner ── */}
+              {licenseAlert === "expired" && (
+                <div className="mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3"
+                  style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.30)" }}>
+                  <span style={{ fontSize: 18 }}>🛑</span>
+                  <p className="text-xs flex-1" style={{ color: "#FCA5A5" }}>
+                    <b>הרישיון שלך פג תוקף</b> — הגישה לפרופיל ולקהילה נעולה עד חידוש הרישיון.
+                  </p>
+                  <button onClick={() => setLicenseAlert(null)}
+                    style={{ fontSize: 14, color: "#FCA5A5", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                </div>
+              )}
+              {licenseAlert === "expiring" && (() => {
+                const meta = readLicenseMeta();
+                const days = meta?.expiry ? daysToExpiry(meta.expiry) : null;
+                return (
+                  <div className="mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3"
+                    style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}>
+                    <span style={{ fontSize: 18 }}>🌿</span>
+                    <p className="text-xs flex-1" style={{ color: "#FBBF24" }}>
+                      הרישיון שלך פג בעוד כ-{days} ימים — שווה כבר לקבוע חידוש 🌿
+                    </p>
+                    <button onClick={() => setLicenseAlert(null)}
+                      style={{ fontSize: 14, color: "#FBBF24", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                  </div>
+                );
+              })()}
+
               {tab === "home" && (
                 <Dashboard ans={ans} scored={scored} basket={basket} user={user}
                   ratings={ratings}
@@ -7798,7 +7768,6 @@ export default function CannaMatch() {
                 </>
               )}
               {tab === "dna" && <GeneticDNA ans={ans} ratings={ratings} scored={scored} goJournal={() => setTab("journal")} />}
-              {tab === "ai" && <Assistant ans={ans} ratings={ratings} user={user} />}
               {tab === "community" && (
                 licenseVerified
                   ? <CommunitySplitScreen ans={ans} user={user} />
@@ -7823,7 +7792,7 @@ export default function CannaMatch() {
               {tab === "guide" && <Guide />}
               {tab === "knowledge" && <Knowledge ans={ans} scored={scored} />}
               {tab === "cooking" && <Cooking />}
-              {tab === "profile" && <Profile ans={ans} ratings={ratings} goDNA={() => setTab("dna")} />}
+              {tab === "profile" && <Profile ans={ans} ratings={ratings} goDNA={() => setTab("dna")} licenseVerified={licenseVerified} />}
               {tab === "journal" && (
                 <Journal ans={ans} scored={scored} ratings={ratings} setRatings={setRatings}
                   streak={streak} setStreak={setStreak} checked={checked} setChecked={setChecked}
@@ -7841,12 +7810,7 @@ export default function CannaMatch() {
             goComplete={ans.cats.length === 0 ? () => setScreen("onboarding") : () => setTab("dna")}
             goJournal={() => setTab("journal")} />
 
-          {/* ── Zemach: global floating AI companion with journey awareness ── */}
-          <ZemachWithJourney
-            userName={user?.name}
-            currentTab={tab}
-            setTab={setTab}
-          />
+          <GreetingMascot user={user} />
           <AnimatePresence>
             {showPerms && (
               <PermissionModal onDone={() => {
