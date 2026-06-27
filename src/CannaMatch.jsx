@@ -5484,40 +5484,36 @@ function AuthLayout({ children }) {
           </div>
         </div>
 
-        {/* Desktop-only branding panel — left side on desktop (RTL secondary) */}
+        {/* Desktop-only hero panel — center of screen */}
         <div className="auth-left-panel">
-          <div style={{ textAlign:"center", maxWidth:400 }}>
-            <div style={{
-              fontSize:80, marginBottom:20, display:"block",
-              filter:"drop-shadow(0 0 36px rgba(74,222,128,0.70)) drop-shadow(0 4px 12px rgba(0,0,0,0.60))",
-            }}>🌿</div>
+          <div style={{
+            maxWidth:560, width:"100%",
+            background:"rgba(8,18,12,0.58)",
+            backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
+            borderRadius:24, padding:"36px 44px",
+            border:"1px solid rgba(74,222,128,0.16)",
+            boxShadow:"0 8px 40px rgba(0,0,0,0.38)",
+          }}>
             <h2 style={{
-              fontSize:46, fontWeight:900, color:"#FFFFFF", letterSpacing:"-0.03em",
-              marginBottom:14, margin:"0 0 14px",
-              textShadow:"0 0 44px rgba(74,222,128,0.55), 0 2px 14px rgba(0,0,0,0.90)",
-            }}>קנאמאצ׳</h2>
-            <p style={{
-              fontSize:17, color:"rgba(220,255,230,0.85)", lineHeight:1.55, fontWeight:500,
-              textShadow:"0 1px 8px rgba(0,0,0,0.85)", marginTop:12,
-            }}>
-              המלווה האישי שלך לקנאביס רפואי בישראל
-            </p>
-            <div style={{ marginTop:32, display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
-              {[
-                { icon:"🎯", t:"התאמה אישית" },
-                { icon:"📋", t:"סריקת תפריטים" },
-                { icon:"🫂", t:"קהילה סגורה" },
-              ].map((f, i) => (
-                <div key={i} style={{
-                  padding:"8px 16px", borderRadius:12,
-                  background:"rgba(4,14,8,0.50)", border:"1px solid rgba(74,222,128,0.28)",
-                  backdropFilter:"blur(14px)", fontSize:13,
-                  color:"rgba(220,255,230,0.85)", fontWeight:600,
-                }}>
-                  {f.icon} {f.t}
-                </div>
-              ))}
-            </div>
+              fontSize:38, fontWeight:900, color:"#4ADE80", letterSpacing:"-0.03em",
+              lineHeight:1.1, margin:"0 0 22px", textAlign:"right",
+              textShadow:"0 0 32px rgba(74,222,128,0.45)",
+            }}>ברוכים הבאים</h2>
+            {[
+              "שלום, אני תום, מטופל כבר לא מעט שנים.",
+              "אני מכיר מקרוב את התסכול, את התפריטים האינסופיים, את הניסיון להבין מה באמת עובד ואת הדאגה התמידית שלא ייגמר מה שעוזר.",
+              "עד היום אני עומד מול הרוקח ושואל מה לקחת, כי האמת שפשוט הלכתי לאיבוד בין כל השמות והחברות, אז בניתי את המקום שתמיד רציתי שיהיה לי.",
+              "מקום שלוקח את כל הבלגן ומתרגם אותו לשפה אחת ברורה ומנסה לדייק את התאמת הקנייה לפי מה שמתאים לך באמת, לא לפי שם על אריזה, וזה עובד הכי טוב ביחד.",
+              "כל דיווח שלך מחדד את ההתאמה של מישהו אחר, וכל דיווח שלו מחדד את שלך. ככה לאט לאט מפסיקים לנחש ומתחילים לדעת.",
+              "אני יכול להגיד שלי זה עובד ואני מקווה שגם לכם זה יעבוד.",
+            ].map((para, i) => (
+              <p key={i} style={{
+                fontSize:14, fontWeight:500,
+                color:"rgba(245,234,200,0.90)",
+                lineHeight:1.70, textAlign:"right",
+                margin: i < 5 ? "0 0 11px" : "0",
+              }}>{para}</p>
+            ))}
           </div>
         </div>
       </div>
@@ -7102,7 +7098,7 @@ const GREET_LINES = {
   new:       ["ברוך הבא ל-CannaMatch 🌿", "כיף שאתה כאן 💚"],
   returning: ["עבר זמן, כיף שחזרת 💚", "טוב לראות אותך שוב 🌿"],
   morning:   ["בוקר טוב ☀️", "התחלה טובה 🌿"],
-  noon:      ["צהריים טובים 🌿", "איך מרגישים? 💚"],
+  noon:      ["צהריים טובים", "איך מרגישים? 💚"],
   evening:   ["ערב טוב 🌙", "ערב נעים 🌿"],
   night:     ["לילה טוב 😴 שינה רגועה", "לילה שקט 🌙"],
 };
@@ -7338,6 +7334,10 @@ export default function CannaMatch() {
 
   const [showPerms, setShowPerms] = useState(false);
   useEffect(() => {
+    if (screen === "app") window.scrollTo(0, 0);
+  }, [screen]);
+
+  useEffect(() => {
     if (screen === "app" && !localStorage.getItem("cm_perms_asked")) {
       const t = setTimeout(() => setShowPerms(true), 2000);
       return () => clearTimeout(t);
@@ -7419,10 +7419,10 @@ export default function CannaMatch() {
         {PopupToast}
         <AnimatePresence mode="wait">
           {screen === "welcome" && (
-            <motion.div key="welcome" {...FMV} style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <motion.div key="welcome" {...FMV} style={{ display:"flex", flexDirection:"column", gap:0 }}>
 
               {/* ── Brand hero ── */}
-              <div style={{ textAlign:"center" }}>
+              <div style={{ textAlign:"center", marginBottom:20 }}>
                 <motion.div
                   animate={{ y:[0,-8,0] }}
                   transition={{ duration:5.5, repeat:Infinity, ease:"easeInOut" }}
@@ -7435,49 +7435,28 @@ export default function CannaMatch() {
                 </motion.div>
                 <h1 style={{
                   fontSize:32, fontWeight:900, color:"#FFFFFF",
-                  letterSpacing:"-0.03em", lineHeight:1.1, marginBottom:4,
+                  letterSpacing:"-0.03em", lineHeight:1.1, marginBottom:6,
                   textShadow:"0 0 36px rgba(74,222,128,0.55), 0 2px 14px rgba(0,0,0,0.85)",
                 }}>
                   ברוכים הבאים
                 </h1>
                 <p style={{
-                  fontSize:14, color:"rgba(220,255,230,0.88)",
+                  fontSize:13, color:"rgba(134,239,172,0.65)",
                   lineHeight:1.35, margin:"0 auto",
                   textShadow:"0 1px 8px rgba(0,0,0,0.80)",
-                  fontWeight:600,
+                  fontWeight:600, letterSpacing:"0.04em",
                 }}>
-                  קנאמאצ׳ · מיטוב הקנייה החודשית שלך
+                  קנאמאצ׳
                 </p>
               </div>
 
-              {/* ── Disclaimer ── */}
-              <div style={{
-                background:"rgba(3,10,6,0.52)",
-                backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
-                border:"1.5px solid rgba(74,222,128,0.42)",
-                borderRadius:18, padding:"12px 16px",
-                textAlign:"right",
-              }}>
-                <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-                  <span style={{ fontSize:20, flexShrink:0, marginTop:2 }}>🤝</span>
-                  <p style={{
-                    fontSize:13, fontWeight:600, color:"rgba(220,255,230,0.92)",
-                    lineHeight:1.55, margin:0,
-                    textShadow:"0 1px 8px rgba(0,0,0,0.80)",
-                  }}>
-                    המידע אינו ייעוץ רפואי ואינו מחליף רופא.
-                    קנאמאצ׳ סורקת תפריטי בתי מרקחת ומוצאת עבורך את ההתאמה האידיאלית לקנייה החודשית שלך — על בסיס נתונים פתוחים וספרות אקדמית מהימנה.
-                  </p>
-                </div>
-              </div>
-
               {/* ── Capabilities grid ── */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
                 {[
-                  { icon:"🎯", title:"התאמה אישית",     text:"מיטוב הקנייה החודשית שלך" },
-                  { icon:"📋", title:"סריקת תפריטים",   text:"380+ זנים ישראלים" },
-                  { icon:"📚", title:"ידע ממחקרים",     text:"נתונים אקדמיים ופתוחים" },
-                  { icon:"🏪", title:"כל בתי המרקחת",  text:"מחירים ומלאי בזמן אמת" },
+                  { icon:"🎯", title:"התאמה אישית",  text:"מיטוב הקנייה החודשית שלך" },
+                  { icon:"📋", title:"סריקת תפריט",  text:"צלם תפריט של בית מרקחת, והמערכת תזהה את המוצרים, תתרגם שמות מסחריים לזהות הגנטית האמיתית, ותראה לך מה מתוכו מתאים לך." },
+                  { icon:"📚", title:"ידע ומחקרים",  text:"נתונים אקדמיים ומחקרים פתוחים" },
+                  { icon:"🫂", title:"קהילה",         text:"מטופלים מאומתים משתפים מה עבד להם. דיווחים אמיתיים, מדורגים לפי אמינות, שעוזרים לך ולאחרים לדייק." },
                 ].map((f, i) => (
                   <motion.div key={i}
                     initial={{opacity:0, scale:0.90}} animate={{opacity:1, scale:1}}
@@ -7485,22 +7464,22 @@ export default function CannaMatch() {
                     style={{
                       padding:"12px 10px", borderRadius:16,
                       display:"flex", flexDirection:"column",
-                      alignItems:"center", justifyContent:"center", textAlign:"center",
+                      alignItems:"center", justifyContent:"flex-start", textAlign:"center",
                       background:"rgba(4,14,8,0.46)",
                       border:"1px solid rgba(74,222,128,0.28)",
                       backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
                     }}>
                     <span style={{ fontSize:22, display:"block", marginBottom:5 }}>{f.icon}</span>
                     <div style={{ fontSize:13, fontWeight:800, color:"#FFFFFF",
-                      textShadow:"0 1px 6px rgba(0,0,0,0.70)", marginBottom:3, lineHeight:1.2 }}>{f.title}</div>
+                      textShadow:"0 1px 6px rgba(0,0,0,0.70)", marginBottom:4, lineHeight:1.2 }}>{f.title}</div>
                     <div style={{ fontSize:10, color:"rgba(187,247,208,0.80)",
-                      textShadow:"0 1px 4px rgba(0,0,0,0.60)", lineHeight:1.35 }}>{f.text}</div>
+                      textShadow:"0 1px 4px rgba(0,0,0,0.60)", lineHeight:1.45 }}>{f.text}</div>
                   </motion.div>
                 ))}
               </div>
 
               {/* ── Dual CTA buttons ── */}
-              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:14 }}>
                 <motion.button
                   onClick={() => setScreen("register")}
                   whileHover={{ scale:1.03, boxShadow:"0 0 48px rgba(74,222,128,0.70), 0 8px 28px rgba(0,0,0,0.50)" }}
@@ -7532,8 +7511,8 @@ export default function CannaMatch() {
                 </motion.button>
               </div>
 
-              <p style={{ fontSize:11, textAlign:"center", color:"rgba(187,247,208,0.72)", lineHeight:1.5, fontWeight:600 }}>
-                מיועד לבעלי רישיון קנאביס רפואי בתוקף בלבד · גיל 18+
+              <p style={{ fontSize:10, textAlign:"center", color:"rgba(187,247,208,0.45)", lineHeight:1.6, fontWeight:500, margin:"0 0 4px" }}>
+                המידע באתר אינו ייעוץ רפואי ואינו תחליף לרופא. הוא מבוסס על נתונים פתוחים וספרות אקדמית מהימנה, ונועד לסייע בהתמצאות בלבד. כל החלטה על הטיפול היא באחריותך ובהתייעצות עם הרופא המטפל.
               </p>
 
             </motion.div>
@@ -7939,7 +7918,11 @@ export default function CannaMatch() {
                   ? <CommunitySplitScreen ans={ans} user={user} />
                   : <CommunityLicenseGate onUnlock={() => setLicenseVerified(true)} />
               )}
-              {tab === "social" && <TwinsFeed userId={user?.id} />}
+              {tab === "social" && (
+                licenseVerified
+                  ? <TwinsFeed userId={user?.id} />
+                  : <CommunityLicenseGate onUnlock={() => setLicenseVerified(true)} />
+              )}
               {tab === "menu" && (
                 <MenuScan ans={ans} scored={scored} basket={basket} user={user}
                   addToBasket={(id) => setBasket([...basket, id])} />

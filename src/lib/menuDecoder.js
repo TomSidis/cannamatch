@@ -162,11 +162,18 @@ export function parseLine(line) {
 //   • Strings with no run of ≥ 3 Hebrew or Latin letters
 //   • Short strings (< 8 chars) without a recognized category — OCR artifacts
 function isPlausibleProductName(rawName, cat) {
-  if (!rawName || rawName.length < 4) return false;
-  if (/^[§#*►•·\-–—→←]/.test(rawName.trim())) return false;
-  if (/עד\s*\d+\s*ש/.test(rawName)) return false;
-  if (!/[א-תa-zA-Z]{3,}/.test(rawName)) return false;
-  if (rawName.length < 8 && !cat) return false;
+  const s = rawName?.trim();
+  if (!s || s.length < 4) return false;
+  if (/^[§#*►•·\-–—→←]/.test(s)) return false;
+  if (/עד\s*\d+\s*ש/.test(s)) return false;
+  if (!/[א-תa-zA-Z]{3,}/.test(s)) return false;
+  if (s.length < 8 && !cat) return false;
+  // Date fragments: ".06.2026", "06/2026" — OCR menu headers
+  if (/\.\d{2}[./]\d{2,4}|\d{2}\/\d{2,4}/.test(s)) return false;
+  // Barcode / ID: 5+ consecutive digits
+  if (/\d{5,}/.test(s)) return false;
+  // Truncated OCR lines (trailing ellipsis)
+  if (/\.\.\.$/.test(s)) return false;
   return true;
 }
 

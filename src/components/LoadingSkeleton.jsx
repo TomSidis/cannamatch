@@ -146,7 +146,7 @@ export default function LoadingSkeleton({
     ? ['מזהה זנים · פענוח גנטיקה · חישוב קטגוריות']
     : isTwins
     ? ['מנתח DNA · מחפש פרופילים דומים · מחשב קרבה גנטית']
-    : ['סורק 380 זנים · מחשב דמיון וקטורי · בודק Kill-Switches'];
+    : ['מפענח את התפריט ומשווה ל-DNA שלך'];
 
   return (
     <motion.div
