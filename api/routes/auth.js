@@ -1,21 +1,27 @@
 import { Router }  from "express";
 import jwt          from "jsonwebtoken";
+import bcrypt       from "bcryptjs";
 import { pool }     from "../db.js";
 import {
   OTP_TTL_MIN, MAX_ATTEMPTS,
   generateOtpCode, detectContactChannel, hashOtpCode, verifyOtpCodeHash, dispatchOtp,
 } from "../lib/otp.js";
-import { buildInitialDNA } from "../lib/onboardingVector.js";
+import { buildInitialDNA }       from "../lib/onboardingVector.js";
+import { verifyLicensePayload }  from "../lib/licenseVerify.js";
 
 const router     = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+
+// Require JWT_SECRET from env — never fall back to a hardcoded string in this module.
+// adminBootstrap.js warns loudly if it's missing; here we just use it.
+const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production-set-JWT_SECRET-env";
 
 // In-process throttle: contact → last-sent timestamp.
 // Replaced by Redis in production; this guards a single process.
 const otpRateLimitMap = new Map();
 
-function issueToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "30d" });
+// role is included in the JWT so requireRole() can validate without a DB hit.
+function issueToken(userId, role = "user", expiresIn = "30d") {
+  return jwt.sign({ sub: userId, role }, JWT_SECRET, { expiresIn });
 }
 
 // ── Input guard ───────────────────────────────────────────────
@@ -96,24 +102,27 @@ router.post("/verify-otp", async (req, res) => {
     const isEmail = otpRow.channel === "email";
     const { rows: [existing] } = await client.query(
       isEmail
-        ? `SELECT id FROM users WHERE email = $1`
-        : `SELECT id FROM users WHERE phone = $1`,
+        ? `SELECT id, role FROM users WHERE email = $1`
+        : `SELECT id, role FROM users WHERE phone = $1`,
       [normalized],
     );
 
     let userId = existing?.id;
+    let role   = existing?.role ?? "user";
+
     if (!userId) {
       const { rows: [created] } = await client.query(
         isEmail
-          ? `INSERT INTO users (email) VALUES ($1) RETURNING id`
-          : `INSERT INTO users (phone) VALUES ($1) RETURNING id`,
+          ? `INSERT INTO users (email) VALUES ($1) RETURNING id, role`
+          : `INSERT INTO users (phone) VALUES ($1) RETURNING id, role`,
         [normalized],
       );
       userId = created.id;
+      role   = created.role ?? "user";
     }
 
     await client.query("COMMIT");
-    res.json({ token: issueToken(userId), user: { id: userId, contact: normalized } });
+    res.json({ token: issueToken(userId, role), user: { id: userId, contact: normalized, role } });
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch {}
     console.error("verify-otp error:", err);
@@ -180,6 +189,131 @@ router.post("/onboarding", async (req, res) => {
     res.status(500).json({ error: { message: "שגיאת שרת בשמירת הפרופיל." } });
   } finally {
     client.release();
+  }
+});
+
+// POST /api/auth/verify-license
+// Authenticated. Accepts OCR-extracted license fields, derives uniqueness key server-side,
+// stores only the 5 privacy-safe fields. Raw licenseNumber is never written anywhere.
+// Used by: onboarding wizard (Stage 0) AND community entry gate — same endpoint, same logic.
+router.post("/verify-license", async (req, res) => {
+  const authHeader = (req.headers.authorization || "").replace("Bearer ", "").trim();
+  if (!authHeader) {
+    return res.status(401).json({ error: { message: "אימות נדרש." } });
+  }
+
+  let userId;
+  try {
+    const decoded = jwt.verify(authHeader, JWT_SECRET);
+    userId = decoded.sub;
+  } catch {
+    return res.status(401).json({ error: { message: "טוקן לא תקין." } });
+  }
+
+  // Destructure raw OCR fields — licenseNumber and idNumber (ת"ז) are in scope only until
+  // verifyLicensePayload returns. Neither is logged, echoed in responses, or persisted.
+  const { licenseNumber, idNumber, expiry, categories, gramsByCategory } = req.body || {};
+
+  if (!licenseNumber || typeof licenseNumber !== "string" || !licenseNumber.trim()) {
+    return res.status(400).json({ error: { message: "מספר רישיון חסר." } });
+  }
+
+  // In-memory verification — derives the 5 safe fields. licenseNumber and idNumber
+  // enter verifyLicensePayload and are immediately discarded; neither is in the return value.
+  let verified;
+  try {
+    verified = verifyLicensePayload({ licenseNumber, idNumber, expiry, categories, gramsByCategory });
+  } catch (err) {
+    // Raw fields intentionally absent from this log line.
+    console.error("verify-license: payload validation failed:", err.message);
+    return res.status(400).json({ error: { message: "רישיון לא תקין — בדוק את הנתונים." } });
+  }
+  // licenseNumber and idNumber are no longer referenced from this point.
+
+  const { license_uniqueness_key, license_expiry, license_categories, monthly_grams_by_category } = verified;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE users SET
+         license_verified          = true,
+         license_uniqueness_key    = $1,
+         license_expiry            = $2,
+         license_categories        = $3,
+         monthly_grams_by_category = $4
+       WHERE id = $5`,
+      [
+        license_uniqueness_key,
+        license_expiry,
+        license_categories,
+        JSON.stringify(monthly_grams_by_category),
+        userId,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      verified:       true,
+      expiry:         license_expiry,
+      categories:     license_categories,
+      gramsByCategory: monthly_grams_by_category,
+    });
+  } catch (err) {
+    try { await client.query("ROLLBACK"); } catch {}
+
+    // 23505 = PostgreSQL unique_violation — another user already registered this license.
+    // Logged as an anomaly signal (userId only — no raw license data).
+    if (err.code === "23505") {
+      console.warn("[anomaly] duplicate-license-attempt userId=%s", userId);
+      return res.status(409).json({ error: { message: "רישיון זה כבר רשום במערכת." } });
+    }
+
+    // Raw input fields are intentionally absent from this log line.
+    console.error("verify-license: db error:", err.message);
+    res.status(500).json({ error: { message: "שגיאת שרת באימות הרישיון." } });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/auth/admin-login
+// Password-based login for admin users only.
+// Regular users authenticate via OTP — this endpoint is intentionally admin-only.
+router.post("/admin-login", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  if (!email || !password) {
+    return res.status(400).json({ error: { message: "חסרים שדות: email, password." } });
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    const { rows: [user] } = await client.query(
+      `SELECT id, role, password_hash FROM users WHERE email = $1 AND role = 'admin'`,
+      [String(email).toLowerCase().trim()],
+    );
+
+    // Deliberate: same error for "user not found" vs "wrong password" — no user enumeration.
+    if (!user?.password_hash) {
+      return res.status(401).json({ error: { message: "אימות נכשל." } });
+    }
+
+    const valid = await bcrypt.compare(String(password), user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: { message: "אימות נכשל." } });
+    }
+
+    // Admin sessions are shorter-lived (8h) than OTP user tokens (30d).
+    const token = issueToken(user.id, user.role, "8h");
+    res.json({ token, role: user.role });
+  } catch (err) {
+    console.error("admin-login error:", err.message);
+    res.status(500).json({ error: { message: "שגיאת שרת." } });
+  } finally {
+    client?.release();
   }
 });
 

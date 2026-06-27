@@ -11,7 +11,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  P, B, G, SPRING, VARIANTS, TERP_META, detectGenFamily, matchTier,
+  P, B, G, SPRING, VARIANTS, TERP_META, detectGenFamily, matchTier, TRUST_LAYER_COLOR,
 } from '../styles/ds.js';
 
 // ── Genetics family gradient map ─────────────────────────────────────────────
@@ -28,11 +28,14 @@ function GenGradient({ family, children, style = {} }) {
 }
 
 // ── Match percentage ring (SVG) ───────────────────────────────────────────────
-function MatchRing({ pct, size = 64 }) {
-  const tier = matchTier(pct);
-  const r    = (size / 2) - 5;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * (pct / 100);
+// trustColor: when provided (from topLayer), overrides tier color to signal data quality.
+//   measured=#4ADE80 (green), declared=#FBBF24 (amber), inferred=#6B7280 (gray).
+export function MatchRing({ pct, size = 64, trustColor }) {
+  const tier  = matchTier(pct);
+  const color = trustColor ?? tier.color;
+  const r     = (size / 2) - 5;
+  const circ  = 2 * Math.PI * r;
+  const dash  = circ * (pct / 100);
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
@@ -41,13 +44,13 @@ function MatchRing({ pct, size = 64 }) {
           fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={5} />
         <motion.circle
           cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke={tier.color} strokeWidth={5}
+          fill="none" stroke={color} strokeWidth={5}
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circ}`}
           initial={{ strokeDasharray: `0 ${circ}` }}
           animate={{ strokeDasharray: `${dash} ${circ}` }}
           transition={{ duration: 0.9, ease: 'easeOut', delay: 0.15 }}
-          style={{ filter: tier.glow !== 'none' ? `drop-shadow(0 0 5px ${tier.color})` : 'none' }}
+          style={{ filter: tier.glow !== 'none' ? `drop-shadow(0 0 5px ${color})` : 'none' }}
         />
       </svg>
       <div style={{
@@ -55,10 +58,10 @@ function MatchRing({ pct, size = 64 }) {
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
       }}>
-        <span style={{ fontSize: size < 56 ? 13 : 16, fontWeight: 800, color: tier.color, lineHeight: 1 }}>
+        <span style={{ fontSize: size < 56 ? 13 : 16, fontWeight: 800, color, lineHeight: 1 }}>
           {pct}
         </span>
-        <span style={{ fontSize: 8, fontWeight: 600, color: tier.color, opacity: 0.8 }}>%</span>
+        <span style={{ fontSize: 8, fontWeight: 600, color, opacity: 0.8 }}>%</span>
       </div>
     </div>
   );
@@ -82,9 +85,9 @@ function TerpChart({ terps = {}, max = 4 }) {
         const pct  = Math.round((val / peak) * 100);
         return (
           <div key={terp} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 10, width: 46, color: P.mid, fontWeight: 600,
-                           textAlign: 'right', flexShrink: 0 }}>
-              {meta.label}
+            <span style={{ fontSize: 13, width: 22, textAlign: 'center', flexShrink: 0 }}
+                  title={meta.label}>
+              {meta.emoji}
             </span>
             <div style={{ flex: 1, height: 4, borderRadius: 2,
                           background: 'rgba(255,255,255,0.08)' }}>
@@ -234,12 +237,14 @@ export default function StrainCard({
   zemachQuote,
   safetyTriggered = false,
   safetyMessage,
+  topLayer,       // 'measured' | 'declared' | 'inferred' — colors the match ring
   index = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
-  const tier   = matchTier(strain.match || 0);
-  const family = detectGenFamily(strain.lineage || strain.genetics || '');
-  const fam    = P.genetics[family] || P.genetics.default;
+  const tier       = matchTier(strain.match || 0);
+  const trustColor = TRUST_LAYER_COLOR[topLayer]; // undefined = use tier color
+  const family     = detectGenFamily(strain.lineage || strain.genetics || '');
+  const fam        = P.genetics[family] || P.genetics.default;
   const topEffects = (strain.effects || []).slice(0, 3);
 
   const toggle = useCallback(() => setExpanded((e) => !e), []);
@@ -302,9 +307,9 @@ export default function StrainCard({
         </div>
       </div>
 
-      {/* Match ring */}
+      {/* Match ring — color signals trust level of underlying data */}
       <div style={{ flexShrink: 0 }}>
-        <MatchRing pct={strain.match || 0} size={58} />
+        <MatchRing pct={strain.match || 0} size={58} trustColor={trustColor} />
       </div>
     </div>
   );

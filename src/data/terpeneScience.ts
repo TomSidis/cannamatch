@@ -25,6 +25,17 @@ const Z = (): EffectVector => ({
   bodyCalm: 0, clearHead: 0, sleep: 0, antiPain: 0, mood: 0, antiAnxiety: 0, appetite: 0,
 });
 
+// ── Feature flag — entourage cluster effect (Q6 / Layer 2) ──────────────────
+// DEFERRED to Layer 2 — entourage clustering requires measured terpene data
+// from a meaningful number of COA batches + community-validated efficacy signals
+// before the boost values are trustworthy enough to affect scoring.
+//
+// To activate: set CLUSTER_EFFECT_FLAG = true.
+// When true, scorer.ts will call computeClusterBonus() to nudge the measured
+// cosine score upward when a batch's dominant terpenes match a known cluster.
+// No other code change is required — this is the only flag to flip.
+export const CLUSTER_EFFECT_FLAG = false;
+
 // §3 — Clusters: synergistic terpene groupings
 export const CLUSTERS: TerpeneCluster[] = [
   {

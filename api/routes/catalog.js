@@ -2,8 +2,8 @@ import { Router }  from "express";
 import { pool }     from "../db.js";
 import { DEFAULT_DNA } from "../constants.js";
 import { computeOpenStatus, ISRAELI_PHARMACY_FALLBACK } from "../lib/pharmacyHours.js";
-import { scoreAll }      from "../../src/lib/scoringEngine.js";
-import { TERPENES, REASONS } from "../../src/data/strainsConfig.js";
+import { bridgeScore } from "../../src/engine/legacyBridge.ts";
+import { LICENSED_CATEGORIES, DEFAULT_CATEGORY, PEEK_WINDOW_ENABLED } from "../../src/lib/categoryConfig.js";
 
 const router = Router();
 
@@ -13,7 +13,7 @@ function mapRowToScoringEngineStrain(row) {
   return {
     id:                 row.strain_id || row.id,
     name:               row.strain_name || row.name,
-    cat:                row.category || "T22/C4",
+    cat:                row.category || DEFAULT_CATEGORY,
     terps:              row.terpene_dist || {},
     effects:            row.target_indications || [],
     type:               row.product_type || "flower",
@@ -24,19 +24,32 @@ function mapRowToScoringEngineStrain(row) {
 }
 
 function mapDnaToScoringAnswers(dna, overrideCats = null) {
+  // Personal license categories from onboarding OCR / manual entry.
+  // Falls back to the full global list only when the user has no license data yet.
+  const userCats = dna.categories && dna.categories.length > 0
+    ? dna.categories
+    : LICENSED_CATEGORIES;
   return {
-    cats:      overrideCats || ["T22/C4","T18/C3","T15/C3","T12/C12","T10/C10","T10/C2","T3/C15","T3/C12"],
-    reasons:   dna.indications || [],
-    flavors:   Object.keys(dna.target_terpenes || {}),
-    helped: [], notHelped: [], current: [],
+    cats:         overrideCats || userCats,
+    reasons:      dna.indications      || [],
+    killSwitches: dna.blocked_triggers || [],
   };
+}
+
+// Sanitize query params: strip HTML/script chars, cap length
+function sanitizeParam(val, maxLen = 200) {
+  if (typeof val !== "string") return "";
+  return val.replace(/[<>"'`]/g, "").slice(0, maxLen).trim();
 }
 
 // ── GET /api/strains ──────────────────────────────────────────
 // Fuzzy search via pg_trgm GIN index.
 // Optional ?user_id ranks results with the unified scoreAll engine.
 router.get("/strains", async (req, res) => {
-  const { type, q, user_id, limit = 100 } = req.query;
+  const q       = sanitizeParam(req.query.q);
+  const type    = sanitizeParam(req.query.type, 50);
+  const user_id = sanitizeParam(req.query.user_id, 50);
+  const limit   = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
   const params = [];
 
   let sql = `
@@ -84,8 +97,30 @@ router.get("/strains", async (req, res) => {
       );
       const dna = profRow?.profile || DEFAULT_DNA;
       const ans = mapDnaToScoringAnswers(dna);
-      const ranked = scoreAll(ans, {}, { strains: rows.map(mapRowToScoringEngineStrain), terpenes: TERPENES, reasons: REASONS });
-      return res.json(ranked);
+
+      const allScored = rows.map(mapRowToScoringEngineStrain).map(s => {
+        const r = bridgeScore(s, ans);
+        return { ...s, match: r.matchPct, confidence: r.confidence,
+                 reasonHuman: r.reasonHuman, topLayer: r.topLayer };
+      });
+
+      const ranked = allScored
+        .filter(s => s.match > 0)  // drop license-denied (0%) rows
+        .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
+
+      // Peek window — count products outside the user's licensed categories.
+      // 🚧 REGULATORY BLOCKER: PEEK_WINDOW_ENABLED=false until Tom gets legal sign-off
+      // that showing out-of-license counts is permitted under Israeli cannabis regulations.
+      const outOfLicense = PEEK_WINDOW_ENABLED
+        ? allScored.filter(s => s.match === 0 && ans.cats.length > 0 && !ans.cats.includes(s.cat))
+        : [];
+      const peek = {
+        enabled:    PEEK_WINDOW_ENABLED,
+        count:      outOfLicense.length,
+        categories: [...new Set(outOfLicense.map(s => s.cat))].sort(),
+      };
+
+      return res.json({ results: ranked, peek });
     }
 
     res.json(rows);

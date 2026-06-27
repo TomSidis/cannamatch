@@ -18,7 +18,7 @@
 //    mapDiff    {object|null}  — { added, removed } populated after onSubmit fires
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ── Data ─────────────────────────────────────────────────────────────────────
@@ -115,8 +115,15 @@ export default function ReportFlow({ strain, onClose, onSubmit, mapDiff }) {
     setStep(3);
   };
 
-  // Allow backdrop click to close only from the map-update step
-  const onBackdropClick = () => { if (step === 3) onClose(); };
+  // Auto-close 3 seconds after showing the map-update screen
+  useEffect(() => {
+    if (step !== 3) return;
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [step, onClose]);
+
+  // Backdrop closes at any step
+  const onBackdropClick = useCallback(() => onClose(), [onClose]);
 
   const R = RATINGS.find(r => r.id === rating);
 
@@ -153,9 +160,15 @@ export default function ReportFlow({ strain, onClose, onSubmit, mapDiff }) {
           boxShadow:'0 -8px 60px rgba(0,0,0,0.60)',
         }}>
 
-        {/* Handle */}
-        <div style={{ width:40, height:4, borderRadius:2, background:'rgba(255,255,255,0.14)',
-          margin:'14px auto 0', flexShrink:0 }} />
+        {/* Handle + X button row */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', position:'relative', paddingTop:14 }}>
+          <div style={{ width:40, height:4, borderRadius:2, background:'rgba(255,255,255,0.14)' }} />
+          <button onClick={onClose} style={{
+            position:'absolute', left:0, top:4,
+            background:'none', border:'none', cursor:'pointer',
+            color:'rgba(187,247,208,0.45)', fontSize:20, lineHeight:1, padding:'4px 8px',
+          }}>✕</button>
+        </div>
 
         {/* Strain header */}
         <div style={{ textAlign:'center', padding:'16px 0 18px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>

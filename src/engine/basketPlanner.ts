@@ -1,9 +1,9 @@
 import type {
   UserNeed, ScoredProduct, BasketPlan, BasketBag,
   EffectAxis, TimeOfDay, Batch,
-} from './types';
-import { EFFECT_AXIS_KEYS } from './types';
-import { cosine, buildPriorVector } from './vectorMath';
+} from './types.ts';
+import { EFFECT_AXIS_KEYS } from './types.ts';
+import { cosine, buildPriorVector } from './vectorMath.ts';
 
 const DIVERSITY_THRESHOLD = 0.90; // §5 rule 4
 const DEFAULT_GRAMS = 10;

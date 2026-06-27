@@ -23,6 +23,7 @@ import { P, B, G, SPRING, VARIANTS, FONT }                  from '../styles/ds.j
 import { useGeolocation }                                    from '../hooks/useGeolocation.js';
 import { api }                                               from '../services/api.js';
 import LoadingSkeleton                                       from './LoadingSkeleton.jsx';
+import { PHARMACIES as LOCAL_PHARMACIES, REGION_ORDER }     from '../data/pharmacies.js';
 
 // ── Pure utilities ────────────────────────────────────────────────────────────
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -419,21 +420,29 @@ function PharmacyCard({ p, distanceKm, isExpanded, onToggle }) {
             </div>
 
             <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              {/* Open/Closed pill */}
-              <span style={{
-                fontSize: 10.5, fontWeight: 800, padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
-                background: p.is_open ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.09)',
-                color:      p.is_open ? P.mint : P.rose,
-                border:    `1px solid ${p.is_open ? 'rgba(74,222,128,0.28)' : 'rgba(248,113,113,0.22)'}`,
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <motion.span
-                  animate={p.is_open ? { scale: [1, 1.5, 1], opacity: [1, 0.6, 1] } : {}}
-                  transition={{ duration: 2.2, repeat: Infinity }}
-                  style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.is_open ? P.mint : P.rose }}
-                />
-                {p.is_open ? 'פתוח עכשיו' : 'סגור'}
-              </span>
+              {/* Open/Closed pill — null = hours unknown */}
+              {p.is_open === null ? (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+                  background: 'rgba(255,255,255,0.04)', color: 'rgba(187,247,208,0.38)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}>שעות לא זמינות</span>
+              ) : (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 800, padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+                  background: p.is_open ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.09)',
+                  color:      p.is_open ? P.mint : P.rose,
+                  border:    `1px solid ${p.is_open ? 'rgba(74,222,128,0.28)' : 'rgba(248,113,113,0.22)'}`,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}>
+                  <motion.span
+                    animate={p.is_open ? { scale: [1, 1.5, 1], opacity: [1, 0.6, 1] } : {}}
+                    transition={{ duration: 2.2, repeat: Infinity }}
+                    style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.is_open ? P.mint : P.rose }}
+                  />
+                  {p.is_open ? 'פתוח עכשיו' : 'סגור'}
+                </span>
+              )}
 
               {/* Expand arrow */}
               <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.22 }}
@@ -477,7 +486,7 @@ function PharmacyCard({ p, distanceKm, isExpanded, onToggle }) {
                   fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 9,
                   background: 'rgba(167,139,250,0.09)', color: P.violet, border: '1px solid rgba(167,139,250,0.20)',
                   textDecoration: 'none',
-                }}>🌐 אתר</a>
+                }}>🌐 גש לתפריט</a>
             )}
             {p.maps_url && (
               <a href={p.maps_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
@@ -551,6 +560,110 @@ function WebResultsPanel({ results }) {
   );
 }
 
+// ── Compute is_open from real pharmacy hours only — never invent hours ────────
+// Returns null when no hours data is available (rendered as "שעות לא זמינות").
+const _HR = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/;
+function computeIsOpen(p) {
+  if (p.is_open != null) return p.is_open;
+  if (!p.hours_weekdays && !p.hours_friday) return null; // no real data → unknown
+  const now = new Date(), day = now.getDay();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const raw = day === 5 ? p.hours_friday : day === 6 ? p.hours_saturday : p.hours_weekdays;
+  if (!raw) return null;
+  const m = _HR.exec(raw.trim());
+  if (!m) return null;
+  const openMin = +m[1] * 60 + +m[2], closeMin = +m[3] * 60 + +m[4];
+  return closeMin > openMin ? mins >= openMin && mins < closeMin : mins >= openMin || mins < closeMin;
+}
+
+// ── Generate a Google Maps deep link from lat/lng ─────────────────────────────
+function mapsUrl(p) {
+  if (p.maps_url) return p.maps_url;
+  if (p.lat != null && p.lng != null)
+    return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
+  return null;
+}
+
+// ── Normalise a pharmacy record: fill computed fields ─────────────────────────
+function normalise(p) {
+  return {
+    ...p,
+    is_open:     computeIsOpen(p),
+    website_url: p.website_url || p.menuUrl || null,
+    maps_url:    mapsUrl(p),
+  };
+}
+
+// ── Pending new-strain review panel ──────────────────────────────────────────
+// Reads cm_unknown_strains (written by menuDecoder.js:recordUnknown) and lets
+// the user approve (→ cm_catalog_pending) or reject (→ delete) each entry.
+function PendingStrains() {
+  const [items, setItems] = useState(() => lsGet('cm_unknown_strains', []));
+  const [open,  setOpen]  = useState(false);
+
+  if (items.length === 0) return null;
+
+  const approve = (name) => {
+    const pending = lsGet('cm_catalog_pending', []);
+    const entry = items.find(s => s.name === name);
+    if (entry && !pending.some(s => s.name === name))
+      lsSet('cm_catalog_pending', [...pending, { ...entry, approvedAt: Date.now() }]);
+    const next = items.filter(s => s.name !== name);
+    lsSet('cm_unknown_strains', next);
+    setItems(next);
+  };
+
+  const reject = (name) => {
+    const next = items.filter(s => s.name !== name);
+    lsSet('cm_unknown_strains', next);
+    setItems(next);
+  };
+
+  return (
+    <div style={{ marginTop: 16, borderRadius: 18, border: '1.5px solid rgba(251,191,36,0.20)', background: 'rgba(20,23,32,0.92)', overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: FONT }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#FBBF24', flex: 1, textAlign: 'right' }}>
+          🆕 {items.length} זנים חדשים ממתינים לאישור
+        </span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.22 }}
+          style={{ fontSize: 11, color: 'rgba(251,191,36,0.40)', flexShrink: 0 }}>▼</motion.span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div key="body"
+            initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} style={{ overflow: 'hidden' }}>
+            <div style={{ borderTop: '1px solid rgba(251,191,36,0.10)', padding: '10px 14px 14px' }}>
+              <p style={{ fontSize: 10.5, color: 'rgba(187,247,208,0.38)', marginBottom: 10, lineHeight: 1.5 }} dir="rtl">
+                זנים שנסרקו ולא זוהו בקטלוג. ״אשר״ מוסיף לקטלוג הממתין, ״דחה״ מוחק רעש OCR.
+              </p>
+              {items.map(s => (
+                <div key={s.name} dir="rtl"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7, padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(251,191,36,0.08)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: P.hi }}>{s.name}</span>
+                    {s.cat   && <span style={{ fontSize: 10, color: 'rgba(187,247,208,0.40)', marginRight: 6 }}>{s.cat}</span>}
+                    {s.price && <span style={{ fontSize: 10, color: P.mint, marginRight: 6 }}>₪{s.price}</span>}
+                  </div>
+                  <button onClick={() => approve(s.name)}
+                    style={{ fontSize: 11, fontWeight: 800, padding: '4px 9px', borderRadius: 9, border: '1px solid rgba(74,222,128,0.28)', background: 'rgba(74,222,128,0.09)', color: P.mint, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                    אשר ✓
+                  </button>
+                  <button onClick={() => reject(s.name)}
+                    style={{ fontSize: 11, fontWeight: 800, padding: '4px 9px', borderRadius: 9, border: '1px solid rgba(248,113,113,0.22)', background: 'rgba(248,113,113,0.07)', color: P.rose, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                    דחה ✗
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function PharmacyViewer() {
   const geo = useGeolocation();
@@ -574,21 +687,25 @@ export default function PharmacyViewer() {
   // Geo banner
   const [bannerDismissed, setBannerDismissed] = useState(() => lsGet('cm_geo_banner_dismissed', false));
 
-  // ── Initial data load ────────────────────────────────────────────────────
+  // ── Initial data load — local-first, API enhancement optional ───────────
   useEffect(() => {
     let alive = true;
+    // Immediately populate from bundled data (no server needed)
+    setPharmacies(LOCAL_PHARMACIES.map(normalise));
+    setLoading(false);
+    // Try server for live stock/open-status enhancement
     api.getPharmacies()
       .then(resp => {
         if (!alive) return;
-        if (Array.isArray(resp)) {
-          setPharmacies(resp);
-        } else {
-          setPharmacies(resp.pharmacies || []);
-          setMeta(resp.meta || null);
+        const fresh = Array.isArray(resp) ? resp : (resp.pharmacies || []);
+        if (fresh.length > 0) {
+          // Merge: server data wins where present, else keep local entry
+          const byId = Object.fromEntries(fresh.map(p => [p.id, p]));
+          setPharmacies(LOCAL_PHARMACIES.map(p => normalise(byId[p.id] ? { ...p, ...byId[p.id] } : p)));
+          setMeta(Array.isArray(resp) ? null : (resp.meta || null));
         }
       })
-      .catch(console.error)
-      .finally(() => { if (alive) setLoading(false); });
+      .catch(() => { /* server offline — local data already rendered */ });
     return () => { alive = false; };
   }, []);
 
@@ -627,8 +744,8 @@ export default function PharmacyViewer() {
     try {
       const r = await api.syncPharmacies();
       const fresh = await api.getPharmacies();
-      if (Array.isArray(fresh)) setPharmacies(fresh);
-      else { setPharmacies(fresh.pharmacies || []); setMeta(fresh.meta || null); }
+      if (Array.isArray(fresh)) setPharmacies(fresh.map(normalise));
+      else { setPharmacies((fresh.pharmacies || []).map(normalise)); setMeta(fresh.meta || null); }
       if (r.synced_at) setMeta(m => ({ ...m, synced_at: r.synced_at, source: r.source }));
     } catch {}
     setSyncing(false);
@@ -672,6 +789,20 @@ export default function PharmacyViewer() {
 
     return list;
   }, [pharmacies, activeQ, filterMode, geo.status, geo.coords]);
+
+  // Group by region for the "all" mode without active search
+  // REGION_ORDER imported from pharmacies.js
+  const showGrouped = filterMode === 'all' && !activeQ && geo.status !== 'granted';
+  const grouped = useMemo(() => {
+    if (!showGrouped) return null;
+    const map = {};
+    for (const p of sorted) {
+      const r = p.region || 'אחר';
+      if (!map[r]) map[r] = [];
+      map[r].push(p);
+    }
+    return REGION_ORDER.filter(r => map[r]?.length).map(r => ({ region: r, items: map[r] }));
+  }, [sorted, showGrouped]);
 
   const openCount = (pharmacies || []).filter(p => p.is_open).length;
   const showGeoBanner =
@@ -820,7 +951,33 @@ export default function PharmacyViewer() {
             </button>
           )}
         </motion.div>
+      ) : grouped ? (
+        /* ── Grouped by region ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {grouped.map(({ region, items }) => (
+            <div key={region}>
+              <div style={{
+                fontSize: 11, fontWeight: 800, color: 'rgba(74,222,128,0.60)',
+                letterSpacing: '0.08em', marginBottom: 8,
+                paddingBottom: 6, borderBottom: '1px solid rgba(74,222,128,0.10)',
+              }}>
+                📍 {region}
+              </div>
+              <motion.div variants={VARIANTS.stagger} initial="hidden" animate="show"
+                style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {items.map(p => (
+                  <PharmacyCard
+                    key={p.id} p={p} distanceKm={p.distanceKm}
+                    isExpanded={expandedId === p.id}
+                    onToggle={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                  />
+                ))}
+              </motion.div>
+            </div>
+          ))}
+        </div>
       ) : (
+        /* ── Flat sorted list (when filtered / searched / geo-sorted) ── */
         <motion.div variants={VARIANTS.stagger} initial="hidden" animate="show"
           style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {sorted.map(p => (
@@ -835,6 +992,9 @@ export default function PharmacyViewer() {
 
       {/* ── External web results (when local search was sparse) ──────────── */}
       <WebResultsPanel results={webResults} />
+
+      {/* ── New-strain review (OCR-scanned unknowns from menu decoder) ────── */}
+      <PendingStrains />
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       {sorted.length > 0 && (

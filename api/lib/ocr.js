@@ -97,4 +97,37 @@ function findBestFuzzyMatch(query, candidates, threshold = 0.6) {
   return bestScore >= threshold ? { match: best, score: bestScore } : null;
 }
 
-export { parseMenuImageWithAI, computeLevenshteinDistance, computeFuzzyMatchScore, findBestFuzzyMatch };
+// ── Pharmacy menu OCR — formatted output (category + price preserved) ────────
+// Returns raw text in "Name T22/C4 — 280₪" format, ready for MenuScanTab's parseMenu().
+const MENU_FORMAT_PROMPT = `אתה מנתח תפריט של בית מרקחת לקנאביס רפואי בישראל.
+חלץ מהמסמך את כל המוצרים, שורה אחת לכל מוצר, בפורמט:
+[שם המוצר] [קטגוריה כגון T22/C4] — [מחיר]₪
+
+חשוב: שמור על שמות הזנים בדיוק כפי שמופיעים. אם אין קטגוריה או מחיר — השאר ריק.
+כתוב רק את הרשימה, בלי הסברים. דוגמה:
+Wedding CK T22/C4 — 280₪
+אור T15/C3 — 225₪`;
+
+async function parseMenuImageFormatted(imageBuffer, mediaType = "image/jpeg") {
+  const client = getAnthropicClient();
+  const base64 = Buffer.isBuffer(imageBuffer) ? imageBuffer.toString("base64") : imageBuffer;
+  const isPdf = mediaType === "application/pdf";
+  const sourceBlock = isPdf
+    ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
+    : { type: "image",   source: { type: "base64", media_type: mediaType, data: base64 } };
+
+  let resp;
+  try {
+    resp = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: [sourceBlock, { type: "text", text: MENU_FORMAT_PROMPT }] }],
+    });
+  } catch (err) {
+    throw new Error(`Anthropic API error: ${err.message}`);
+  }
+
+  return (resp.content || []).map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+}
+
+export { parseMenuImageWithAI, parseMenuImageFormatted, computeLevenshteinDistance, computeFuzzyMatchScore, findBestFuzzyMatch };

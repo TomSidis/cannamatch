@@ -4,7 +4,7 @@
 //  Tier 2: חפיפה כימית (טרפנים+גנטיקה) גבוהה, חוצה התוויות
 // ─────────────────────────────────────────────────────────────
 import { pool } from "../db.js";
-import { cosine, TERP_IDX } from "./scoring.js";
+import { cosine, TERP_IDX } from "./dnaProfile.js";
 import { twinScore } from "./vectorMath.js";
 
 const TIER1_TWIN_THRESHOLD = 0.55;   // twinScore מינימלי כדי להיחשב "תאום גנטי"

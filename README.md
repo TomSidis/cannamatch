@@ -1,146 +1,301 @@
-# 🌿 CannaMatch — שוק הקנאביס הרפואי הישראלי
+<div dir="rtl">
 
-> **הפלטפורמה הראשונה בישראל שמחברת בין מטופלי קנאביס רפואי לזנים ולבתי מרקחת המתאימים ביותר עבורם.**
+# CannaMatch — מלווה אישי לקנאביס רפואי
 
----
+CannaMatch הוא כלי טכנולוגי להתאמה וניווט עבור מטופלי קנאביס רפואי בעלי רישיון תקף בישראל. הכלי מתאים מוצרים לפי פרופיל גנטי, נתוני טרפנים מדודים, וחוויות של מטופלים אחרים — לא לפי שם מסחרי ולא לפי הבחנת אינדיקה/סאטיבה שהמחקר אינו תומך בה. קהילת המטופלים היא שכבת תמיכה, לא הליבה.
 
-## מה זה CannaMatch?
-
-שוק הקנאביס הרפואי הישראלי מציע מאות זנים, הנמכרים תחת שמות שיווקיים שלא מספרים כלום על האפקט הצפוי, הכימיה שמאחוריהם, או ההתאמה האישית לכל מטופל. מטופל בן 40 עם רישיון תקף נכנס לבית מרקחת ומקבל קטלוג שמות ללא הסבר.
-
-**CannaMatch פותרת את הבעיה הזו מהיסוד.**
-
-במקום לחפש לפי שם מותג, המשתמש מגדיר פרופיל אישי קצר — ומיד מקבל רשימה מדורגת של זנים מכל בתי המרקחת המורשים בישראל, כשכל זן מקבל **אחוז התאמה** המחושב לפי הפרופיל הבוטני האישי שלו.
-
-ללא שאלונים רפואיים. ללא טפסים. ללא סטיגמה.
+**CannaMatch אינו גורם רפואי, אינו מספק ייעוץ רפואי, ואינו תחליף לייעוץ של רופא או רוקח מוסמך.** כל החלטה הנוגעת לטיפול היא באחריות המטופל ובהתייעצות עם הרופא המטפל בלבד.
 
 ---
 
-## תכונות מרכזיות
+## פילוסופיה
 
-### 🧬 התאמה אישית
-- פרופיל מטופל מבוסס על התוויות, העדפות חושיות ושגרת צריכה
-- מנוע התאמה מחשב דירוג אחוזי לכל זן מול הפרופיל הבוטני האישי
-- ציין זנים שניסית — המערכת לומדת ומשפרת את ההמלצות
+### גנטיקה היא הכל (וגם יש לה גבולות)
 
-### 🏥 בתי מרקחת בזמן אמת
-- רשימה מלאה של בתי מרקחת קנאביס רפואי מורשים בישראל
-- שעות פתיחה מחושבות בזמן אמת לפי ימי שבוע ושבת
-- מרחק מהמיקום הנוכחי
-- אפשרויות משלוח
-- דיווח קהילתי על מלאי ("האם עדיין זמין?")
+אותו "ג'ורג' OG" שגדל אצל יצרן א' ואצל יצרן ב' הוא מוצר שונה. CannaMatch מתחיל מה**גנטיקה** כפריאור, מרחיב לנתוני **טרפנים מדודים** כשיש COA, ומשלב **נתוני קהילה** כשכבה שלישית — לא הפוך.
 
-### 🌿 צמח — העוזר האישי
-עוזר AI בעברית שמספק מידע חינוכי בשפה אנושית וחמה:
-- מידע על טרפנים, קנבינואידים ואינטראקציות
-- שעות בתי מרקחת ומלאי חי
-- ניתוח תמונות של תפריטים (דורש Groq API Key חינמי)
-- מדריכי אחסון ושיטות צריכה
-- **זמין לכל משתמש — ללא צורך בהתחברות**
+### שלוש שכבות הניקוד (`src/engine/scorer.ts`)
 
-### 📊 ניהול אישי
-- יומן מעקב יומי — מצב רוח, עוצמת אפקט, מינון
-- תכנון סל קניות מסודר מול מכסת הרישיון החודשי
-- ניתוח מגמות אישיות לאורך זמן
+| שכבה | מקור | משקל |
+|------|------|------|
+| 1 — גנטיקה (prior) | מפת גנטיקה + גנוטיפ הגידול | `wPrior = max(0, 1 - max(wMeasured×0.6, wCommunity))` |
+| 2 — טרפנים מדודים | COA / נתוני יצרן (הנחה 0.85× לנתונים מוצהרים) | `wMeasured × 0.6` |
+| 3 — קהילה | Bayesian shrinkage | `wCommunity = n / (n + 8)` |
 
-### 🌐 קהילה מאומתת
-- פיד קהילה Twitter-style למטופלים מורשים בלבד
-- שיתוף חוויות אמיתיות ללא מידע מסחרי
-- סטטיסטיקות עדות קהילתית (k-anonymity, n≥20)
+**גורם עדות:** כל טרפן נושא דרגת עדות (`human` = 1.0, `mixed` = 0.75, `preclinical` = 0.5) שמשפיעה על רכיב הביטחון (confidence) — לא על הציון עצמו. קהילה אינה מושפעת מגורם העדות: דיווח אמיתי עוקף את מגבלות הספרות.
+
+**kill-switch:** מטופל יכול להגדיר טרפן-טריגר אישי. כל מוצר שמכיל אותו נחסם לפני חישוב הקוסינוס — לא מסונן אחרי.
+
+**ציון אמון דיווח** (`src/engine/reportTrust.ts`):
+
+```
+0.10 (בסיס אנונימי)
++ 0.50 (רישיון IMC מאומת)
++ 0.20 (תמונת מוצר)
++ 0.20 (התאמת מספר אצווה COA)
+= עד 1.00
+```
+
+סף "דיווח מאומת" (`TRUST_THRESHOLDS.HIGH`): ≥ 0.70. סף "דיווח חלקי" (`TRUST_THRESHOLDS.MEDIUM`): ≥ 0.40.
+
+פופולריות ≠ אמת קלינית. "עזר לי" לא נכנס ל-`ORDER BY` של הפיד.
 
 ---
 
-## ארכיטקטורה טכנית
+## ארכיטקטורה
+
+### Stack
+
+| רכיב | טכנולוגיה |
+|------|-----------|
+| Frontend | React 18, TypeScript, Vite 5, Framer Motion 12, Recharts |
+| Backend | Node.js (ES modules), Express 4 |
+| DB | PostgreSQL 16 + pgvector (Docker: `pgvector/pgvector:pg16`) |
+| OCR | Tesseract.js 7 + Anthropic API (אימות רישיון IMC) |
+| Auth | JWT + OTP (email / SMS) |
+| Tests | Vitest 1 |
+| Fuzzy search | Fuse.js 7 (client-side) |
+
+### מבנה תיקיות
 
 ```
 cannamatch/
-├── api/                        # Node.js + Express backend
-│   ├── server.js
-│   ├── routes/
-│   │   ├── ai.js               # /api/zemach-chat (ציבורי, ללא auth)
-│   │   ├── pharmacies.js       # /api/pharmacies (מלאי + דיווח קהילתי)
-│   │   └── ...
-│   └── lib/
-│       ├── localBot.js         # מנוע שיחה מקומי — intent routing A/B/C
-│       ├── groqAdapter.js      # Groq free-tier (llama-3.1-8b-instant)
-│       ├── pharmacySync.js     # סנכרון MOH + 15 בתי מרקחת fallback
-│       └── webSearch.js        # DuckDuckGo → Brave → Google CSE
-├── src/                        # React 18 + Vite frontend
-│   ├── CannaMatch.jsx          # אפליקציה ראשית (~7,500 שורות)
-│   ├── components/
-│   │   ├── ZemachAvatarChat.jsx   # עוזר הצמח הצף
-│   │   ├── PharmacyViewer.jsx     # מסך בתי מרקחת
-│   │   ├── StrainCard.jsx
-│   │   └── ...
-│   ├── styles/ds.js            # Design System — "Organic Cyberpunk"
-│   ├── hooks/useGeolocation.js
-│   └── knowledge/              # בסיס ידע מקומי (JSON)
-│       ├── terpene_science.json
-│       ├── indications.json
-│       ├── israeli_products.json
-│       └── routes_of_administration.json
-└── ...
+├── api/
+│   ├── db/
+│   │   ├── schema.sql          # סכמה ראשית: users, strains, batches, pharmacies, user_reviews, ...
+│   │   ├── migration_v2.sql    # 3-entity model: genetic_identity, commercial_product, bio_journal
+│   │   ├── migrations/         # מיגרציות ממוספרות 004–014
+│   │   ├── initDb.js           # npm run db:init — schema + migration_v2 + seed זנים
+│   │   ├── migrate.js          # npm run db:migrate — מריץ 004–014 לפי סדר, מדלג על מה שרץ
+│   │   └── seedStrains.js
+│   ├── jobs/
+│   │   ├── dailySync.js        # סנכרון תפריטי בתי מרקחת (10:00, Asia/Jerusalem)
+│   │   └── batchIngestJob.js   # קליטת COA אצוות (09:00, Asia/Jerusalem)
+│   ├── lib/                    # לוגיקה עסקית (commentFilter, termsConfig, licenseHash, ...)
+│   ├── middleware/             # requireRole (admin), cache (Redis אופציונלי)
+│   ├── routes/                 # 14 קבצי route
+│   └── security/
+│       └── claudeProxyShield.js  # verifySession — req.userId מ-JWT
+├── src/
+│   ├── components/             # 24 רכיבי React
+│   ├── engine/                 # מנוע ציון TypeScript
+│   │   ├── scorer.ts           # scoreSingle — 3-layer blend
+│   │   ├── reportTrust.ts      # computeReportWeight, TRUST_THRESHOLDS
+│   │   ├── vectorMath.ts       # cosine similarity, buildPriorVector, buildProductVector
+│   │   ├── batchSignal.ts      # aggregateByBatch — Bayesian community aggregation
+│   │   ├── genetics.ts         # derivePhenoPrior — הורשת prior מעץ שושלת
+│   │   ├── basketPlanner.ts    # תכנון קנייה לפי קוטה T/C
+│   │   └── types.ts            # EffectVector, Batch, UserNeed, ScoredProduct, ...
+│   ├── data/
+│   │   ├── terpeneScience.ts   # TERPENE_EFFECTS — 8 טרפנים + evidence labels
+│   │   ├── killSwitchConfig.ts # הגדרות kill-switch אישיות
+│   │   └── pharmacies.js       # נתוני בתי מרקחת בסיס
+│   ├── hooks/
+│   │   └── useOnboardingStore.js
+│   └── services/
+│       └── api.js              # שכבת API — כל הקריאות ל-backend
+├── docker-compose.yml          # PostgreSQL 16 + pgvector
+└── package.json
 ```
+
+### טבלאות DB לפי מיגרציה
+
+| קובץ | טבלאות / שינויים עיקריים |
+|------|--------------------------|
+| schema.sql | `users`, `otp_codes`, `strains`, `batches`, `pharmacies`, `user_reviews`, `user_dna_profiles` |
+| migration_v2.sql | `genetic_identity`, `commercial_product`, `bio_journal` |
+| 006 | `genetics_node`, `lineage_edge`, `cultivation_modifier` |
+| 007 | `grow_batch`, `production_batch`, `manufacturer_registry`, `scrape_run_log` |
+| 009 | extends `user_reviews`: trust_weight, photo_url, batch_id, batch_verified, is_verified_patient |
+| 010 | מחליף `imc_license` raw ב-: `license_verified`, `license_uniqueness_key` (HMAC), `license_expiry`, `license_categories`, `monthly_grams_by_category` |
+| 011 | `treatment_journal` (יומן פרטי) |
+| 012 | extends `user_reviews`: journal_entry_id (FK), is_seed |
+| 013 | `review_interactions` ("עזר לי"), `review_comments` (תגובות חד-רמתיות) |
+| 014 | `terms_acceptances` (היסטוריית אישורי תנאי שימוש לפי גרסה) |
+
+---
+
+## מערכת הקהילה (C1–C6)
+
+### C1 — אימות רישיון
+OCR של רישיון IMC דרך Tesseract.js ו/או Anthropic Vision API. מספר הרישיון המקורי **לא נכתב לעולם ל-DB** — נשמר רק `HMAC-SHA256(license_number, SERVER_HMAC_SECRET)` לבדיקת ייחודיות, תאריך תפוגה, וקטגוריות T/C.
+
+### C2 — יומן טיפול פרטי
+`treatment_journal` — רשומות אישיות לפי בחירת המשתמש. `notes` ו-`side_effects_other` נשארים פרטיים לחלוטין: אינם מועתקים לשום דיווח ציבורי בשום תנאי — הפרדה מבנית ב-`api/lib/journalToReview.js`.
+
+### C3 — שיתוף לקהילה
+הפקת עותק אנונימי מרשומת יומן לטבלת `user_reviews`. הרשומה המקורית נשארת פרטית. הדיווח הציבורי אינו מכיל שם, user_id, או כל פרט מזהה.
+
+### C4 — פיד + תגובות
+פיד מדורג לפי `trust_weight` — לא לפי engagement. תגובות חד-רמתיות, ניקוי XSS בכתיבה, דחיית תגובות מעל 1,000 תווים עם הודעה ברורה (לא חיתוך שקט). "עזר לי" — toggle עם optimistic update + rollback.
+
+### C5 — השפעה
+`GET /api/impact`: aggregate של כמה מטופלים סימנו "עזר לי" על הדיווחים שלך. ניטרלי לכיוון — אין streak, אין badge, אין לחץ. endpoint נפרד מ-`GET /journal/treatment` (גבול פרטי/ציבורי).
+
+### C6 — שער תנאי שימוש
+חסימה מלאה בכניסה לאחר login. Scroll-to-enable: checkbox נעול עד גלילה לתחתית הטקסט. `TERMS_VERSION` וגוף התנאים מגיעים מהשרת בלבד (`api/lib/termsConfig.js`) — הלקוח אינו יכול לזייף "אישרתי גרסה X". Fail-closed: שגיאת רשת → ה-gate נשאר סגור.
 
 ---
 
 ## התקנה
 
-### דרישות
-- Node.js 20+
-- PostgreSQL 15+
+### דרישות מקדימות
 
-### משתני סביבה (`.env`)
+- Node.js ≥ 18
+- Docker (להרצת PostgreSQL 16 + pgvector)
 
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/cannamatch
-SESSION_SECRET=your-secret-here
-
-# אופציונלי — מפעיל שיחה חכמה עם Llama-3
-# הירשם חינם בכתובת console.groq.com
-GROQ_API_KEY=gsk_...
-
-# אופציונלי — חיפוש חיצוני מועשר
-BRAVE_SEARCH_KEY=...
-GOOGLE_CSE_KEY=...
-GOOGLE_CSE_CX=...
-```
-
-### הפעלה
+### שלבים
 
 ```bash
+# 1. Clone + install
+git clone <repo-url>
+cd cannamatch
 npm install
-npm run dev
+
+# 2. הכן .env (ראה טבלת משתני סביבה)
+cp .env.example .env
+# ערוך .env — JWT_SECRET ו-SERVER_HMAC_SECRET הם חובה
+
+# 3. הפעל PostgreSQL
+npm run db:up           # docker compose up -d
+
+# 4. סכמה + מיגרציות + seed — פקודה אחת
+npm run db:setup
+# = db:init (schema.sql + migration_v2.sql + זריעת זנים) && db:migrate (004–014, מדלג על מה שרץ)
+
+# 5. הרץ פיתוח
+npm run dev:full        # Express (8787) + Vite (5173) במקביל
+```
+
+### משתני סביבה
+
+#### חובה (השרת לא יקום ב-production ללא אלה)
+
+| משתנה | תיאור |
+|-------|-------|
+| `JWT_SECRET` | מפתח חתימת JWT. גנרציה: `node -e "require('crypto').randomBytes(64).toString('hex')"` |
+| `SERVER_HMAC_SECRET` | מפתח HMAC לייחודיות רישיונות. **אסור לאפס בפרודקשן** — ישבור את כל בדיקות הייחודיות הקיימות. גנרציה: `node -e "require('crypto').randomBytes(32).toString('hex')"` |
+| `PRODUCTION_ORIGIN` | דומיין הפרודקשן (למשל `https://cannamatch.co.il`) — חובה כשמשתנה `NODE_ENV=production` |
+
+#### אופציונלי עם ברירת מחדל
+
+| משתנה | ברירת מחדל | תיאור |
+|-------|-----------|-------|
+| `DATABASE_URL` | `postgresql://cannamatch:cannamatch@localhost:5432/cannamatch` | חיבור PostgreSQL |
+| `PORT` | `8787` | פורט שרת Express |
+| `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
+| `REDIS_URL` | `redis://localhost:6379` | cache (Redis אופציונלי — אם לא זמין, cache מושבת) |
+
+#### אופציונלי לפיצ'רים ספציפיים
+
+| משתנה | פיצ'ר |
+|-------|-------|
+| `ANTHROPIC_API_KEY` | OCR רישיון IMC דרך Anthropic Vision |
+| `GROQ_API_KEY` | מודל שפה חלופי (Groq) |
+| `GOOGLE_PLACES_KEY` | סנכרון שעות פתיחה של בתי מרקחת (job יומי) |
+| `BRAVE_SEARCH_KEY` | חיפוש רשת דרך Brave |
+| `GOOGLE_CSE_KEY`, `GOOGLE_CSE_CX` | Google Custom Search |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | OTP במייל |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | OTP ב-SMS |
+
+---
+
+## בדיקות
+
+```bash
+npm test              # vitest run — כל ה-test suites
+npm run test:watch    # vitest במצב watch
+```
+
+Test files: `api/lib/__tests__/`
+
+כל שלב פיתוח מלווה בבדיקות. הבדיקות מריצות שרת Express אמיתי עם `pool.query` ממוק — ה-SQL האמיתי נבחן. גישת `assertFitsSchema` מוודאת שנתונים עוברים את ה-CHECK constraints לפני שה-test מסתיים.
+
+---
+
+## API — נקודות קצה עיקריות
+
+```
+# אימות
+POST /api/auth/send-otp
+POST /api/auth/verify-otp
+POST /api/auth/onboarding
+
+# פרופיל DNA
+GET  /api/dna/:userId
+PUT  /api/dna/:userId
+POST /api/dna/:userId/checkin
+
+# זנים
+GET  /api/strains
+GET  /api/inventory
+
+# תפריט OCR
+POST /api/parse-menu
+POST /api/fetch-menu
+
+# קהילה — יומן
+POST   /api/journal/treatment
+GET    /api/journal/treatment
+PATCH  /api/journal/treatment/:id
+POST   /api/journal/treatment/:id/share
+DELETE /api/journal/treatment/:id/share
+
+# קהילה — פיד
+GET  /api/feed
+POST /api/feed/:id/help
+GET  /api/feed/:id/comments
+POST /api/feed/:id/comments
+
+# קהילה — השפעה + תנאים
+GET  /api/impact
+GET  /api/terms/status
+POST /api/terms/accept
+
+# בתי מרקחת + basket
+GET  /api/pharmacies
+POST /api/basket/plan
+
+# כלים
+GET  /api/health
+GET  /api/community-stats
 ```
 
 ---
 
-## אבטחה ופרטיות
+## פרטיות ובטיחות
 
-- **אימות OTP** — כניסה ללא סיסמה (טלפון/אימייל)
-- **Rate limiting** על כל נקודות הקצה
-- **k-anonymity** — נתוני קהילה מוצגים רק כשיש ≥20 דיווחים
-- **צמח אינו יועץ רפואי** — כל תגובה כוללת הפניה לרופא המטפל
-- **אפס קריאות Anthropic/OpenAI** — מנוע מקומי + Groq free tier בלבד
-- **אין אחסון מידע רפואי** — הפרופיל מבוסס על העדפות בוטניות בלבד
-
----
-
-## מיועד למטופלים מורשים בלבד
-
-CannaMatch מיועדת לשימוש על ידי מטופלים עם רישיון קנאביס רפואי תקף בישראל בלבד, בהתאם לתקנות נוהל 106 ורשות הרוקחות.
-
-**המידע באפליקציה הוא חינוכי בלבד ואינו מהווה ייעוץ רפואי.**
+- מספר הרישיון המקורי ומספר ת"ז **לא נכתבים לעולם ל-DB** — נשמר רק HMAC ותוצאת האימות.
+- `notes` ו-`side_effects_other` ביומן הפרטי **לא מועתקים לדיווח הציבורי** בשום תנאי — הפרדה מבנית ב-`journalToReview.js`.
+- דיווחים ציבוריים אנונימיים: אין שם, אין `user_id`, אין כל פרט מזהה ב-response.
+- `user_id` תמיד מה-session (JWT), אף פעם לא מה-request body.
+- `SERVER_HMAC_SECRET` אסור שיופיע ב-bundle, ב-log, או שיועבר ללקוח.
 
 ---
 
-## עיצוב
+## סטטוס ומה עוד נשאר
 
-- "Organic Cyberpunk" — ערכת נושא כהה עמוקה עם הדגשים ירוקים אורגניים
-- Design System מלא (`ds.js`) עם טוקנים לצבע, פיזיקת ספרינג, ו-motion variants
-- RTL עברית מלאה (`dir="rtl"`, Heebo)
-- מותאם לנגישות — ניגוד גבוה, גופן קריא, אנימציות עדינות
+### מה בנוי ופועל
+
+- מנוע ניקוד 3-שכבות + kill-switch + evidence factors
+- מערכת קהילה מלאה C1–C6 (אימות רישיון → יומן → שיתוף → פיד → השפעה → שער תנאים)
+- OCR רישיון + HMAC privacy layer
+- basket planner עם אכיפת קוטה T/C
+- סנכרון תפריט ביה"מ + COA batch ingestion (jobs יומיים)
+
+### ממתין לפני go-live
+
+| פריט | מה נדרש |
+|------|---------|
+| ניסוח סופי של תנאי השימוש | החלפת `TERMS_TEXT` ב-`api/lib/termsConfig.js` + העלאת `TERMS_VERSION` ב-1 |
+| כתובת ליצירת קשר | מילוי `[כתובת ליצירת קשר]` בסעיף 11 של תנאי השימוש |
+| רשימת מילים חסומות בתגובות | מילוי stub ב-`api/lib/commentFilterConfig.js` |
+| בדיקות DB ידניות | אימות `idx_users_license_uniqueness_key` קיים; רישיון ריק = NULL לא `''` |
 
 ---
 
-*CannaMatch — התאמה בוטנית אישית לכל מטופל.*
+## רישיון
+
+אין קובץ `LICENSE` ב-repo זה. כל הזכויות שמורות.
+
+</div>

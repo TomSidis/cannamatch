@@ -4,16 +4,12 @@ import { DEFAULT_DNA, CHECKIN_REPLIES, pickReply } from "../constants.js";
 import {
   updateUserDNAProfile,
   applyCheckin,
-  calculateMatchScoreWithExplanation,
-} from "../lib/scoring.js";
+} from "../lib/dnaProfile.js";
 import { verifySession } from "../security/claudeProxyShield.js";
-import { scoreAll }      from "../../src/lib/scoringEngine.js";
-import { TERPENES, REASONS } from "../../src/data/strainsConfig.js";
+import { bridgeScore } from "../../src/engine/legacyBridge.ts";
 
 const router = Router();
 
-// Trigger threshold: terpene fraction above which a blocked terpene fires the filter
-const TRIGGER_THRESH = 0.15;
 
 // ── GET /api/dna/:userId ──────────────────────────────────────
 router.get("/dna/:userId", async (req, res) => {
@@ -131,8 +127,13 @@ router.post("/dna/:id/checkin", async (req, res) => {
          LIMIT 80`,
       );
 
-      const triggers = updated.trigger_terpenes || {};
-      const safe = dbStrains
+      const safeAns = {
+        cats:         [...new Set(dbStrains.map((r) => r.category || "T22/C4"))],
+        reasons:      updated.indications      || [],
+        killSwitches: updated.blocked_triggers || [],
+      };
+
+      const ranked = dbStrains
         .map((r) => ({
           id:      r.id,
           name:    r.name,
@@ -140,30 +141,20 @@ router.post("/dna/:id/checkin", async (req, res) => {
           terps:   r.terpene_dist || {},
           effects: r.target_indications || [],
           type:    r.product_type || "flower",
-          lineage: r.lineage,
-          genetic_confidence: r.genetic_confidence,
         }))
-        .filter((s) => {
-          const total = Object.values(s.terps).reduce((a, v) => a + v, 0) || 1;
-          return Object.entries(triggers).every(([terp, weight]) => {
-            const frac = (s.terps[terp] || 0) / total;
-            return !(weight >= 0.6 && frac >= TRIGGER_THRESH);
-          });
-        });
+        .map(s => {
+          const r = bridgeScore(s, safeAns);
+          return { ...s, match: r.matchPct, confidence: r.confidence };
+        })
+        .filter(s => s.match > 0)
+        .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
 
-      if (safe.length) {
-        const ans = {
-          cats:      [...new Set(safe.map((s) => s.cat))],
-          reasons:   updated.indications || [],
-          flavors:   Object.keys(updated.target_terpenes || {}),
-          helped: [], notHelped: [], current: [],
-        };
-        const ranked = scoreAll(ans, {}, { strains: safe, terpenes: TERPENES, reasons: REASONS });
+      if (ranked.length) {
         safeTargets = ranked.slice(0, 3).map((s) => ({
           name:       s.name,
           category:   s.cat,
           match:      s.match,
-          confidence: s.genetic_confidence || "unverified",
+          confidence: s.confidence,
         }));
       }
     } catch (e) {
@@ -184,9 +175,7 @@ router.post("/dna/:id/checkin", async (req, res) => {
   }
 });
 
-// ── GET /api/match/:userId — ranked strains with full explanation ──
-// Adaptive weights + score shrinkage run server-side only.
-// Raw weight internals are stripped before the response is sent.
+// ── GET /api/match/:userId — ranked strains via Engine 2 (scorer.ts) ──────────
 router.get("/match/:userId", verifySession, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 40, 200);
   try {
@@ -197,36 +186,52 @@ router.get("/match/:userId", verifySession, async (req, res) => {
 
     const { rows: strains } = await pool.query(
       `SELECT s.id, s.name, s.genetics, s.lineage, s.genetic_confidence,
+              s.terpene_dist,
               b.category, b.product_type, b.price, b.in_stock,
-              b.embedding, b.data_confidence, b.terpene_source,
               ph.name AS pharmacy_name
        FROM strains s
        LEFT JOIN LATERAL (
-         SELECT category, product_type, price, in_stock, embedding,
-                data_confidence, terpene_source, pharmacy_id
+         SELECT category, product_type, price, in_stock, pharmacy_id
          FROM batches
          WHERE strain_id = s.id AND in_stock = TRUE
          ORDER BY price ASC LIMIT 1
        ) b ON TRUE
        LEFT JOIN pharmacies ph ON ph.id = b.pharmacy_id
-       WHERE b.embedding IS NOT NULL
+       WHERE b.category IS NOT NULL
        LIMIT $1`,
       [limit],
     );
 
-    const community = 0.5;
+    const dnaAns = {
+      cats:         dna.categories       || [],
+      reasons:      dna.indications      || [],
+      killSwitches: dna.blocked_triggers || [],
+    };
+
     const ranked = strains
       .map((s) => {
-        const batchMeta = {
-          terpene_source:     s.terpene_source    || "unknown",
-          data_confidence:    s.data_confidence   ?? 0.5,
-          genetic_confidence: s.genetic_confidence || "unverified",
+        const r = bridgeScore({
+          id:    s.id,
+          cat:   s.category || 'T22/C4',
+          terps: s.terpene_dist || {},
+        }, dnaAns);
+        return {
+          id:             s.id,
+          name:           s.name,
+          genetics:       s.genetics,
+          category:       s.category,
+          product_type:   s.product_type,
+          price:          s.price,
+          in_stock:       s.in_stock,
+          pharmacy_name:  s.pharmacy_name,
+          match:          r.matchPct,
+          confidence:     r.confidence,
+          reasonHuman:    r.reasonHuman,
+          topLayer:       r.topLayer,
         };
-        const { score, explanation } = calculateMatchScoreWithExplanation(dna, s, community, batchMeta);
-        const { weights: _w, ...safeExplanation } = explanation || {};
-        return { ...s, match: score, explanation: safeExplanation };
       })
-      .sort((a, b) => b.match - a.match);
+      .filter(s => s.match > 0)
+      .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
 
     res.json({ count: ranked.length, strains: ranked });
   } catch (err) {

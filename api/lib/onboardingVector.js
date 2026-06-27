@@ -217,6 +217,11 @@ export function buildInitialDNA(payload) {
 
   return {
     indications:      payload.indications || [],
+    // Personal license categories — written from OCR or manual entry in onboarding.
+    // Used by catalog.js::mapDnaToScoringAnswers for per-user filtering.
+    // Empty array = no license data yet (falls back to global LICENSED_CATEGORIES).
+    categories:       payload.licenseCategories || [],
+    gramsByCategory:  payload.gramsByCategory  || {},
     target_genetics:  targetGenetics,
     target_terpenes:  targetTerpenes,
     trigger_terpenes: triggerTerpenes,

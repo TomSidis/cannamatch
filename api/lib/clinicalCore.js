@@ -4,6 +4,8 @@
 //  כל מיפוי מבוסס על המחקר שלנו (נוהל 106 + ספרות מאומתת)
 // ─────────────────────────────────────────────────────────
 
+import { getKillSwitchThreshold } from "../../src/data/killSwitchConfig.ts";
+
 // קטגוריות יק"ר רשמיות (נוהל 106)
 const YAKAR_CATEGORIES = {
   thc_rich: ["T22/C4", "T18/C3", "T15/C3", "T12/C2", "T10/C2"],
@@ -148,7 +150,6 @@ const CLINICAL_MAP = {
 
 const TERP_IDX = { myrcene:4, limonene:5, caryophyllene:6, linalool:7,
                    pinene:8, humulene:9, terpinolene:10, ocimene:11 };
-const TRIGGER_THRESHOLD = 0.15;   // נתח טרפן שמעליו הטריגר "נוכח"
 
 function computeTerpeneTotal(sv) {
   return sv.reduce((s, x, i) => (i >= 4 ? s + x : s), 0) || 1;
@@ -176,7 +177,7 @@ function verifyClinicalSafety(strainData, userProfile) {
     // ── kill-switch: טריגר נוכח → אפס מיידי ──
     for (const trig of map.kill_switch) {
       const frac = sv ? (sv[TERP_IDX[trig]] || 0) / total : 0;
-      if (frac >= TRIGGER_THRESHOLD) {
+      if (frac >= getKillSwitchThreshold(trig)) {
         const TERP_HE = { terpinolene: "טרפינולן", pinene: "פינן" };
         return {
           safe: false,

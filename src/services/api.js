@@ -39,15 +39,24 @@ export const api = {
     apiFetch(`/api/dna/${userId}/checkin`, { method: "POST", body: JSON.stringify({ dimension, value }) }),
 
   // זנים + תפריט
-  getStrains: ({ type, q } = {}) => {
+  // Returns { results: Strain[], peek: { enabled, count, categories } } when user_id
+  // is provided (scored path), or a plain Strain[] when it is not (search path).
+  getStrains: ({ type, q, user_id } = {}) => {
     const p = new URLSearchParams();
-    if (type) p.set("type", type);
-    if (q) p.set("q", q);
-    return apiFetch(`/api/strains?${p}`);
+    if (type)    p.set("type",    type);
+    if (q)       p.set("q",       q);
+    if (user_id) p.set("user_id", user_id);
+    return apiFetch(`/api/strains?${p}`).then(res =>
+      // Normalize: server wraps scored results in { results, peek }; bare search returns array.
+      Array.isArray(res) ? { results: res, peek: null } : res,
+    );
   },
   parseMenu: ({ image_base64, media_type, text, url, user_id }) =>
     apiFetch(`/api/parse-menu`, { method: "POST",
       body: JSON.stringify({ image_base64, media_type, text, url, user_id }) }),
+  parseMenuImage: ({ image_base64, media_type }) =>
+    apiFetch(`/api/parse-menu-image`, { method: "POST",
+      body: JSON.stringify({ image_base64, media_type }) }),
   fetchMenuUrl: (url) => apiFetch(`/api/fetch-menu`, { method: "POST", body: JSON.stringify({ url }) }),
 
   // בתי מרקחת + מלאי
@@ -85,6 +94,10 @@ export const api = {
     return apiFetch(`/api/recommendations/${userId}?${p}`);
   },
 
+  // תכנון קנייה
+  planBasket: ({ track = 'balanced', gramsByCategory = {} } = {}) =>
+    apiFetch('/api/basket/plan', { method: 'POST', body: JSON.stringify({ track, gramsByCategory }) }),
+
   // ביקורת + דיווח מהיר
   submitReview: (payload) =>
     apiFetch(`/api/reviews`, { method: "POST", body: JSON.stringify(payload) }),
@@ -101,6 +114,57 @@ export const api = {
       }),
     }).catch(() => ({ ok: true, offline: true })), // non-blocking — offline OK
 
+  // יומן טיפול פרטי (C2)
+  journal: {
+    create: (payload) =>
+      apiFetch(`/api/journal/treatment`, { method: "POST", body: JSON.stringify(payload) }),
+    addDetails: (id, payload) =>
+      apiFetch(`/api/journal/treatment/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    list: ({ limit, offset } = {}) => {
+      const p = new URLSearchParams();
+      if (limit)  p.set("limit",  String(limit));
+      if (offset) p.set("offset", String(offset));
+      return apiFetch(`/api/journal/treatment?${p}`);
+    },
+    // C3 — share/unshare publishes to community (internal only, no external links)
+    share:   (id) => apiFetch(`/api/journal/treatment/${id}/share`, { method: "POST" }),
+    unshare: (id) => apiFetch(`/api/journal/treatment/${id}/share`, { method: "DELETE" }),
+  },
+
+  // פיד קהילה (C4)
+  feed: {
+    list: ({ limit, offset, categories } = {}) => {
+      const p = new URLSearchParams();
+      if (limit)              p.set("limit",      String(limit));
+      if (offset)             p.set("offset",     String(offset));
+      if (categories?.length) p.set("categories", categories.join(","));
+      return apiFetch(`/api/feed?${p}`);
+    },
+    // "עזר לי" toggle — returns { helped: boolean, count: number }
+    help: (reviewId) =>
+      apiFetch(`/api/feed/${reviewId}/help`, { method: "POST" }),
+    listComments: (reviewId) =>
+      apiFetch(`/api/feed/${reviewId}/comments`),
+    addComment: (reviewId, body, parentId = null) =>
+      apiFetch(`/api/feed/${reviewId}/comments`, {
+        method: "POST",
+        body: JSON.stringify(parentId ? { body, parent_id: parentId } : { body }),
+      }),
+    deleteComment: (reviewId, cid) =>
+      apiFetch(`/api/feed/${reviewId}/comments/${cid}`, { method: "DELETE" }),
+  },
+
+  // השפעת הדיווחים שלי (C5) — aggregate + per-report breakdown
+  impact: {
+    get: () => apiFetch("/api/impact"),
+  },
+
+  // תנאי שימוש (C6) — status check + acceptance
+  terms: {
+    status: () => apiFetch("/api/terms/status"),
+    accept: () => apiFetch("/api/terms/accept", { method: "POST" }),
+  },
+
   // RWE — חוכמת קהילה (community_stats aggregate; k-anonymity n≥20)
   getCommunityStats: ({ strainId, indicationId } = {}) => {
     const p = new URLSearchParams();
@@ -109,9 +173,6 @@ export const api = {
     return apiFetch(`/api/community-stats?${p}`);
   },
 
-  // צמח — עוזר AI
-  zemachChat: (message, history) =>
-    apiFetch(`/api/zemach-chat`, { method: "POST", body: JSON.stringify({ message, history }) }),
 };
 
 // בדיקת קישוריות — רץ בטעינה, נזרק החוצה אם ה-backend לא חי (לא דמו, לא שקט)

@@ -279,7 +279,64 @@ function Stage0_License({ payload, errors, updatePayload, onSkip }) {
   const [detectedCats, setDetectedCats] = useState([]);
   const [detectedExpiry, setDetectedExpiry] = useState(null);
   const [idWarn, setIdWarn]           = useState(false); // OCR read an ID but check-digit failed
+  const [localGrams, setLocalGrams]   = useState({});
   const fileRef                       = useRef(null);
+
+  const handleGramChange = (cat, raw) => {
+    const v = parseInt(raw) || 0;
+    const next = { ...localGrams, [cat]: v };
+    setLocalGrams(next);
+    updatePayload({ gramsByCategory: next });
+  };
+
+  // GramTotal — used after OCR mode to show a summary with inputs per category
+  const GramInputs = ({ cats }) => {
+    if (cats.length === 0) return null;
+    const total = cats.reduce((s, c) => s + (localGrams[c] || 0), 0);
+    return (
+      <motion.div variants={FADE_UP} style={{
+        marginTop: 16, padding: "14px 16px", borderRadius: 16,
+        background: "rgba(57,255,133,0.05)", border: `1.5px solid ${T.accent}33`,
+      }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: T.accent, marginBottom: 12, letterSpacing: "0.04em" }}>
+          📋 כמה גרם לחודש לפי קטגוריה?
+        </p>
+        {cats.map(cat => (
+          <div key={cat} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{cat}</span>
+            <input
+              type="number" min="0" max="200" step="10"
+              placeholder="0"
+              value={localGrams[cat] ?? ""}
+              onChange={e => handleGramChange(cat, e.target.value)}
+              style={{
+                width: 76, textAlign: "center",
+                background: "rgba(57,255,133,0.07)",
+                border: `1.5px solid ${T.accent}55`,
+                borderRadius: 10, color: T.text,
+                fontSize: 16, fontWeight: 800, padding: "6px 8px",
+                fontFamily: "'Heebo',sans-serif",
+              }}
+            />
+            <span style={{ fontSize: 11, color: T.muted, minWidth: 20 }}>ג׳</span>
+          </div>
+        ))}
+        <div style={{
+          borderTop: `1px solid ${T.border}`, marginTop: 8, paddingTop: 10,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: 11, color: T.muted }}>סה״כ חודשי:</span>
+          <span style={{ fontSize: 17, fontWeight: 900, color: total > 0 ? T.accent : T.muted,
+                         fontFamily: "'Heebo',sans-serif" }}>
+            {total} ג׳ לחודש
+          </span>
+        </div>
+        <p style={{ fontSize: 10, color: T.muted, marginTop: 8 }}>
+          לא בטוח/ה? השאר/י 0 — ניתן לעדכן בסל הקנייה
+        </p>
+      </motion.div>
+    );
+  };
 
   const selectedCats = payload.licenseCategories || [];
 
@@ -433,7 +490,8 @@ function Stage0_License({ payload, errors, updatePayload, onSkip }) {
               ⚠️ מספר הרישיון שנקרא לא עבר בדיקת פורמט — בדקו שהתמונה ברורה
             </p>
           )}
-          <p style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>— נכון?</p>
+          <GramInputs cats={detectedCats} />
+          <p style={{ fontSize: 12, color: T.muted, marginBottom: 10, marginTop: 10 }}>— נכון?</p>
           <div style={{ display: "flex", gap: 8 }}>
             <NeonButton size="md"
               onClick={() => { updatePayload({ licenseCategories: detectedCats, licenseVerified: true }); setMode(null); }}
@@ -469,13 +527,13 @@ function Stage0_License({ payload, errors, updatePayload, onSkip }) {
                 {group.cats.map((cat) => {
                   const on = selectedCats.includes(cat);
                   return (
-                    <motion.button
+                    <motion.div
                       key={cat}
                       onClick={() => toggleCat(cat)}
-                      whileHover={{ scale: 1.04, boxShadow: `0 0 12px ${group.color}44` }}
+                      whileHover={{ scale: on ? 1 : 1.04, boxShadow: `0 0 12px ${group.color}44` }}
                       whileTap={{ scale: 0.94 }}
                       style={{
-                        padding: "8px 6px", borderRadius: 10, textAlign: "center",
+                        padding: on ? "8px 6px 6px" : "8px 6px", borderRadius: 10, textAlign: "center",
                         background: on ? `${group.color}18` : "rgba(255,255,255,0.04)",
                         border:     `1.5px solid ${on ? group.color : T.border}`,
                         boxShadow:  on ? `0 0 10px ${group.color}33` : "none",
@@ -485,23 +543,59 @@ function Stage0_License({ payload, errors, updatePayload, onSkip }) {
                       <p style={{ fontSize: 13, fontWeight: 700, color: on ? group.color : T.text, margin: 0 }}>
                         {cat}
                       </p>
-                    </motion.button>
+                      {on && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          onClick={e => e.stopPropagation()}
+                          style={{ marginTop: 6 }}
+                        >
+                          <p style={{ fontSize: 9, color: group.color, margin: "0 0 3px", fontWeight: 700 }}>
+                            ג׳/חודש
+                          </p>
+                          <input
+                            type="number" min="0" max="200" step="10"
+                            placeholder="0"
+                            value={localGrams[cat] ?? ""}
+                            onChange={e => handleGramChange(cat, e.target.value)}
+                            autoFocus
+                            style={{
+                              width: "100%", textAlign: "center",
+                              background: "rgba(57,255,133,0.10)",
+                              border: `1.5px solid ${group.color}66`,
+                              borderRadius: 8, color: T.text,
+                              fontSize: 15, fontWeight: 800, padding: "4px 0",
+                              fontFamily: "'Heebo',sans-serif",
+                            }}
+                          />
+                        </motion.div>
+                      )}
+                    </motion.div>
                   );
                 })}
               </div>
             </div>
           ))}
-          {selectedCats.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              style={{ marginTop: 8, padding: "10px 14px", borderRadius: 12,
-                       background: "rgba(57,255,133,0.06)", border: `1px solid ${T.border}` }}
-            >
-              <p style={{ fontSize: 12, color: T.accent }}>
-                ✓ בחרת: {selectedCats.join(", ")}
-              </p>
-            </motion.div>
-          )}
+          {selectedCats.length > 0 && (() => {
+            const total = selectedCats.reduce((s, c) => s + (localGrams[c] || 0), 0);
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                style={{ marginTop: 8, padding: "10px 14px", borderRadius: 12,
+                         background: "rgba(57,255,133,0.06)", border: `1px solid ${T.border}`,
+                         display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
+                <p style={{ fontSize: 12, color: T.accent, margin: 0 }}>
+                  ✓ {selectedCats.length} קטגוריות
+                </p>
+                {total > 0 && (
+                  <span style={{ fontSize: 14, fontWeight: 900, color: T.accent }}>
+                    {total} ג׳ לחודש
+                  </span>
+                )}
+              </motion.div>
+            );
+          })()}
         </motion.div>
         <motion.p variants={FADE_UP} style={{ fontSize: 11, color: T.muted, marginTop: 12, textAlign: "center" }}>
           לא מצאת? אפשר להמשיך בלי — תוכל/י להוסיף מאוחר יותר
@@ -948,23 +1042,17 @@ function EffectsPath({ payload, updatePayload }) {
     else updatePayload({ hatedStrains: [...hatedOils, id], lovedStrains: lovedOils.filter((x) => x !== id) });
   };
 
-  const setLiked    = (id) => {
+  const toggleEffect = (id) => {
     const updated = { ...sels };
     if (updated[id] === "loved") delete updated[id]; else updated[id] = "loved";
-    const loved = Object.entries(updated).filter(([,v])=>v==="loved").map(([k])=>k);
-    updatePayload({ oilEffectSels: updated, oilEffects: loved });
-  };
-  const setDisliked = (id) => {
-    const updated = { ...sels };
-    if (updated[id] === "disliked") delete updated[id]; else updated[id] = "disliked";
-    const loved = Object.entries(updated).filter(([,v])=>v==="loved").map(([k])=>k);
+    const loved = Object.keys(updated).filter(k => updated[k] === "loved");
     updatePayload({ oilEffectSels: updated, oilEffects: loved });
   };
 
-  const nAnswered = Object.keys(sels).length;
-  const zemachMsg = nAnswered > 0
-    ? "מצוין! אנחנו לומדים מה עוזר לך — המפה שלך מתעדכנת 🗺️"
-    : "בחר/י מה עוזר לך (או מה את/ה מחפש/ת) — אהבתי / לא אהבתי לכל פריט 🌿";
+  const nSelected = Object.values(sels).filter(v => v === "loved").length;
+  const zemachMsg = nSelected > 0
+    ? `מצוין! בחרת ${nSelected} השפעות — ממשיכים לבנות את הפרופיל שלך 🗺️`
+    : "בחר/י את ההשפעות שאתה/את מחפש/ת — כל בחירה מחדדת את ההמלצות שלך 🌿";
 
   return (
     <motion.div variants={STAGGER} initial="hidden" animate="show">
@@ -988,68 +1076,48 @@ function EffectsPath({ payload, updatePayload }) {
         </AnimatePresence>
       </motion.div>
       <motion.div variants={FADE_UP}>
-        <SectionLabel>מה עוזר לך? (לא חייבים לבחור)</SectionLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        <SectionLabel>מה אתה/את מחפש/ת? (ניתן לבחור כמה)</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {OIL_EFFECT_TILES.map((tile) => {
-            const state  = sels[tile.id];
-            const isLove = state === "loved";
-            const isDis  = state === "disliked";
+            const isOn = sels[tile.id] === "loved";
             return (
-              <motion.div
+              <motion.button
                 key={tile.id}
                 variants={FADE_UP}
+                onClick={() => toggleEffect(tile.id)}
+                whileHover={{ scale: 1.03, boxShadow: `0 0 14px ${tile.color}44` }}
+                whileTap={{ scale: 0.95 }}
                 style={{
-                  padding: "9px 12px", borderRadius: 13,
-                  background: isLove ? "rgba(57,255,133,0.07)"
-                            : isDis  ? "rgba(255,69,96,0.06)"
-                            : "rgba(255,255,255,0.03)",
-                  border: `1.5px solid ${isLove ? T.accent : isDis ? T.danger : T.border}`,
+                  padding: "12px 10px", borderRadius: 14, cursor: "pointer",
+                  background: isOn ? `${tile.color}16` : "rgba(255,255,255,0.04)",
+                  border: `1.5px solid ${isOn ? tile.color : T.border}`,
+                  boxShadow: isOn ? `0 0 10px ${tile.color}28` : "none",
                   transition: "all 0.18s",
-                  display: "flex", alignItems: "center", gap: 10,
+                  textAlign: "center",
                 }}
               >
                 <span style={{
-                  fontSize: 22, flexShrink: 0,
-                  filter: isLove ? `drop-shadow(0 0 6px ${T.accent})` : isDis ? `drop-shadow(0 0 6px ${T.danger})` : "none",
+                  fontSize: 24, display: "block", marginBottom: 5,
+                  filter: isOn ? `drop-shadow(0 0 6px ${tile.color})` : "none",
                 }}>
                   {tile.icon}
                 </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, margin: 0,
-                              color: isLove ? T.accent : isDis ? T.danger : T.text }}>
-                    {tile.label}
-                  </p>
-                  <p style={{ fontSize: 9, color: T.muted, margin: 0 }}>{tile.sub}</p>
-                </div>
-                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                  <button
-                    onClick={() => setLiked(tile.id)}
-                    style={{
-                      padding: "6px 11px", borderRadius: 8, fontSize: 10, fontWeight: 800,
-                      background: isLove ? T.accent : "rgba(57,255,133,0.28)",
-                      color:      isLove ? "#061006" : T.accent,
-                      border:     `1.5px solid ${isLove ? T.accent : "rgba(57,255,133,0.80)"}`,
-                      cursor: "pointer",
-                      boxShadow: isLove ? `0 0 8px ${T.accent}55` : "none",
-                    }}
-                  >
-                    {isLove ? "✓ אהבתי" : "💚 אהבתי"}
-                  </button>
-                  <button
-                    onClick={() => setDisliked(tile.id)}
-                    style={{
-                      padding: "6px 11px", borderRadius: 8, fontSize: 10, fontWeight: 800,
-                      background: isDis ? T.danger : "rgba(255,69,96,0.28)",
-                      color:      isDis ? "#fff" : T.danger,
-                      border:     `1.5px solid ${isDis ? T.danger : "rgba(255,69,96,0.80)"}`,
-                      cursor: "pointer",
-                      boxShadow: isDis ? `0 0 8px ${T.danger}55` : "none",
-                    }}
-                  >
-                    {isDis ? "✕ לא אהבתי" : "🔴 לא אהבתי"}
-                  </button>
-                </div>
-              </motion.div>
+                <p style={{ fontSize: 12, fontWeight: isOn ? 800 : 600, margin: 0,
+                             color: isOn ? tile.color : T.text, lineHeight: 1.2 }}>
+                  {tile.label}
+                </p>
+                <p style={{ fontSize: 9, color: T.muted, margin: "3px 0 0", lineHeight: 1.3 }}>
+                  {tile.sub}
+                </p>
+                {isOn && (
+                  <motion.span
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    style={{ display: "block", marginTop: 5, fontSize: 11,
+                             color: tile.color, fontWeight: 800 }}>
+                    ✓ נבחר
+                  </motion.span>
+                )}
+              </motion.button>
             );
           })}
         </div>
@@ -1471,12 +1539,17 @@ function Stage6_Products({ payload, updatePayload }) {
   const loved = payload.lovedStrains || [];
   const hated = payload.hatedStrains || [];
   const licCats = payload.licenseCategories || [];
+  const consumptionForm = payload.consumptionForm;
 
-  // Filter catalog by license categories if the user provided them
+  // Filter by license categories + consumption form
   const eligibleCatalog = useMemo(() => {
-    if (licCats.length === 0) return ALL_CATALOG;
-    return ALL_CATALOG.filter((s) => licCats.includes(s.cat));
-  }, [licCats]);
+    let list = ALL_CATALOG;
+    if (licCats.length > 0) list = list.filter((s) => licCats.includes(s.cat));
+    if (consumptionForm === "oil")                              list = list.filter((s) => s.type === "oil");
+    else if (consumptionForm === "flower" || consumptionForm === "vape") list = list.filter((s) => s.type !== "oil");
+    // "mixed" → show all types
+    return list;
+  }, [licCats, consumptionForm]);
 
   // Quick picks: top 12 by nReviews (most-recognised at the pharmacy)
   const quickPicks = useMemo(() =>
@@ -1594,7 +1667,7 @@ function Stage6_Products({ payload, updatePayload }) {
         <SectionLabel>
           {q.trim()
             ? `${displayProducts.length} תוצאות עבור "${q}"`
-            : `הנפוצים ביותר${kindFilter ? ` · ${kindFilter}` : ""}${licCats.length > 0 ? ` (מסונן לקטגוריות שלך)` : ""}`}
+            : `הנפוצים ביותר${kindFilter ? ` · ${kindFilter}` : ""}${consumptionForm === "oil" ? " · שמנים בלבד" : consumptionForm === "flower" ? " · תפרחות" : consumptionForm === "vape" ? " · תפרחות (לאידוי)" : ""}${licCats.length > 0 ? " (לפי קטגוריות שלך)" : ""}`}
         </SectionLabel>
 
         {/* Product grid */}
@@ -1641,6 +1714,67 @@ function Stage6_Products({ payload, updatePayload }) {
           </motion.div>
         )}
       </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Terpene sensory descriptions — educational moment only (§02 P2 / §11) ────
+// Chemical names are intentional here (the "aha" DNA wheel).
+// They must NOT appear on match cards or anywhere else in the product.
+const TERP_AROMA = {
+  myrcene:       { label: 'מירצן',    emoji: '🌿', aroma: 'עשבוני-אדמתי — נוטה לתחושה כבדה ורגועה' },
+  limonene:      { label: 'לימונן',   emoji: '🍋', aroma: 'הדרי-לימוני — נוטה לתחושה קלה ומרוממת' },
+  caryophyllene: { label: 'קריופילן', emoji: '🌶️', aroma: 'פלפלי-חריף — טעמים עשירים ומחממים' },
+  linalool:      { label: 'לינלול',   emoji: '💜', aroma: 'ארומת לבנדר — נוטה לתחושה רכה ושקטה' },
+  pinene:        { label: 'פינן',     emoji: '🌲', aroma: 'ניחוח אורנים ועצים — תחושה צוננת ומרעננת' },
+  humulene:      { label: 'הומולן',   emoji: '🌾', aroma: 'כשות ועשבי בר — טעמים מרירים ומורכבים' },
+  terpinolene:   { label: 'טרפינולן', emoji: '🌸', aroma: 'פרחוני-מרענן — גוון פירותי עדין' },
+  ocimene:       { label: 'אוסימן',   emoji: '🌺', aroma: 'טרופי-מתוק — גוון פרחים ומנטה' },
+};
+
+// Shows aroma + sensory tendency for the user's top terpenes.
+// ✅ Aroma / sensory tendency  ❌ No medical or clinical claims.
+function TerpInfoPanel({ liveVector }) {
+  const top = Object.entries(liveVector)
+    .filter(([k, v]) => v > 0.1 && TERP_AROMA[k])
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3);
+
+  if (top.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      style={{
+        marginTop: 8,
+        padding: '12px 14px',
+        borderRadius: 14,
+        background: 'rgba(57,255,133,0.04)',
+        border: '1px solid rgba(57,255,133,0.14)',
+      }}
+    >
+      <p style={{ fontSize: 10, color: T.muted, fontWeight: 700, marginBottom: 8, letterSpacing: '0.08em' }}>
+        ארומה ותחושה חושית
+      </p>
+      {top.map(([key]) => {
+        const t = TERP_AROMA[key];
+        return (
+          <div key={key} style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 7,
+          }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>{t.emoji}</span>
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.accent }}>{t.label}</span>
+              <span style={{ fontSize: 11, color: T.muted }}> — {t.aroma}</span>
+            </div>
+          </div>
+        );
+      })}
+      <p style={{ fontSize: 9, color: T.muted, opacity: 0.55, marginTop: 6 }}>
+        * ניתוח ארומטי בלבד — אין מדובר בהמלצה רפואית
+      </p>
     </motion.div>
   );
 }
@@ -1754,7 +1888,7 @@ function dnaSequence(liveVector) {
 }
 
 // ── Welcome screen — the ONLY dramatic moment in the product ─────────────────
-function StepWelcome({ onContinue, reducedMotion }) {
+function StepWelcome({ onContinue, onBack, reducedMotion }) {
   return (
     <motion.div
       initial={reducedMotion ? false : { opacity: 0 }}
@@ -1822,6 +1956,28 @@ function StepWelcome({ onContinue, reducedMotion }) {
       >
         בוא נתחיל →
       </motion.button>
+      {onBack && (
+        <motion.button
+          initial={reducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: reducedMotion ? 0 : 1.1, duration: 0.3 }}
+          onClick={onBack}
+          style={{
+            marginTop: 16,
+            padding: "8px 20px",
+            borderRadius: 999,
+            background: "transparent",
+            color: T.muted,
+            fontWeight: 600,
+            fontSize: 13,
+            border: `1px solid rgba(126,168,142,0.3)`,
+            cursor: "pointer",
+            fontFamily: "'Heebo','Segoe UI',sans-serif",
+          }}
+        >
+          ← חזרה
+        </motion.button>
+      )}
     </motion.div>
   );
 }
@@ -1972,7 +2128,7 @@ function Stage7_Preview({ liveVector, killSwitches, payload }) {
       {activeTerps.length > 0 && (
         <motion.div variants={FADE_UP}>
           <SectionLabel>טרפנים מובילים שלך</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
             {activeTerps.slice(0, 5).map((t) => (
               <motion.span
                 key={t.key}
@@ -1993,6 +2149,8 @@ function Stage7_Preview({ liveVector, killSwitches, payload }) {
               </motion.span>
             ))}
           </div>
+          {/* Sensory descriptions — intentional educational moment; names stay here only */}
+          <TerpInfoPanel liveVector={liveVector} />
         </motion.div>
       )}
 
@@ -2028,10 +2186,6 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  if (showWelcome) {
-    return <StepWelcome onContinue={() => setShowWelcome(false)} reducedMotion={reducedMotion} />;
-  }
-
   const handleNext = useCallback(() => {
     setDirection(1);
     goNext();
@@ -2041,6 +2195,10 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     setDirection(-1);
     goPrev();
   }, [goPrev]);
+
+  const handleBackToWelcome = useCallback(() => {
+    setShowWelcome(true);
+  }, []);
 
   const handleSkip = useCallback(() => {
     setDirection(1);
@@ -2186,8 +2344,9 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       helped:       payload.lovedStrains  || [],
       notHelped:    payload.hatedStrains  || [],
       current:      [],
-      licenseVerified: payload.licenseVerified || false,
-      licenseExpiry:   payload.licenseExpiry   || null,
+      licenseVerified:  payload.licenseVerified  || false,
+      licenseExpiry:    payload.licenseExpiry    || null,
+      gramsByCategory:  payload.gramsByCategory  || {},
     };
 
     let dna = null;
@@ -2201,6 +2360,10 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     setSaving(false);
     onComplete({ localAns, dna });
   }, [payload, onComplete]);
+
+  if (showWelcome) {
+    return <StepWelcome onContinue={() => setShowWelcome(false)} onBack={onSkip} reducedMotion={reducedMotion} />;
+  }
 
   const stageTitles = [
     "אימות רישיון",
@@ -2231,7 +2394,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     <div
       dir="rtl"
       style={{
-        minHeight:  "100%",
+        flex: 1, minHeight: "100%",
         background: T.bg,
         color:      T.text,
         fontFamily: "'Heebo','Segoe UI',sans-serif",
@@ -2345,11 +2508,9 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
         gap:         10,
         flexShrink:  0,
       }}>
-        {stage > 0 && (
-          <NeonButton onClick={handlePrev} variant="ghost" size="md">
-            ← חזרה
-          </NeonButton>
-        )}
+        <NeonButton onClick={stage === 0 ? handleBackToWelcome : handlePrev} variant="ghost" size="md">
+          ← חזרה
+        </NeonButton>
         {!isLastStage ? (
           <NeonButton onClick={handleNext} size="lg" className="flex-1" style={{ flex: 1 }}>
             המשך →

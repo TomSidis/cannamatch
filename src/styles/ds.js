@@ -110,14 +110,22 @@ export const VARIANTS = {
 
 // ── Terpene metadata ──────────────────────────────────────────────────────────
 export const TERP_META = {
-  myrcene:       { label: 'מירצן',    emoji: '🌿', color: '#4ade80', role: 'מרגיע · שינה' },
-  limonene:      { label: 'לימונן',   emoji: '🍋', color: '#fde047', role: 'מרים · אנרגיה' },
-  caryophyllene: { label: 'קריופילן', emoji: '🌶️', color: '#f87171', role: 'כאב · דלקת' },
-  linalool:      { label: 'לינלול',   emoji: '💜', color: '#c084fc', role: 'הרגעה · שינה' },
-  pinene:        { label: 'פינן',     emoji: '🌲', color: '#86efac', role: 'ריכוז · ערנות' },
-  humulene:      { label: 'הומולן',   emoji: '🌾', color: '#fbbf24', role: 'נוגד דלקת' },
-  terpinolene:   { label: 'טרפינולן', emoji: '🌸', color: '#fb923c', role: 'מרענן' },
-  ocimene:       { label: 'אוסימן',   emoji: '🌺', color: '#38bdf8', role: 'עליז · טרופי' },
+  myrcene:       { label: 'מירצן',    emoji: '🌿', color: '#4ade80', aroma: 'עשבוני-אדמתי, נוטה לתחושה כבדה ורגועה' },
+  limonene:      { label: 'לימונן',   emoji: '🍋', color: '#fde047', aroma: 'הדרי-לימוני, נוטה לתחושה קלה ומרוממת' },
+  caryophyllene: { label: 'קריופילן', emoji: '🌶️', color: '#f87171', aroma: 'פלפלי-חריף, טעמים עשירים ומחממים' },
+  linalool:      { label: 'לינלול',   emoji: '💜', color: '#c084fc', aroma: 'ארומת לבנדר, נוטה לתחושה רכה ושקטה' },
+  pinene:        { label: 'פינן',     emoji: '🌲', color: '#86efac', aroma: 'ניחוח אורנים ועצים, תחושה צוננת ומרעננת' },
+  humulene:      { label: 'הומולן',   emoji: '🌾', color: '#fbbf24', aroma: 'כשות ועשבי בר, טעמים מרירים ומורכבים' },
+  terpinolene:   { label: 'טרפינולן', emoji: '🌸', color: '#fb923c', aroma: 'פרחוני-מרענן, גוון פירותי עדין' },
+  ocimene:       { label: 'אוסימן',   emoji: '🌺', color: '#38bdf8', aroma: 'טרופי-מתוק, גוון פרחים ומנטה' },
+};
+
+// Trust layer → ring/badge color.
+// measured = COA lab-verified, declared = grower-stated, inferred = genetics estimate.
+export const TRUST_LAYER_COLOR = {
+  measured:  '#4ADE80', // green  — lab data
+  declared:  '#FBBF24', // amber  — grower declaration
+  inferred:  '#6B7280', // gray   — genetics-derived estimate
 };
 
 // ── Genetics family detection ────────────────────────────────────────────────

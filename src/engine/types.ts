@@ -38,6 +38,14 @@ export interface ConditionLean { condition: string; lean: EffectVector; route: '
 
 // ── products & batches ────────────────────────────────────────────────────────
 export interface TerpeneReading { terpene: Terpene; pct: number; }
+
+export interface GeneticsPrior {
+  vec: EffectVector;
+  conf: number;                         // 0..1; derived priors hard-capped at 0.5
+  source: PriorSource | 'unknown';
+  cultivationMethod?: CultivationMethod; // optional — from grow_batch row
+}
+
 export interface Batch {
   id: string; productId: string;
   thcPct: number; cbdPct: number;
@@ -45,6 +53,13 @@ export interface Batch {
   provenance: Provenance;
   category: string;
   testedAt?: string;
+  // Phase 4: genetics-derived or batch-measured prior. Absent → falls back to chemotype prior.
+  geneticsPrior?: GeneticsPrior;
+  // Phase 3: cultivation method — used for sibling inheritance and UI display.
+  cultivationMethod?: CultivationMethod;
+  // Phase 3: TRUE when cultivationMethod was inherited from a sibling batch (same genetics_id).
+  // Scorer applies a 0.85× confidence penalty within the inferred tier for these batches.
+  inheritedCultivation?: boolean;
 }
 export interface Product {
   id: string; displayName: string;
@@ -63,10 +78,32 @@ export interface UserNeed {
   gramsByCategory: Record<string, number>;
 }
 
-// ── community reports (pre-aggregated) ───────────────────────────────────────
+// ── community reports (pre-aggregated, keyed by grow_batch_id NOT strain) ────
 export interface ReportAggregate {
-  n: number;    // number of reports
+  n: number;    // number of reports for THIS batch
   mean: number; // mean community fit ∈ [0,1] (e.g. avg_score/10 from DB)
+}
+
+// Map: grow_batch_id → ReportAggregate
+export type BatchReportMap = Record<string, ReportAggregate>;
+
+// ── batch-level adverse signal ────────────────────────────────────────────────
+export interface AxialReport {
+  batchId: string;
+  axis: EffectAxis;
+  score: number;             // 0..1; adverse = score < ADVERSE_THRESHOLD (0.4)
+  cultivationMethod?: CultivationMethod;
+  // Q11: per-report trust weight ∈ [0.10, 1.00]. Absent → treated as 1.0.
+  // Feeds into weighted Bayesian aggregation (aggregateByBatch) and adverseRate computation.
+  trustWeight?: number;
+}
+
+export interface FlaggedBatch {
+  batchId: string;
+  axis: EffectAxis;
+  n: number;
+  adverseRate: number;       // fraction of reports that were adverse on this axis
+  cultivationSignal?: CultivationMethod; // set when ≥2 flagged batches share a method
 }
 
 // ── scoring output ────────────────────────────────────────────────────────────
@@ -80,3 +117,47 @@ export interface ScoredProduct {
 }
 export interface BasketBag { batchId: string; role: string; matchPct: number; grams: number; category: string; }
 export interface BasketPlan { bags: BasketBag[]; coverage: { times: TimeOfDay[]; goals: EffectAxis[] }; warnings: string[]; }
+
+// ── §2 Genetics Map ───────────────────────────────────────────────────────────
+export type NodeType = 'landrace' | 'hybrid' | 'phenotype' | 'backcross';
+export type PriorSource = 'measured' | 'derived' | 'expert' | 'placeholder';
+export type CultivationMethod = 'indoor' | 'outdoor' | 'greenhouse' | 'hybrid_grow';
+export type NameClassificationType = 'likely_hybrid' | 'likely_landrace' | 'coded' | 'unknown';
+
+export interface GeneticsNode {
+  id: string;
+  displayName: string;
+  aliases: string[];
+  nodeType: NodeType;
+  effectVec?: Partial<EffectVector>;   // undefined = unknown; partial = only known axes
+  priorSource: PriorSource;
+  priorConf: number;                   // 0..1; any derived value capped at 0.5
+  topTerpenes: Terpene[];
+  notes?: string;
+}
+
+export interface LineageEdge {
+  childId: string;
+  parentId: string;
+  hypothesisId: number;                // 0 = primary; 1+ = competing claim
+  parentWeight: number;                // typically 0.5 per parent; sums to 1.0
+  edgeConf: number;                    // confidence in this parentage claim (0..1)
+  source?: string;
+}
+
+export interface CultivationModifier {
+  method: CultivationMethod;
+  terpeneScale: number;               // multiplier on terpene QUANTITY, not profile shape
+  notes?: string;
+}
+
+export interface NameClassification {
+  type: NameClassificationType;
+  parents: string[];                   // non-empty only for likely_hybrid
+}
+
+export interface DerivedPrior {
+  vec: EffectVector;
+  conf: number;                        // 0..1; hard-capped at 0.5 for any derived result
+  source: PriorSource | 'unknown';
+}

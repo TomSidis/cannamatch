@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { C as COPY } from '../copy.he.js';
 import { api } from '../services/api.js';
+import CommunityFeed from './CommunityFeed.jsx';
 
 // ── Tone-correct post template — the kind of content we want to cultivate ────
 // These seed the "all" feed until real posts accumulate.
@@ -202,15 +203,14 @@ function EmptyState({ message }) {
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CommunitySplitScreen({ ans, user }) {
-  const [tab, setTab]         = useState('like'); // 'like' | 'all'
+  const [tab, setTab]         = useState('all'); // 'all' | 'cats'
   const [likedIds, setLikedIds] = useState([]);
   const [extraPosts, setExtraPosts] = useState([]);   // user-submitted in this session
   const [composerOpen, setComposerOpen] = useState(false);
 
-  const likePosts  = [...SEED_POSTS_LIKE, ...extraPosts.filter(p => p._tab === 'like')];
-  const allPosts   = [...SEED_POSTS_ALL,  ...extraPosts.filter(p => p._tab !== 'like')];
-
-  const currentPosts = tab === 'like' ? likePosts : allPosts;
+  const userCats = ans?.cats || [];
+  const allPosts = [...SEED_POSTS_ALL, ...extraPosts];
+  const currentPosts = allPosts; // only used for 'all' tab seed posts (legacy, fades out)
 
   const handleLike = useCallback((id) => {
     setLikedIds(prev => prev.includes(id) ? prev : [...prev, id]);
@@ -246,8 +246,8 @@ export default function CommunitySplitScreen({ ans, user }) {
         display: 'flex', padding: '10px 16px 0', gap: 8, flexShrink: 0,
       }}>
         {[
-          { id: 'like', label: COPY.community.tabLike, icon: '👥' },
           { id: 'all',  label: COPY.community.tabAll,  icon: '🌐' },
+          { id: 'cats', label: 'הקטגוריה שלי',         icon: '🏷️' },
         ].map(t => {
           const active = tab === t.id;
           return (
@@ -272,8 +272,8 @@ export default function CommunitySplitScreen({ ans, user }) {
           initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
           style={{ padding: '8px 18px 2px', flexShrink: 0 }}>
           <div style={{ fontSize: 10.5, color: 'rgba(187,247,208,0.40)' }}>
-            {tab === 'like'
-              ? '👥 אנשים עם פרופיל דומה לשלך — מה שעזר להם יעזור ככל הנראה גם לך'
+            {tab === 'cats'
+              ? `🏷️ דיווחים ממטופלים עם ${userCats.length > 0 ? userCats.join(", ") : "אותה קטגוריית רישיון"} — אותו פרוטוקול`
               : '🌐 כל הקהילה — חוויות מכל הפרופילים'}
           </div>
         </motion.div>
@@ -283,19 +283,17 @@ export default function CommunitySplitScreen({ ans, user }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 16px', scrollbarWidth: 'none' }}>
         <AnimatePresence mode='wait'>
           <motion.div key={tab}
-            initial={{ opacity: 0, x: tab === 'like' ? -20 : 20 }}
+            initial={{ opacity: 0, x: tab === 'all' ? -20 : 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}>
 
-            {currentPosts.length === 0 ? (
-              <EmptyState message={tab === 'like' ? COPY.community.likeEmpty : COPY.community.allEmpty} />
+            {tab === 'all' ? (
+              // General trust-ranked feed — no filter
+              <CommunityFeed />
             ) : (
-              currentPosts.map((p, i) => (
-                <PostCard key={p.id} post={p} idx={i}
-                  onLike={handleLike}
-                  liked={likedIds.includes(p.id)} />
-              ))
+              // Category-filtered view — same ranked data, filtered by author's license category
+              <CommunityFeed categories={userCats} />
             )}
           </motion.div>
         </AnimatePresence>

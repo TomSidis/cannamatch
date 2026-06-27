@@ -10,21 +10,23 @@ import DailyCheckIn from "./components/DailyCheckIn.jsx";
 import { api, pingBackend } from "./services/api.js";
 import { useEnrichedStrains } from "./hooks/useEnrichedStrains.js";
 import LoadingSkeleton from "./components/LoadingSkeleton.jsx";
-import { createEngine } from "./lib/scoringEngine.js";
-import { bridgeScore } from "./engine/legacyBridge";
+import { bridgeScore } from "./engine/legacyBridge.ts";
 import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
 import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
-import WalkingMascot from "./components/WalkingMascot.jsx";
 import ReportFlow from "./components/ReportFlow.jsx";
 import NextExperiment from "./components/NextExperiment.jsx";
+import BasketPlannerScreen from "./components/BasketPlannerScreen.jsx";
 import CommunitySplitScreen from "./components/CommunitySplitScreen.jsx";
+import ImpactSummary from "./components/ImpactSummary.jsx";
+import TermsGate from "./components/TermsGate.jsx";
 import { friendWhy, killSwitchSummary, computeMapDiff, nextExperimentStrain } from "./lib/matchCopy.js";
 import { useReportTiming } from "./hooks/useReportTiming.js";
 import { TERPENE_HUMAN, terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
 import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
 import { ocrFile } from "./lib/menuOcr.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
+import { PEEK_WINDOW_ENABLED } from "./lib/categoryConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
 import BatchSignalBadge from "./components/BatchSignalBadge.jsx";
 import {
@@ -310,66 +312,21 @@ function buildProfile(ans, ratings) {
   return w;
 }
 
-function rawScore(strain, profile, ans) {
-  let s = 0;
-  Object.entries(strain.terps).forEach(([t, v]) => { s += v * (profile[t] || 0); });
-  const reasons   = ans?.reasons   || [];
-  const notHelped = ans?.notHelped || [];
-  const helped    = ans?.helped    || [];
-  const hits = strain.effects.filter((e) => reasons.includes(e)).length;
-  s += hits * 2.5;
-  if (notHelped.includes(strain.id) && !helped.includes(strain.id)) s -= 5;
-  return s;
-}
-
-function scoreAll(rawAns, ratings, indFilter = [], typeFilter = "all") {
-  const ans = {
-    cats: [], form: [], reasons: [], flavors: [],
-    helped: [], notHelped: [], current: [],
-    ...(rawAns || {}),
-  };
-  const profile = buildProfile(ans, ratings);
+function scoreAll(rawAns, _ratings, indFilter = [], typeFilter = "all") {
+  const ans = { cats: [], reasons: [], killSwitches: [], ...(rawAns || {}) };
   let eligible = STRAINS.filter((s) => ans.cats.includes(s.cat));
-  // סינון לפי תצורה: תפרחת / שמן / הכל
   if (typeFilter !== "all") {
     eligible = eligible.filter((s) => (s.type || "flower") === typeFilter);
   }
-  // סינון לפי התוויות נבחרות (אם המשתמש הפעיל)
   if (indFilter.length > 0) {
     eligible = eligible.filter((s) => s.effects.some((e) => indFilter.includes(e)));
   }
-
-  // §9 Step 6: use the three-layer engine when the user has a meaningful profile.
-  // Fall back to the legacy raw score when no reasons are set (prevents a blank home screen).
-  const hasProfile = ans.reasons && ans.reasons.length > 0;
-  if (hasProfile) {
-    return eligible
-      .map((s) => {
-        const engineResult = bridgeScore(s, ans);
-        // Kill-switch (matchPct=0) → keep in list at 0% so the UI can decide to hide them,
-        // but always exclude them from the visible rendered list downstream.
-        return {
-          ...s,
-          match:      engineResult.matchPct,
-          confidence: engineResult.confidence,
-          _reasonHuman: engineResult.reasonHuman,
-          _topLayer:    engineResult.topLayer,
-          _raw:       engineResult.matchPct,
-        };
-      })
-      .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
-  }
-
-  // Legacy path (no reasons yet — onboarding not complete)
-  const raws = eligible.map((s) => ({ s, r: rawScore(s, profile, ans) }));
-  const max = Math.max(...raws.map((x) => x.r), 3);
-  return raws
-    .map(({ s, r }) => {
-      const rel = Math.max(0, r) / (max || 1);
-      const match = Math.round(40 + rel * 58);
-      return { ...s, match, _raw: r };
+  return eligible
+    .map((s) => {
+      const r = bridgeScore(s, ans);
+      return { ...s, match: r.matchPct, confidence: r.confidence, _reasonHuman: r.reasonHuman, _topLayer: r.topLayer, _raw: r.matchPct };
     })
-    .sort((a, b) => b.match - a.match || b._raw - a._raw);
+    .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
 }
 
 /* סיווג איכות ההתאמה — נותן משמעות לאחוז. הרף ל"מומלץ" הוא 85%. */
@@ -1529,6 +1486,30 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
       )}
 
       {/* רשימת הזנים */}
+      {/* Peek window — out-of-license product count.
+          🚧 REGULATORY BLOCKER: disabled until Tom gets legal sign-off (PEEK_WINDOW_ENABLED=false).
+          When enabled: informational count only. Zero CTA. Medical disclaimer attached. */}
+      {PEEK_WINDOW_ENABLED && ans.cats.length > 0 && (() => {
+        const oolCount = STRAINS.filter(s => !ans.cats.includes(s.cat)).length;
+        const oolCats  = [...new Set(STRAINS.filter(s => !ans.cats.includes(s.cat)).map(s => s.cat))];
+        if (oolCount === 0) return null;
+        return (
+          <div style={{
+            borderRadius: 14, padding: '12px 16px', marginTop: 4,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)',
+          }}>
+            <p style={{ fontSize: 12, color: 'rgba(187,247,208,0.50)', lineHeight: 1.5 }}>
+              {oolCount} מוצרים נוספים קיימים בקטלוג עבור קטגוריות
+              {oolCats.length <= 3 ? ` ${oolCats.join(', ')}` : ''} שאינן ברישיון הנוכחי שלך.
+            </p>
+            <p style={{ fontSize: 11, color: 'rgba(187,247,208,0.35)', marginTop: 5, lineHeight: 1.45 }}>
+              ההחלטה על שינוי קטגוריה נקבעת מול הרופא המטפל — לא דרך האפליקציה.
+            </p>
+          </div>
+        );
+      })()}
+
       {visible.map((s) => {
         const reason = matchReason(s, ans, ratings);
         const comm = communityStats[s.id] || null;
@@ -4295,6 +4276,9 @@ function Journal({ ans, scored, ratings, setRatings, streak, setStreak, checked,
         )}
       </div>
 
+      {/* Impact summary — how many patients this user's reports helped (C5) */}
+      <ImpactSummary />
+
       {/* Notifications — collapsed */}
       <motion.div className="rounded-2xl border overflow-hidden"
         initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.3 }}
@@ -4913,9 +4897,6 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
     [profile, totalBeforeFilter, totalAfterFilter],
   );
 
-  // Next untried experiment
-  const nextExp = useMemo(() => nextExperimentStrain(scored, ratedIds), [scored, ratedIds]);
-
   const search = (q) => {
     if (!q.trim()) { setResults(null); return; }
     const sl = q.toLowerCase();
@@ -4930,10 +4911,30 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
 
   const openStrain = (s) => { setSelectedStrain(s); setResults(null); setQuery(""); };
 
-  // Top 3 picks; flag those matching user's #1 symptom for glow treatment
-  const topPicks   = scored.slice(0, 3);
-  const topReason  = ans.reasons?.[0];
+  const topReason      = ans.reasons?.[0];
   const topReasonLabel = REASONS.find(r => r.id === topReason)?.label;
+
+  // Section 1 — strains the user named in onboarding (helped / loved)
+  const onboardingPicks = useMemo(() =>
+    (ans.helped || []).map(id => STRAINS.find(s => s.id === id)).filter(Boolean),
+    [ans.helped],
+  );
+
+  // Section 2 — strains from journal, highest-rated first
+  const triedStrains = useMemo(() =>
+    Object.entries(ratings)
+      .map(([id, r]) => ({ s: STRAINS.find(x => x.id === id), r }))
+      .filter(x => x.s)
+      .sort((a, b) => b.r - a.r)
+      .slice(0, 4),
+    [ratings],
+  );
+
+  // Section 3 — profile-matched suggestions, excluding already-seen strains
+  const profileMatches = useMemo(() => {
+    const seen = new Set([...(ans.helped || []), ...Object.keys(ratings)]);
+    return scored.filter(s => !seen.has(String(s.id))).slice(0, 3);
+  }, [scored, ans.helped, ratings]);
 
   // Context-aware report nudge — timing-aware, once per day
   const lastRatedStrain = useMemo(
@@ -5120,120 +5121,190 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
         ))}
       </motion.div>
 
-      {/* Top picks — with symptom glow */}
+      {/* Personalized home — 3 sections from user history + DNA profile */}
       <div style={{ flex:1, overflowY:"auto", scrollbarWidth:"none", padding:"0 14px 12px" }}>
-        {topPicks.length > 0 ? (
+        {ans.cats.length === 0 ? (
+          <div style={{ borderRadius:18, padding:18, textAlign:"center", background:C.card, border:`1px solid ${C.line}` }}>
+            <div style={{ fontSize:32, marginBottom:8 }}>🌿</div>
+            <p style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:4 }}>עוד לא בנינו את הפרופיל שלך</p>
+            <p style={{ fontSize:11, color:"rgba(187,247,208,0.60)", lineHeight:1.55 }}>
+              עברו לשאלון ונבנה יחד המלצות מדויקות לקנייה החודשית שלך
+            </p>
+          </div>
+        ) : (
           <>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-              <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
-                background:C.soft, color:C.accent }}>לפי הפרופיל שלך</span>
-              <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>✨ מומלץ עבורך</span>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {topPicks.map((s, idx) => {
-                const tier = matchTier(s.match);
-                const isSymptomMatch = topReason && (s.effects || []).includes(topReason);
-                return (
-                  <motion.div key={s.id}
-                    initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
-                    transition={{ delay: 0.4 + idx * 0.1 }}
-                    whileHover={{ scale:1.015 }}
-                    style={{
-                      borderRadius:18, border:`1.5px solid ${isSymptomMatch ? "#4ADE80" : s.match >= 85 ? `${C.accent}60` : C.line}`,
-                      padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
-                      background: isSymptomMatch ? "rgba(74,222,128,0.06)" : C.card,
-                      boxShadow: isSymptomMatch
-                        ? "0 0 0 1px rgba(74,222,128,0.15), 0 0 18px rgba(74,222,128,0.12)"
-                        : s.match >= 85 ? `0 0 0 1px ${C.accent}25` : "none",
-                      cursor:"pointer", position:"relative",
-                    }}
-                    onClick={() => openStrain(s)}>
-                    {/* Symptom match glow annotation */}
-                    {isSymptomMatch && (
-                      <motion.div
-                        animate={{ opacity:[0.7,1,0.7] }} transition={{ duration:2, repeat:Infinity }}
-                        style={{
-                          position:"absolute", top:-1, left:10,
-                          fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:"0 0 8px 8px",
-                          background:"rgba(74,222,128,0.18)", color:"#4ADE80",
-                          border:"1px solid rgba(74,222,128,0.30)", borderTop:"none",
-                        }}>
-                        ✓ מומלץ ל{topReasonLabel}
-                      </motion.div>
-                    )}
-                    <MatchRing pct={s.match} />
-                    <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
-                      <div style={{ fontSize:11, color:"rgba(187,247,208,0.55)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                        {s.genetics} · {s.grower}
+            {/* ── Section 1: onboarding choices ───────────────────────────── */}
+            {onboardingPicks.length > 0 && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>זנים שבחרת בשאלון</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:"rgba(167,139,250,0.12)", color:"#A78BFA" }}>
+                    {onboardingPicks.length}
+                  </span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {onboardingPicks.map((s, idx) => (
+                    <motion.div key={s.id}
+                      initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }}
+                      transition={{ delay: 0.2 + idx * 0.07 }}
+                      whileHover={{ scale:1.012 }}
+                      onClick={() => openStrain(s)}
+                      style={{
+                        borderRadius:14, border:`1.5px solid rgba(167,139,250,0.22)`,
+                        padding:"10px 13px", display:"flex", alignItems:"center", gap:10,
+                        background:"rgba(167,139,250,0.05)", cursor:"pointer",
+                      }}>
+                      <span style={{ fontSize:18, flexShrink:0 }}>🧬</span>
+                      <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
+                        <div style={{ fontSize:11, color:"rgba(187,247,208,0.50)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {s.genetics} · {s.cat}
+                        </div>
                       </div>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, marginTop:3 }}>
-                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:tier.bg, color:tier.color }}>{tier.icon} {tier.label}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color:C.accent }}>{s.cat} · ₪{s.price}</span>
-                      </div>
-                      {/* Friend-voice "why" */}
-                      <div style={{ fontSize:10.5, color:"rgba(187,247,208,0.68)", lineHeight:1.55, marginTop:4, fontStyle:"italic" }}>
-                        {friendWhy(s, profile, ans)}
-                      </div>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
                       <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
                         style={{
-                          fontSize:11, fontWeight:800, padding:"7px 11px", borderRadius:12,
-                          background: basket.includes(s.id) ? C.line : C.accent,
-                          color: basket.includes(s.id) ? "rgba(187,247,208,0.45)" : "#0c0d11",
-                          border: `1px solid ${basket.includes(s.id) ? C.line : C.accent}`,
-                          opacity: basket.includes(s.id) ? 0.6 : 1,
-                          cursor: basket.includes(s.id) ? "default" : "pointer",
+                          fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:10,
+                          background: basket.includes(s.id) ? C.line : "rgba(167,139,250,0.18)",
+                          color: basket.includes(s.id) ? "rgba(187,247,208,0.35)" : "#A78BFA",
+                          border: `1px solid ${basket.includes(s.id) ? C.line : "rgba(167,139,250,0.35)"}`,
+                          cursor: basket.includes(s.id) ? "default" : "pointer", flexShrink:0,
                         }}>
                         {basket.includes(s.id) ? "✓" : "+"}
                       </button>
-                      {onReport && ratedIds.includes(String(s.id)) && (
-                        <button onClick={e => { e.stopPropagation(); onReport(s); }}
-                          style={{
-                            fontSize:10, fontWeight:700, padding:"5px 8px", borderRadius:10,
-                            background:"rgba(167,139,250,0.09)", border:"1px solid rgba(167,139,250,0.22)",
-                            color:"#A78BFA", cursor:"pointer",
-                          }}>
-                          דווח
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Kill-switch callout — appears when strains were filtered */}
-            {ksMsg && (
-              <motion.div
-                initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }}
-                transition={{ delay:0.6 }}
-                style={{
-                  marginTop:8, padding:"9px 13px", borderRadius:12,
-                  background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.18)",
-                }}>
-                <div style={{ fontSize:11, color:"rgba(248,113,113,0.85)", lineHeight:1.55 }}>
-                  {ksMsg}
+                    </motion.div>
+                  ))}
                 </div>
-              </motion.div>
-            )}
-
-            {/* Next experiment — always gives the user somewhere to go */}
-            {nextExp && (
-              <div style={{ marginTop:10 }}>
-                <NextExperiment
-                  strain={nextExp}
-                  why={friendWhy(nextExp, profile, ans)}
-                  inBasket={basket.includes(nextExp.id)}
-                  onAddToBasket={() => addToBasket(nextExp.id)}
-                  onReport={onReport ? () => onReport(nextExp) : undefined}
-                />
               </div>
             )}
 
-            {/* Quick-nav buttons */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:10 }}>
+            {/* ── Section 2: tried strains from journal ───────────────────── */}
+            {triedStrains.length > 0 && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>ניסית לאחרונה</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:C.soft, color:C.accent }}>
+                    מהיומן שלך
+                  </span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {triedStrains.map(({ s, r }, idx) => (
+                    <motion.div key={s.id}
+                      initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }}
+                      transition={{ delay: 0.25 + idx * 0.07 }}
+                      whileHover={{ scale:1.012 }}
+                      onClick={() => openStrain(s)}
+                      style={{
+                        borderRadius:14, border:`1.5px solid rgba(251,191,36,0.18)`,
+                        padding:"10px 13px", display:"flex", alignItems:"center", gap:10,
+                        background:"rgba(251,191,36,0.04)", cursor:"pointer",
+                      }}>
+                      <div style={{ textAlign:"center", flexShrink:0, width:36 }}>
+                        <div style={{ fontSize:14, fontWeight:900, color:"#FBBF24", lineHeight:1 }}>{r}</div>
+                        <div style={{ fontSize:9, color:"rgba(187,247,208,0.45)" }}>מתוך 10</div>
+                      </div>
+                      <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
+                        <div style={{ fontSize:11, color:"rgba(187,247,208,0.50)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {s.genetics} · {s.cat}
+                        </div>
+                      </div>
+                      {onReport && (
+                        <button onClick={e => { e.stopPropagation(); onReport(s); }}
+                          style={{
+                            fontSize:10, fontWeight:700, padding:"5px 8px", borderRadius:10,
+                            background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.22)",
+                            color:"#FBBF24", cursor:"pointer", flexShrink:0,
+                          }}>
+                          עדכן דיווח
+                        </button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Section 3: profile-matched suggestions ───────────────────── */}
+            {profileMatches.length > 0 && (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
+                    background:C.soft, color:C.accent }}>DNA · {topReasonLabel || "הפרופיל שלך"}</span>
+                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>לפי מה שעובד עליך</span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {profileMatches.map((s, idx) => {
+                    const tier = matchTier(s.match);
+                    const isSymptomMatch = topReason && (s.effects || []).includes(topReason);
+                    return (
+                      <motion.div key={s.id}
+                        initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+                        transition={{ delay: 0.35 + idx * 0.08 }}
+                        whileHover={{ scale:1.015 }}
+                        style={{
+                          borderRadius:18, border:`1.5px solid ${isSymptomMatch ? "#4ADE80" : s.match >= 85 ? `${C.accent}60` : C.line}`,
+                          padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
+                          background: isSymptomMatch ? "rgba(74,222,128,0.06)" : C.card,
+                          boxShadow: s.match >= 85 ? `0 0 0 1px ${C.accent}25` : "none",
+                          cursor:"pointer", position:"relative",
+                        }}
+                        onClick={() => openStrain(s)}>
+                        {isSymptomMatch && (
+                          <motion.div animate={{ opacity:[0.7,1,0.7] }} transition={{ duration:2, repeat:Infinity }}
+                            style={{
+                              position:"absolute", top:-1, left:10,
+                              fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:"0 0 8px 8px",
+                              background:"rgba(74,222,128,0.18)", color:"#4ADE80",
+                              border:"1px solid rgba(74,222,128,0.30)", borderTop:"none",
+                            }}>
+                            ✓ {topReasonLabel}
+                          </motion.div>
+                        )}
+                        <MatchRing pct={s.match} />
+                        <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
+                          <div style={{ fontSize:11, color:"rgba(187,247,208,0.55)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            {s.genetics} · {s.grower}
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, marginTop:3 }}>
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:tier.bg, color:tier.color }}>{tier.icon} {tier.label}</span>
+                            <span style={{ fontSize:11, fontWeight:700, color:C.accent }}>{s.cat} · ₪{s.price}</span>
+                          </div>
+                          <div style={{ fontSize:10.5, color:"rgba(187,247,208,0.68)", lineHeight:1.55, marginTop:4, fontStyle:"italic" }}>
+                            {friendWhy(s, profile, ans)}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                          <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
+                            style={{
+                              fontSize:11, fontWeight:800, padding:"7px 11px", borderRadius:12,
+                              background: basket.includes(s.id) ? C.line : C.accent,
+                              color: basket.includes(s.id) ? "rgba(187,247,208,0.45)" : "#0c0d11",
+                              border: `1px solid ${basket.includes(s.id) ? C.line : C.accent}`,
+                              opacity: basket.includes(s.id) ? 0.6 : 1,
+                              cursor: basket.includes(s.id) ? "default" : "pointer",
+                            }}>
+                            {basket.includes(s.id) ? "✓" : "+"}
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Kill-switch callout */}
+            {ksMsg && (
+              <motion.div initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.6 }}
+                style={{ marginBottom:10, padding:"9px 13px", borderRadius:12,
+                  background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.18)" }}>
+                <div style={{ fontSize:11, color:"rgba(248,113,113,0.85)", lineHeight:1.55 }}>{ksMsg}</div>
+              </motion.div>
+            )}
+
+            {/* Quick-nav */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:4 }}>
               {[
                 { icon:"🏪", label:"בתי מרקחת", tab:"market" },
                 { icon:"📊", label:"יומן מעקב", tab:"journal" },
@@ -5251,15 +5322,7 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
               ))}
             </div>
           </>
-        ) : ans.cats.length === 0 ? (
-          <div style={{ borderRadius:18, padding:18, textAlign:"center", background:C.card, border:`1px solid ${C.line}` }}>
-            <div style={{ fontSize:32, marginBottom:8 }}>🌿</div>
-            <p style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:4 }}>עוד לא בנינו את הפרופיל שלך</p>
-            <p style={{ fontSize:11, color:"rgba(187,247,208,0.60)", lineHeight:1.55 }}>
-              עברו לשאלון ונבנה יחד המלצות מדויקות לקנייה החודשית שלך
-            </p>
-          </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -5380,24 +5443,82 @@ function AuthLayout({ children }) {
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
         .auth-inner::-webkit-scrollbar { display: none; }
         .auth-inner { -ms-overflow-style: none; scrollbar-width: none; }
+        .auth-shell {
+          position: relative; z-index: 10; flex: 1; min-height: 0;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+        }
+        .auth-left-panel { display: none; }
+        .auth-form-panel {
+          width: 100%; padding: 12px 16px;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+        }
+        @media (min-width: 1024px) {
+          .auth-shell { flex-direction: row; align-items: stretch; justify-content: flex-start; }
+          .auth-left-panel {
+            display: flex; flex: 1; flex-direction: column;
+            align-items: center; justify-content: center; padding: 64px;
+          }
+          .auth-form-panel {
+            width: 520px; flex-shrink: 0; padding: 32px 40px;
+            border-left: 1px solid rgba(74,222,128,0.14);
+            background: rgba(3,10,6,0.55);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+          }
+        }
       `}</style>
 
       <AuthBgSlideshow />
 
-      {/* Viewport-locked content shell */}
-      <div style={{
-        position:"relative", zIndex:10, flex:1, minHeight:0,
-        display:"flex", flexDirection:"column",
-        alignItems:"center", justifyContent:"center",
-        padding:"12px 16px",
-      }}>
-        {/* Inner scroller — hidden scrollbar, clips content on tiny phones gracefully */}
-        <div className="auth-inner" style={{
-          width:"100%", maxWidth:440,
-          maxHeight:"100%", overflowY:"auto",
-          display:"flex", flexDirection:"column",
-        }}>
-          {children}
+      <div className="auth-shell">
+        {/* Form panel — right side on desktop (RTL primary), full-width on mobile */}
+        <div className="auth-form-panel">
+          <div className="auth-inner" style={{
+            width:"100%", maxWidth:440,
+            maxHeight:"100%", overflowY:"auto",
+            display:"flex", flexDirection:"column",
+          }}>
+            {children}
+          </div>
+        </div>
+
+        {/* Desktop-only branding panel — left side on desktop (RTL secondary) */}
+        <div className="auth-left-panel">
+          <div style={{ textAlign:"center", maxWidth:400 }}>
+            <div style={{
+              fontSize:80, marginBottom:20, display:"block",
+              filter:"drop-shadow(0 0 36px rgba(74,222,128,0.70)) drop-shadow(0 4px 12px rgba(0,0,0,0.60))",
+            }}>🌿</div>
+            <h2 style={{
+              fontSize:46, fontWeight:900, color:"#FFFFFF", letterSpacing:"-0.03em",
+              marginBottom:14, margin:"0 0 14px",
+              textShadow:"0 0 44px rgba(74,222,128,0.55), 0 2px 14px rgba(0,0,0,0.90)",
+            }}>קנאמאצ׳</h2>
+            <p style={{
+              fontSize:17, color:"rgba(220,255,230,0.85)", lineHeight:1.55, fontWeight:500,
+              textShadow:"0 1px 8px rgba(0,0,0,0.85)", marginTop:12,
+            }}>
+              המלווה האישי שלך לקנאביס רפואי בישראל
+            </p>
+            <div style={{ marginTop:32, display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
+              {[
+                { icon:"🎯", t:"התאמה אישית" },
+                { icon:"📋", t:"סריקת תפריטים" },
+                { icon:"🫂", t:"קהילה סגורה" },
+              ].map((f, i) => (
+                <div key={i} style={{
+                  padding:"8px 16px", borderRadius:12,
+                  background:"rgba(4,14,8,0.50)", border:"1px solid rgba(74,222,128,0.28)",
+                  backdropFilter:"blur(14px)", fontSize:13,
+                  color:"rgba(220,255,230,0.85)", fontWeight:600,
+                }}>
+                  {f.icon} {f.t}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -5505,13 +5626,7 @@ function Login({ go, setUser, setVerifyNextScreen }) {
 
   return (
     <AuthCard title={T.auth.loginTitle} sub={T.auth.loginSub} onBack={() => go("welcome")}>
-      <SocialButtons onSocial={(prov) => {
-        const u = { name: `משתמש ${prov}`, email: "", avatar: "🌿", social: prov, id: `s_${Date.now()}` };
-        localStorage.setItem("cm_session_token", `social_${prov}_${Date.now()}`);
-        localStorage.setItem("cm_user", JSON.stringify(u));
-        setUser(u);
-        go("welcome_room");
-      }} />
+      {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
       <Field label={T.auth.usernameLabel} value={u} onChange={setU} placeholder={T.auth.emailPlaceholder} />
       <Field label={T.auth.passwordLabel} type="password" value={p} onChange={setP} placeholder="••••••••" />
       {err && <p style={{ color:"#F87171", fontSize:13, textAlign:"center", marginBottom:8 }}>{err}</p>}
@@ -5707,7 +5822,7 @@ function Register({ go, setUser }) {
   };
   return (
     <AuthCard title="הרשמה" sub="דקה אחת ואתם בפנים" onBack={() => go("welcome")}>
-      <SocialButtons onSocial={social} />
+      {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
       <Field label="שם מלא" value={n} onChange={setN} placeholder="ישראל ישראלי" />
       <Field label="מייל" type="email" value={e} onChange={setE} placeholder="israel@example.com" />
       <Field label="סיסמה" type="password" value={p} onChange={setP} placeholder="8 תווים לפחות" />
@@ -6999,8 +7114,6 @@ function GreetingMascot({ user }) {
   const today = new Date().toDateString();
   const lastGreet = localStorage.getItem("cm_last_greet");
   const isReturning = !isNew && lastGreet && lastGreet !== today;
-  const [videoOk, setVideoOk] = useState(true);
-
   useEffect(() => {
     localStorage.setItem("cm_avatar_seen", "1");
     localStorage.setItem("cm_last_greet", today);
@@ -7014,8 +7127,6 @@ function GreetingMascot({ user }) {
     :                               pick(GREET_LINES.night);
 
   const name = user?.name?.split(" ")[0];
-  const prefersReduced = typeof window !== "undefined"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   return (
     <div style={{
@@ -7040,9 +7151,8 @@ function GreetingMascot({ user }) {
         {name ? `${greeting}\n${name}` : greeting}
       </motion.div>
 
-      {/* Avatar video — glow is a sibling so filter:blur doesn't isolate mix-blend-mode */}
+      {/* Avatar — emoji only (mp4 has no alpha channel, video rect would show) */}
       <div style={{ position: "relative", width: 116, height: 116 }}>
-        {/* Organic blob glow — SIBLING of video, not parent */}
         <div style={{
           position: "absolute",
           inset: "-10px",
@@ -7052,26 +7162,11 @@ function GreetingMascot({ user }) {
           pointerEvents: "none",
           zIndex: 0,
         }} />
-        {prefersReduced || !videoOk ? (
-          <span style={{
-            fontSize: 72, lineHeight: "116px", display: "block", textAlign: "center",
-            filter: "drop-shadow(0 0 14px rgba(57,255,133,0.70))",
-            position: "relative", zIndex: 1,
-          }}>🌿</span>
-        ) : (
-          <video
-            src="/Avatar.mp4"
-            autoPlay loop muted playsInline
-            onError={() => setVideoOk(false)}
-            style={{
-              position: "relative", zIndex: 1,
-              width: "100%", height: "100%",
-              objectFit: "contain",
-              /* screen blend: black bg pixels disappear; character shows on page bg */
-              mixBlendMode: "screen",
-            }}
-          />
-        )}
+        <span style={{
+          fontSize: 72, lineHeight: "116px", display: "block", textAlign: "center",
+          filter: "drop-shadow(0 0 14px rgba(57,255,133,0.70))",
+          position: "relative", zIndex: 1,
+        }}>🌿</span>
       </div>
     </div>
   );
@@ -7109,6 +7204,10 @@ export default function CannaMatch() {
     } catch { localStorage.removeItem("cm_session_token"); localStorage.removeItem("cm_user"); }
     return null;
   });
+  // null = loading (API call in flight); object = { accepted, version, text }.
+  // Must be null initially — prevents app content flashing before gate activates.
+  const [termsStatus, setTermsStatus] = useState(null);
+
   const [screen, setScreen] = useState(() => {
     try {
       const token = localStorage.getItem("cm_session_token");
@@ -7125,6 +7224,7 @@ export default function CannaMatch() {
   const [ratings, setRatings] = useState({});
   const [basket, setBasket] = useState([]);
   const [budget, setBudget] = useState(700);
+  const [gramsByCategory, setGramsByCategory] = useState({});
   const [ph, setPh] = useState("ph1");
   const [notifs, setNotifs] = useState({});
   const [popup, setPopup] = useState(null);
@@ -7167,9 +7267,10 @@ export default function CannaMatch() {
           helped: [], notHelped: [], current: [],
           ...prev, ...p.ans,
         }));
-        if (p.ratings) setRatings(p.ratings);
-        if (p.budget) setBudget(p.budget);
-        if (p.streak) setStreak(p.streak);
+        if (p.ratings)          setRatings(p.ratings);
+        if (p.budget)           setBudget(p.budget);
+        if (p.streak)           setStreak(p.streak);
+        if (p.gramsByCategory)  setGramsByCategory(p.gramsByCategory);
       }
     } catch {}
   }, []);
@@ -7178,16 +7279,29 @@ export default function CannaMatch() {
      This useEffect is intentionally removed. */
 
   useEffect(() => {
-    try { localStorage.setItem("cm_profile_v2", JSON.stringify({ ans, ratings, budget, streak })); } catch {}
-  }, [ans, ratings, budget, streak]);
+    try { localStorage.setItem("cm_profile_v2", JSON.stringify({ ans, ratings, budget, streak, gramsByCategory })); } catch {}
+  }, [ans, ratings, budget, streak, gramsByCategory]);
 
   useEffect(() => { pingBackend().then(setBackendLive); }, []);
+
+  // Terms check — runs when user logs in (user?.id changes).
+  // Fail closed: network error → accepted:false, text:null → gate shows reload prompt.
+  useEffect(() => {
+    if (!user) return;
+    setTermsStatus(null);
+    let cancelled = false;
+    api.terms.status()
+      .then(s  => { if (!cancelled) setTermsStatus(s); })
+      .catch(() => { if (!cancelled) setTermsStatus({ accepted: false, version: 0, text: null }); });
+    return () => { cancelled = true; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
     localStorage.removeItem("cm_session_token");
     localStorage.removeItem("cm_user");
     setUser(null);
     setScreen("welcome");
+    setTermsStatus(null); // reset so next login re-checks
   };
 
   /* ── Handle report submission: compute diff, update ratings, fire API ── */
@@ -7241,13 +7355,16 @@ export default function CannaMatch() {
     }
   }, [ans.reasons]);
 
-  const engine = useMemo(
-    () => createEngine({ strains: STRAINS, terpenes: TERPENES, reasons: REASONS }),
-    []
-  );
+  // Auto-set type filter from onboarding form: oil-only → "oil", else "all"
+  useEffect(() => {
+    const form = ans?.form || [];
+    if (form.length === 0) return;
+    setTypeFilter(form.length === 1 && form[0] === "שמן" ? "oil" : "all");
+  }, [ans.form?.join(",")]);
+
   const scored = useMemo(
-    () => engine.scoreAll(ans, ratings, indFilter, typeFilter),
-    [engine, ans, ratings, indFilter, typeFilter]
+    () => scoreAll(ans, {}, indFilter, typeFilter),
+    [ans, indFilter, typeFilter]
   );
 
   const TABS = [
@@ -7460,6 +7577,35 @@ export default function CannaMatch() {
     );
   }
 
+  /* ── TERMS GATE (C6) ────────────────────────────────────────────────────────
+     Runs after auth, before any app content renders.
+     null   → API call in flight → show loading (prevents content flash).
+     false  → user has not accepted current version → full-screen gate.
+     true   → accepted → proceed normally.
+     ─────────────────────────────────────────────────────────────────────── */
+  if (termsStatus === null) {
+    return (
+      <div dir="rtl" style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        background: "#0c0d11", fontFamily: "'Heebo',sans-serif",
+      }}>
+        <div style={{ fontSize: 36, marginBottom: 14 }}>🌿</div>
+        <div style={{ fontSize: 12, color: "rgba(187,247,208,0.45)" }}>טוען...</div>
+      </div>
+    );
+  }
+
+  if (!termsStatus.accepted) {
+    return (
+      <TermsGate
+        text={termsStatus.text}
+        version={termsStatus.version}
+        onAccept={() => setTermsStatus(s => ({ ...s, accepted: true }))}
+      />
+    );
+  }
+
   /* ── NON-AUTH SCREENS ── */
   return (
     <div dir="rtl" className="min-h-screen"
@@ -7481,9 +7627,11 @@ export default function CannaMatch() {
           }} />
           <div style={{
             position:"relative", zIndex:1,
-            width:"100%", maxWidth:520, margin:"0 auto",
+            width:"100%",
             height:"100dvh", display:"flex", flexDirection:"column",
+            alignItems:"center",
           }}>
+            <div style={{ width:"100%", maxWidth:680, flex:1, display:"flex", flexDirection:"column" }}>
             <OnboardingWizard
               user={user}
               onComplete={({ localAns }) => {
@@ -7499,6 +7647,9 @@ export default function CannaMatch() {
                   reasons: (localAns?.reasons || []).length > 0 ? localAns.reasons : (prev.reasons || []),
                   flavors: (localAns?.flavors || []).length > 0 ? localAns.flavors : (prev.flavors || []),
                 }));
+                if (localAns?.gramsByCategory && Object.keys(localAns.gramsByCategory).length > 0) {
+                  setGramsByCategory(localAns.gramsByCategory);
+                }
                 if (localAns?.licenseVerified) {
                   setLicenseVerified(true);
                   localStorage.setItem("cm_license", "1");
@@ -7507,13 +7658,14 @@ export default function CannaMatch() {
               }}
               onSkip={() => setScreen("app")}
             />
+            </div>
           </div>
         </div>
       )}
 
       {screen === "app" && (
         <JourneyProvider screen={screen} licenseVerified={licenseVerified} checked={checked}>
-        <div className="relative flex min-h-screen" dir="rtl" style={{ background:"#04100a" }}>
+        <div className="relative flex" dir="rtl" style={{ background:"#04100a", height:"100dvh", overflow:"hidden" }}>
           {/* ── Vivid plant background for the main app shell ── */}
           <div style={{
             position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
@@ -7570,7 +7722,7 @@ export default function CannaMatch() {
           </nav>
 
           {/* ── Main content column — animates in via loginStage ── */}
-          <StageWrapper className="flex-1 min-w-0 flex flex-col relative z-10">
+          <StageWrapper className="flex-1 min-w-0 min-h-0 flex flex-col relative z-10">
             <header className="px-5 pt-4 pb-3 flex items-center justify-between border-b"
               style={{
                 borderColor:"rgba(74,222,128,0.14)",
@@ -7736,6 +7888,7 @@ export default function CannaMatch() {
             })()}
 
             <main className="flex-1 pb-8 overflow-y-auto">
+              <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
               {/* ── License expiry alert banner ── */}
               {licenseAlert === "expired" && (
                 <div className="mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3"
@@ -7793,8 +7946,12 @@ export default function CannaMatch() {
               )}
               {tab === "market" && <Market scored={scored} basket={basket} addToBasket={(id) => setBasket([...basket, id])} />}
               {tab === "basket" && (
-                <Basket scored={scored} basket={basket} setBasket={setBasket}
-                  budget={budget} setBudget={setBudget} ph={ph} setPh={setPh} />
+                <BasketPlannerScreen
+                  ans={ans}
+                  gramsByCategory={gramsByCategory}
+                  strains={STRAINS}
+                  onClose={() => setTab("home")}
+                />
               )}
               {tab === "analytics" && (
                 <>
@@ -7811,6 +7968,7 @@ export default function CannaMatch() {
                   streak={streak} setStreak={setStreak} checked={checked} setChecked={setChecked}
                   notifs={notifs} setNotifs={setNotifs} />
               )}
+              </div>
             </main>
             <footer style={{ textAlign:"center", padding:"12px 0 20px" }}>
               <p style={{ fontSize:10, color:"rgba(187,247,208,0.50)", lineHeight:1.6, fontWeight:500 }}>
@@ -7848,8 +8006,7 @@ export default function CannaMatch() {
         </JourneyProvider>
       )}
 
-      {/* Phase 5 — mascot: walking character overlays all screens (position: fixed) */}
-      <WalkingMascot />
+      {/* Mascot only in main app, not during onboarding */}
 
     </div>
   );

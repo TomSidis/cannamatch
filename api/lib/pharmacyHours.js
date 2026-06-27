@@ -76,10 +76,10 @@ function computeOpenStatus(pharmacy) {
     weekday === "Sat" ? pharmacy.hours_saturday :
     pharmacy.hours_weekdays;
 
-  if (!hoursToday) return { is_open: false, hours_today: null };
+  if (!hoursToday) return { is_open: null, hours_today: null }; // hours unknown — never fake closed
 
   const m = HOURS_RE.exec(hoursToday.trim());
-  if (!m) return { is_open: false, hours_today: hoursToday };
+  if (!m) return { is_open: null, hours_today: hoursToday }; // unparseable format — unknown
 
   const openMin = Number(m[1]) * 60 + Number(m[2]);
   const closeMin = Number(m[3]) * 60 + Number(m[4]);

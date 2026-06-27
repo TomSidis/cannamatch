@@ -199,31 +199,10 @@ export default function MenuScanTab({ ans, scored, basket, addToBasket, user }) 
     if (!isPdf && !isImg) { setAiError("אפשר להעלות תמונה (JPG/PNG) או PDF בלבד"); return; }
     setAiParsing(true);
     try {
-      const base64 = await fileToBase64(file);
-      const PROMPT = `אתה מנתח תפריט של בית מרקחת לקנאביס רפואי בישראל.
-חלץ מהמסמך את כל המוצרים, שורה אחת לכל מוצר, בפורמט:
-[שם המוצר] [קטגוריה כגון T22/C4] — [מחיר]₪
-
-חשוב: שמור על שמות הזנים בדיוק כפי שמופיעים. אם אין קטגוריה או מחיר — השאר ריק.
-כתוב רק את הרשימה, בלי הסברים. דוגמה:
-Wedding CK T22/C4 — 280₪
-אור T15/C3 — 225₪`;
-      const mediaBlock = isPdf
-        ? { type: "document", source: { type: "base64", media_type: "application/pdf",  data: base64 } }
-        : { type: "image",    source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 } };
-
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 1500,
-          messages: [{ role: "user", content: [mediaBlock, { type: "text", text: PROMPT }] }],
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error?.message || `שגיאת שרת (${response.status})`);
-      if (data.error) throw new Error(data.error.message || "שגיאה מהשרת");
-      const extracted = (data.content || []).map((b) => b.text || "").join("\n").trim();
+      const base64     = await fileToBase64(file);
+      const media_type = isPdf ? "application/pdf" : (file.type || "image/jpeg");
+      const data       = await api.parseMenuImage({ image_base64: base64, media_type });
+      const extracted  = data?.text?.trim() || "";
       if (extracted) { setText(extracted); setResults(parseMenu(extracted, ans, scored)); }
       else setAiError("לא הצלחתי לחלץ טקסט — נסו תמונה ברורה או הדביקו ידנית");
     } catch (err) {

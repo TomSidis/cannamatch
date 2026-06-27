@@ -1,6 +1,6 @@
-import type { EffectVector, EffectAxis, Terpene, Batch, Chemotype, Provenance, UserNeed, TerpeneReading, TimeOfDay } from './types';
-import { EFFECT_AXIS_KEYS } from './types';
-import { TERPENE_EFFECTS, CONDITION_LEANS, CHEMOTYPE_MARKERS } from '../data/terpeneScience';
+import type { EffectVector, EffectAxis, Terpene, Batch, Chemotype, Provenance, UserNeed, TerpeneReading, TimeOfDay } from './types.ts';
+import { EFFECT_AXIS_KEYS } from './types.ts';
+import { TERPENE_EFFECTS, CONDITION_LEANS, CHEMOTYPE_MARKERS } from '../data/terpeneScience.ts';
 
 // ── §4.1 cosine ───────────────────────────────────────────────────────────────
 // Standard cosine over fixed key order. Returns 0 when either norm is 0 (§7).
@@ -47,10 +47,19 @@ export function buildProductVector(batch: Batch): { vec: EffectVector; chemotype
   return { vec: vecFromChemotypePrior(chem), chemotype: chem, provenance: 'inferred' };
 }
 
-// Always uses chemotype prior — used for the §4.2 `prior` layer regardless of whether
-// the batch has terpene readings. Keeps prior stable and independent of measured data.
+// Prior layer: genetics-derived (or batch-measured) vec if available; else chemotype.
+// Genetics prior always outranks chemotype prior because it carries identity information.
 export function buildPriorVector(batch: Batch): EffectVector {
+  if (batch.geneticsPrior && batch.geneticsPrior.conf > 0) {
+    return fillEffectVec(batch.geneticsPrior.vec);
+  }
   return vecFromChemotypePrior(chemotypeFromBatch(batch));
+}
+
+function fillEffectVec(partial: Partial<Record<EffectAxis, number>>): EffectVector {
+  const out = zeroVec();
+  for (const k of EFFECT_AXIS_KEYS) out[k] = partial[k as EffectAxis] ?? 0;
+  return out;
 }
 
 // ── §4 buildNeedVector ────────────────────────────────────────────────────────

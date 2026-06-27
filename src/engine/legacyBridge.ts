@@ -8,9 +8,9 @@
  *   ansToNeed(ans)         →  UserNeed
  *   bridgeScore(...)       →  ScoredProduct  (drop-in replacement for old `match` int)
  */
-import type { Batch, TerpeneReading, Terpene, ReportAggregate } from './types';
-import { buildNeedVector } from './vectorMath';
-import { scoreSingle }     from './scorer';
+import type { Batch, TerpeneReading, Terpene, ReportAggregate } from './types.ts';
+import { buildNeedVector } from './vectorMath.ts';
+import { scoreSingle }     from './scorer.ts';
 
 /** Parse "T22/C4" → {thcPct:22, cbdPct:4}.  Returns thcPct=18, cbdPct=3 on failure. */
 function parseCat(cat: string): { thcPct: number; cbdPct: number } {

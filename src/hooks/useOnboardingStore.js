@@ -24,6 +24,8 @@ export const INITIAL_PAYLOAD = {
   // Stage 3 — Sensory (flower/vape) or Oil Effects (oil users)
   scentSelections:   {},
   oilEffects:        [],
+  oilEffectSels:     {},   // {[effectId]: "loved" | "disliked"}
+  noScentKnowledge:  false, // true → route flower/vape user to effects path
 
   // Stage 4 — Circadian
   usageTiming:       [],     // multi-select: "morning","noon","afternoon","evening","night"
@@ -33,6 +35,11 @@ export const INITIAL_PAYLOAD = {
   // Stage 5 — Products (replaced lineage names with real market names)
   lovedStrains:      [],
   hatedStrains:      [],
+
+  // Monthly gram quota per category — populated by license OCR or manual entry.
+  // Feeds basketPlanner.ts gramsByCategory (per-category ceiling, not a global total).
+  // Default empty = planner shows "כמות גרמים לא ידועה" warning (placeholder only).
+  gramsByCategory:   {},
 };
 
 function validateStage(stageIdx, payload) {

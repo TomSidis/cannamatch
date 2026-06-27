@@ -17,6 +17,22 @@ const IND_HEAVY = { myrcene:0.8, caryophyllene:0.5, linalool:0.5 };   // sedativ
 const IND_MID   = { caryophyllene:0.6, limonene:0.5, myrcene:0.5 };   // hybrid-leaning indica
 const SAT_STD   = { limonene:0.7, terpinolene:0.5, pinene:0.4 };      // sativa / daytime
 
+// Adds deterministic per-strain ±0.10 variation to shared archetype profiles so
+// strains with the same base vector produce unique scores in the ranking engine.
+function varyTerps(s) {
+  let h = 5381;
+  for (let i = 0; i < s.id.length; i++) h = ((h << 5) + h) ^ s.id.charCodeAt(i);
+  h = Math.abs(h);
+  const terps = {};
+  let shift = 0;
+  for (const [k, v] of Object.entries(s.terps)) {
+    const delta = (((h >>> shift) & 0xFF) / 255 - 0.5) * 0.40;
+    terps[k] = Math.max(0.05, Math.min(1.0, +(v + delta).toFixed(3)));
+    shift = (shift + 7) % 24;
+  }
+  return { ...s, terps };
+}
+
 // ── Effect archetypes ──
 const EFF_IND  = { relaxed:88, sleepy:74, euphoric:62, happy:60 };
 const EFF_HYB  = { relaxed:80, happy:72, euphoric:60, uplifted:58 };
@@ -28,7 +44,7 @@ const FLAV_IND = { earthy:56, sweet:50, berry:42 };
 const FLAV_HYB = { sweet:58, earthy:48, citrus:40 };
 const FLAV_SAT = { citrus:64, herbal:48, sweet:44 };
 
-export const PHARMARY_STRAINS = [
+const _phm1 = [
   { id: "p1", name: "בי אן סי מיני", en: "BnC Mini", genetics: "BnC Mini", grower: "קנאבר", brand: "קנאבר", grow: "חממה", country: "ישראל", batch: "BAG250087", lineage: "היברידי — שם מסחרי של קנאבר (שושלת לא מפורסמת)", gConf: "unverified",
     cat: "T22/C4", kind: "היברידי", price: 159, origPrice: 240, rating: 3.5, nReviews: 4, forms: ["smoke", "vape"], pharmacies: ["ph1", "ph2"], type: "flower", isNew: false,
     desc: "היברידי · קנאבר",
@@ -711,7 +727,7 @@ export const PHARMARY_STRAINS = [
 ];
 
 // ── Second pharmacy batch (round 2 scans, Jun 2026) ───────────
-export const PHARMARY_STRAINS_2 = [
+const _phm2 = [
   { id: "p201", name: "טנג'י קוש", en: "Tangie Kush", genetics: "Tangie Kush", grower: "קרונוס", brand: "פיס נטורלס", grow: "אינדור", country: "קנדה", batch: "25005", lineage: "Kosher Kush × Tangie (משפחת Tangie)", gConf: "verified",
     cat: "T22/C4", kind: "אינדיקה", price: 175, origPrice: 251, rating: 3.7, nReviews: 27, forms: ["smoke", "vape"], pharmacies: ["ph1", "ph2", "ph3"], type: "flower", isNew: false,
     desc: "אינדיקה · קרונוס" + (""),
@@ -1232,7 +1248,7 @@ export const PHARMARY_STRAINS_2 = [
     flav: { earthy: 56, sweet: 50, berry: 42 } },
 ];
 
-export const PHARMARY_STRAINS_3 = [
+const _phm3 = [
   { id: "p301", name: "ראל.5", en: "Ral.5", genetics: "Ral.5", grower: "גרין פילדס", brand: "גרין פילדס", grow: "חממה", country: "ישראל", batch: "250428010", lineage: "סאטיבה — ראל (שושלת לא מפורסמת)", gConf: "grower",
     cat: "T22/C4", kind: "סאטיבה", price: 135, origPrice: 199, rating: 4, nReviews: 1, forms: ["smoke", "vape"], pharmacies: ["ph2", "ph3"], type: "flower", isNew: false,
     desc: "סאטיבה · גרין פילדס, סדרת ראל",
@@ -1893,7 +1909,7 @@ export const PHARMARY_STRAINS_3 = [
     flav: { earthy: 56, sweet: 50, berry: 42 } },
 ];
 
-export const PHARMARY_STRAINS_4 = [
+const _phm4 = [
   { id: "p401", name: "ג'י.אם.או.אס", en: "GMO.S", genetics: "GMO (Garlic Cookies)", grower: "קנדוק", brand: "קנדוק", grow: "אינדור", country: "קנדה", batch: "260183010", lineage: "Chemdawg × GSC", gConf: "verified",
     cat: "T22/C4", kind: "אינדיקה", price: 349, origPrice: 379, rating: 3.8, nReviews: 19, forms: ["smoke", "vape"], pharmacies: ["ph1"], type: "flower", isNew: false,
     desc: "אינדיקה · קנדוק",
@@ -2182,3 +2198,8 @@ export const PHARMARY_STRAINS_4 = [
     neg: { dry_mouth: 37, dry_eyes: 23, dizzy: 9 },
     flav: { sweet: 58, earthy: 48, citrus: 40 } },
 ];
+
+export const PHARMARY_STRAINS   = _phm1.map(varyTerps);
+export const PHARMARY_STRAINS_2 = _phm2.map(varyTerps);
+export const PHARMARY_STRAINS_3 = _phm3.map(varyTerps);
+export const PHARMARY_STRAINS_4 = _phm4.map(varyTerps);

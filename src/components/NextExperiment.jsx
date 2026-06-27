@@ -77,7 +77,7 @@ export default function NextExperiment({ strain, why, inBasket, onAddToBasket, o
             fontSize:10, fontWeight:800, color:'rgba(167,139,250,0.80)', letterSpacing:'0.08em',
             textTransform:'uppercase',
           }}>
-            הניסוי הבא שכדאי לנסות
+            מה כדאי לנסות אחר כך
           </div>
           <div style={{ fontSize:9.5, color:'rgba(187,247,208,0.40)' }}>
             בהתבסס על מה שעבד לך

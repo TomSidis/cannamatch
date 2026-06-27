@@ -6,14 +6,13 @@
  *                    1. Input normalisation → raw text extraction
  *                    2. Local OCR text parser  (menuParser.js)
  *                    3. Batch DB fuzzy match  (strain_fuzzy_match SQL function)
- *                    4. Scoring engine        (scoreAll from src/lib/scoringEngine.js)
+ *                    4. Scoring engine        (bridgeScore from src/engine/legacyBridge.ts)
  *                    5. Clinical kill-switch  (clinicalCore.js — per-product)
  * Dependencies:    express, api/db.js, api/constants.js,
  *                  api/security/claudeProxyShield.js,
  *                  api/lib/menuParser.js, api/lib/ai-genetics-inference.js,
- *                  api/lib/normalization.js, api/lib/scoring.js,
- *                  api/lib/clinicalCore.js,
- *                  src/lib/scoringEngine.js, src/data/strainsConfig.js
+ *                  api/lib/normalization.js, api/lib/clinicalCore.js,
+ *                  src/engine/legacyBridge.ts
  */
 
 import { Router }                                        from 'express';
@@ -23,12 +22,16 @@ import { verifySession }                                 from '../security/claud
 import { parseRawMenuText }                              from '../lib/menuParser.js';
 import { fetchUnknownStrainGenetics }                    from '../lib/ai-genetics-inference.js';
 import { resolveAmbiguity, normalizeProductEntry }       from '../lib/normalization.js';
-import { calculateMatchScoreWithExplanation }            from '../lib/scoring.js';
-import { scoreAll }                                      from '../../src/lib/scoringEngine.js';
-import { TERPENES, REASONS }                             from '../../src/data/strainsConfig.js';
+import { bridgeScore }                                   from '../../src/engine/legacyBridge.ts';
+import { LICENSED_CATEGORIES, DEFAULT_CATEGORY }        from '../../src/lib/categoryConfig.js';
 import { verifyClinicalSafety }                          from '../lib/clinicalCore.js';
+import { parseMenuImageFormatted }                        from '../lib/ocr.js';
+import { assertSafeExternalUrl }                          from '../lib/ssrfGuard.js';
 
 const router = Router();
+
+const MAX_REDIRECTS      = 5;
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB — menu pages are never larger
 
 // ── Shape adapters ────────────────────────────────────────────────────────────
 
@@ -36,7 +39,7 @@ function mapRowToScoringEngineStrain(row) {
   return {
     id:                 row.strain_id || row.id,
     name:               row.strain_name || row.name,
-    cat:                row.category || 'T22/C4',
+    cat:                row.category || DEFAULT_CATEGORY,
     terps:              row.terpene_dist || {},
     effects:            row.target_indications || [],
     type:               row.product_type || 'flower',
@@ -48,43 +51,89 @@ function mapRowToScoringEngineStrain(row) {
 }
 
 function mapDnaToScoringAnswers(dna, overrideCats = null) {
+  const userCats = dna.categories && dna.categories.length > 0
+    ? dna.categories
+    : LICENSED_CATEGORIES;
   return {
-    cats:      overrideCats || ['T22/C4','T20/C4','T18/C3','T15/C3','T12/C12','T10/C10','T10/C2','T3/C15','T3/C12'],
-    reasons:   dna.indications || [],
-    flavors:   Object.keys(dna.target_terpenes || {}),
-    helped: [], notHelped: [], current: [],
+    cats:         overrideCats || userCats,
+    reasons:      dna.indications      || [],
+    killSwitches: dna.blocked_triggers || [],
   };
 }
 
 // ── URL scraper ───────────────────────────────────────────────────────────────
 
-async function scrapePharmacyMenuUrl(url) {
-  const ctrl = new AbortController();
-  const tid  = setTimeout(() => ctrl.abort(), 10_000);
-  let r;
+async function scrapePharmacyMenuUrl(rawUrl) {
+  // SSRF check on the initial URL (protocol + DNS resolution)
   try {
-    r = await fetch(url.trim(), {
-      signal: ctrl.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CannaMatch/1.0; +https://cannamatch.co)' },
-    });
-  } finally {
-    clearTimeout(tid);
+    await assertSafeExternalUrl(rawUrl);
+  } catch (err) {
+    throw new Error(`כתובת חסומה: ${err.message}`);
   }
-  if (!r.ok) throw new Error(`לא ניתן לטעון (${r.status})`);
-  const ct = r.headers.get('content-type') || '';
-  if (ct.includes('pdf') || /\.pdf$/i.test(url)) {
-    const buf = await r.arrayBuffer();
-    return { type: 'pdf', base64: Buffer.from(buf).toString('base64'), media_type: 'application/pdf' };
+
+  let currentUrl = rawUrl.trim();
+  let redirectsFollowed = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 10_000);
+    let r;
+    try {
+      r = await fetch(currentUrl, {
+        signal:   ctrl.signal,
+        redirect: 'manual', // follow manually so each hop is re-validated
+        headers:  { 'User-Agent': 'Mozilla/5.0 (compatible; CannaMatch/1.0; +https://cannamatch.co)' },
+      });
+    } finally {
+      clearTimeout(tid);
+    }
+
+    // Re-validate every redirect target before following
+    if (r.status >= 300 && r.status < 400) {
+      if (redirectsFollowed >= MAX_REDIRECTS) {
+        throw new Error(`יותר מדי הפניות (max ${MAX_REDIRECTS})`);
+      }
+      const location = r.headers.get('location');
+      if (!location) throw new Error('הפניה ללא כותרת Location');
+      const nextUrl = new URL(location, currentUrl).href;
+      try {
+        await assertSafeExternalUrl(nextUrl);
+      } catch (err) {
+        throw new Error(`הפניה לכתובת חסומה: ${err.message}`);
+      }
+      currentUrl = nextUrl;
+      redirectsFollowed++;
+      continue;
+    }
+
+    if (!r.ok) throw new Error(`לא ניתן לטעון (${r.status})`);
+
+    // Enforce response size limit before reading body
+    const clHeader = r.headers.get('content-length');
+    if (clHeader && parseInt(clHeader, 10) > MAX_RESPONSE_BYTES) {
+      throw new Error(`תגובה גדולה מדי (${clHeader} bytes — max 2 MB)`);
+    }
+
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('pdf') || /\.pdf$/i.test(currentUrl)) {
+      const buf = await r.arrayBuffer();
+      if (buf.byteLength > MAX_RESPONSE_BYTES) {
+        throw new Error(`PDF גדול מדי (${buf.byteLength} bytes — max 2 MB)`);
+      }
+      return { type: 'pdf', base64: Buffer.from(buf).toString('base64'), media_type: 'application/pdf' };
+    }
+
+    const html = await r.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 5000);
+    return { type: 'text', text };
   }
-  const html = await r.text();
-  const text = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 5000);
-  return { type: 'text', text };
 }
 
 // ── POST /api/parse-menu ──────────────────────────────────────────────────────
@@ -165,7 +214,7 @@ router.post('/parse-menu', verifySession, async (req, res) => {
           genetics:           inferred.genetics,
           lineage:            inferred.lineage,
           kind:               inferred.kind,
-          category:           'T22/C4',
+          category:           DEFAULT_CATEGORY,
           terpene_dist:       {},
           target_indications: [],
           embedding:          null,
@@ -183,14 +232,16 @@ router.post('/parse-menu', verifySession, async (req, res) => {
       });
     }
 
-    // ── Step 4: score via unified scoring engine ─────────────────────────────
+    // ── Step 4: score via Engine 2 ───────────────────────────────────────────
     const uniqueCats = [...new Set(allHits.map((r) => r.category).filter(Boolean))];
     const ans        = mapDnaToScoringAnswers(dna, uniqueCats.length ? uniqueCats : null);
-    const ranked     = scoreAll(
-      ans,
-      {},
-      { strains: allHits.map(mapRowToScoringEngineStrain), terpenes: TERPENES, reasons: REASONS },
-    );
+    const ranked     = allHits
+      .map(mapRowToScoringEngineStrain)
+      .map(s => {
+        const r = bridgeScore(s, ans);
+        return { ...s, match: r.matchPct, confidence: r.confidence };
+      })
+      .sort((a, b) => b.match - a.match || b.confidence - a.confidence);
 
     const products = ranked.map((s) => {
       const hit = commercialMap.get(s.name)
@@ -261,6 +312,27 @@ router.post('/parse-menu', verifySession, async (req, res) => {
       db_offline: true,
       products:   names.map((n) => ({ commercial: n, matched: false, match: null })),
     });
+  }
+});
+
+// ── POST /api/parse-menu-image — auth-gated OCR for pharmacy menu images/PDFs ─
+// Accepts: { image_base64: string, media_type?: string }
+// Returns: { text: string }  — formatted "Name T22/C4 — 280₪" lines
+router.post('/parse-menu-image', verifySession, async (req, res) => {
+  const { image_base64, media_type } = req.body;
+  if (!image_base64 || typeof image_base64 !== 'string') {
+    return res.status(400).json({ error: { message: 'חסר image_base64.' } });
+  }
+  try {
+    const buffer = Buffer.from(image_base64, 'base64');
+    const text   = await parseMenuImageFormatted(buffer, media_type || 'image/jpeg');
+    return res.json({ text });
+  } catch (err) {
+    if (err.message.includes('ANTHROPIC_API_KEY')) {
+      return res.status(503).json({ error: { message: 'OCR דורש ANTHROPIC_API_KEY — ראו README.' } });
+    }
+    console.error('[parse-menu-image]', err.message);
+    return res.status(502).json({ error: { message: `שגיאה בעיבוד: ${err.message}` } });
   }
 });
 

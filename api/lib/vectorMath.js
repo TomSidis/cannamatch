@@ -1,5 +1,5 @@
 // דמיון וקטורי בין פרופילי DNA — לזיהוי "תאומים גנטיים"
-import { cosine } from "./scoring.js";
+import { cosine } from "./dnaProfile.js";
 
 function computeIndicationOverlapRatio(a = [], b = []) {
   const sa = new Set(a), sb = new Set(b);
