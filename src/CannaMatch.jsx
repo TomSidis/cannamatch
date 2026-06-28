@@ -24,11 +24,13 @@ import { friendWhy, killSwitchSummary, computeMapDiff, nextExperimentStrain } fr
 import { useReportTiming } from "./hooks/useReportTiming.js";
 import { TERPENE_HUMAN, terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
 import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
+import { resolveScreen as _resolveScreen } from "./lib/resolveScreen.ts";
 import { ocrFile } from "./lib/menuOcr.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PEEK_WINDOW_ENABLED } from "./lib/categoryConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
 import BatchSignalBadge from "./components/BatchSignalBadge.jsx";
+import NewOnMarket from "./components/NewOnMarket.jsx";
 import {
   hashLicenseId, isValidIsraeliId, isLicenseExpired, daysToExpiry,
   stripExif, storeLicenseMeta, getStoredLicenseHash, readLicenseMeta, clearLicenseMeta,
@@ -297,11 +299,12 @@ function buildProfile(ans, ratings) {
   });
   (ans.helped || []).forEach((sid) => {
     const s = STRAINS.find((x) => x.id === sid);
-    s && Object.entries(s.terps).forEach(([t, v]) => add(t, v * 1.5));
+    // weak signal — onboarding pick is ONE data point, not an anchor
+    s && Object.entries(s.terps).forEach(([t, v]) => add(t, v * 0.6));
   });
   (ans.notHelped || []).forEach((sid) => {
     const s = STRAINS.find((x) => x.id === sid);
-    s && Object.entries(s.terps).forEach(([t, v]) => add(t, -v * 1.5));
+    s && Object.entries(s.terps).forEach(([t, v]) => add(t, -v * 0.6));
   });
   Object.entries(ratings || {}).forEach(([sid, r]) => {
     const s = STRAINS.find((x) => x.id === sid);
@@ -672,6 +675,17 @@ function TerpRadar({ profile, avoided = [] }) {
 /* ───────────── ה-DNA הגנטי האישי ─────────────
    טביעת האצבע הקנאבינואידית של המטופל — נבנית ממה שלמדנו עליו.
    ויזואליזציה של פרופיל הטרפנים + רמת ביטחון + הגנטיקות שמרכיבות אותו. */
+// True when the user has at least one preference signal beyond the license category.
+// A license alone only says what they're *allowed* to buy — not what fits them.
+function hasPreferenceSignal(ans, ratings = {}) {
+  return (ans.reasons || []).length > 0
+    || (ans.flavors  || []).length > 0
+    || (ans.helped   || []).length > 0
+    || (ans.notHelped|| []).length > 0
+    || (ans.current  || []).length > 0
+    || Object.keys(ratings || {}).length > 0;
+}
+
 function geneticConfidence(ans, ratings) {
   // כמה "למדנו" את המטופל — לפי כמות הדאטה
   const signals = ans.helped.length + ans.notHelped.length +
@@ -1079,6 +1093,7 @@ function Onboarding({ ans, setAns, onDone, onExit }) {
   // Skip cats step if already populated from license scan
   const activeSteps = STEPS.filter((s) => s.key !== "cats" || ans.cats.length === 0);
   const [i, setI] = useState(0);
+  const [noSignalAlert, setNoSignalAlert] = useState(false);
   const step = activeSteps[i];
   const val = ans[step.key];
   const isStrainStep = ["helped","notHelped","current"].includes(step.key);
@@ -1130,12 +1145,40 @@ function Onboarding({ ans, setAns, onDone, onExit }) {
           חזרה
         </button>
         <button disabled={!canNext}
-          onClick={() => (i < activeSteps.length - 1 ? setI(i + 1) : onDone())}
+          onClick={() => {
+            if (i < activeSteps.length - 1) { setI(i + 1); return; }
+            if (!hasPreferenceSignal(ans)) { setNoSignalAlert(true); return; }
+            onDone();
+          }}
           className="flex-1 py-3 rounded-xl font-bold disabled:opacity-35 transition-all"
           style={{ background:CD.accent, color:"#061006", boxShadow:"0 2px 14px rgba(57,255,133,.3)" }}>
           {i < activeSteps.length - 1 ? "המשך" : "בנו לי פרופיל"}
         </button>
       </div>
+
+      {noSignalAlert && (
+        <div className="rounded-2xl p-4 mt-3" dir="rtl"
+          style={{ background: "rgba(251,191,36,0.08)", border: "1.5px solid rgba(251,191,36,0.35)" }}>
+          <p style={{ fontSize:13, fontWeight:700, color:"#FBBF24", marginBottom:6 }}>
+            נצטרך עוד פרט אחד
+          </p>
+          <p style={{ fontSize:12, color:"rgba(251,191,36,0.80)", lineHeight:1.6, marginBottom:12 }}>
+            הרישיון אומר מה אתה מורשה לקנות — לא מה מתאים לך. בלי מטרה, טעם, או זן שניסית בעבר, לא נוכל לחשב התאמה אמיתית.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => setNoSignalAlert(false)}
+              className="flex-1 py-2 rounded-xl text-xs font-bold"
+              style={{ background:"rgba(251,191,36,0.15)", color:"#FBBF24", border:"1px solid rgba(251,191,36,0.30)" }}>
+              הוסף מטרה
+            </button>
+            <button onClick={() => { setNoSignalAlert(false); onDone(); }}
+              className="px-4 py-2 rounded-xl text-xs font-medium"
+              style={{ color:"rgba(187,247,208,0.50)", background:"transparent" }}>
+              המשך בכל זאת
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1147,12 +1190,18 @@ function matchReason(strain, ans, ratings) {
   const profile = buildProfile(ans, ratings);
   const bits = [];
   if (ans.helped.includes(strain.id)) bits.push("כבר עזר לך בעבר");
-  // קרבה גנטית: זן אהוב שחולק פרופיל השפעה
+  // קרבה גנטית: זן אהוב שחולק שני טרפנים דומיננטיים
+  // Require ≥2 liked data points before drawing cross-genetics; require 2 shared
+  // high terpenes (≥0.65) so one shared terpene doesn't make every strain a "sibling".
   const likedIds = [...new Set([...ans.helped,
     ...Object.entries(ratings).filter(([, r]) => r >= 7).map(([id]) => id)])];
-  const sibling = likedIds.map((id) => STRAINS.find((s) => s.id === id))
-    .filter((s) => s && s.id !== strain.id)
-    .find((s) => Object.keys(s.terps).some((t) => strain.terps[t] && s.terps[t] >= 0.5 && strain.terps[t] >= 0.5));
+  const sharedHighTerps = (s1, s2) =>
+    Object.keys(s1.terps).filter(t => (s1.terps[t] ?? 0) >= 0.65 && (s2.terps[t] ?? 0) >= 0.65).length;
+  const sibling = likedIds.length >= 2
+    ? likedIds.map((id) => STRAINS.find((s) => s.id === id))
+        .filter((s) => s && s.id !== strain.id)
+        .find((s) => sharedHighTerps(s, strain) >= 2)
+    : null;
   if (sibling) bits.push(`קרוב בהשפעה ל-${sibling.genetics} שעובד לך`);
   const hit = strain.effects.find((e) => ans.reasons.includes(e));
   if (hit) bits.push(`מתאים ל${REASONS.find((r) => r.id === hit)?.label}`);
@@ -1264,7 +1313,7 @@ function IndicationCard({ rid, prof, topStrains, scored, ans }) {
   );
 }
 
-function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFilter }) {
+function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFilter, setTab }) {
   const [open, setOpen] = useState(null);
   const [indFilter, setIndFilter] = useState("auto"); // auto = ההתוויות של המשתמש
   const [showInfo, setShowInfo] = useState(false);
@@ -1355,6 +1404,31 @@ function Recs({ scored, basket, addToBasket, ans, ratings, typeFilter, setTypeFi
   // אם גם ב-72% אין כלום
   const nothingFound = visible.length === 0;
   const topMatch = pool.length > 0 ? Math.max(...pool.map((s) => s.match)) : 0;
+
+  // 3.2 gate: license alone ≠ enough to recommend
+  if (ans.cats.length > 0 && !hasPreferenceSignal(ans, ratings)) {
+    return (
+      <div className="space-y-4 px-1 pt-2">
+        <div className="rounded-2xl p-5 text-center" dir="rtl"
+          style={{ background: "rgba(74,222,128,0.06)", border: "1.5px solid rgba(74,222,128,0.22)" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🧬</div>
+          <p style={{ fontSize: 16, fontWeight: 800, color: "#4ADE80", marginBottom: 8 }}>
+            צריכים עוד פרט אחד
+          </p>
+          <p style={{ fontSize: 13, color: "rgba(187,247,208,0.70)", lineHeight: 1.6, marginBottom: 20 }}>
+            הרישיון שלך אומר מה אתה <b>מורשה</b> לקנות — לא מה <b>מתאים</b> לך.
+            כדי לחשב התאמה אמיתית, נצטרך מטרה אחת לפחות: למה אתה משתמש, מה עזר, או באיזה זמן ביום.
+          </p>
+          <button
+            onClick={() => setTab?.("dna")}
+            className="auth-btn-primary"
+            style={{ maxWidth: 240, margin: "0 auto" }}>
+            עדכן פרופיל ✏️
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -2720,9 +2794,10 @@ function Market({ scored, basket, addToBasket }) {
   const [inventoryFetched, setInventoryFetched] = useState(false);
 
   const views = [
-    { id: "pharm", label: "📍 בתי מרקחת" },
-    { id: "compare", label: "💰 השוואת מחיר" },
-    { id: "save", label: "🔓 חיסכון גנטי" },
+    { id: "pharm",  label: "📍 בתי מרקחת" },
+    { id: "new",    label: "🌿 חדש בשוק"   },
+    { id: "compare",label: "💰 השוואת מחיר" },
+    { id: "save",   label: "🔓 חיסכון גנטי" },
   ];
 
   // Lazy-load full inventory only when user opens compare tab
@@ -2790,6 +2865,9 @@ function Market({ scored, basket, addToBasket }) {
 
       {/* ───── תצוגה: בתי מרקחת ───── */}
       {view === "pharm" && <PharmacyViewer />}
+
+      {/* ───── תצוגה: חדש בשוק ───── */}
+      {view === "new" && <NewOnMarket limit={30} />}
 
       {/* ───── תצוגה: השוואת מחיר ───── */}
       {view === "compare" && (
@@ -3508,35 +3586,171 @@ function parseMenu(text, ans, scored, serverProducts = null) {
     .sort((a, b) => (b.match ?? -1) - (a.match ?? -1));
 }
 
+// Detect touch/mobile for camera button visibility
+const isTouchDevice = () =>
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0);
+
+// Autocomplete input + chip list for manual strain entry
+function ManualStrainEntry({ ans, scored, onDecode, onError }) {
+  const [q, setQ]             = useState("");
+  const [entries, setEntries] = useState([]); // array of strain name strings
+  const [showSugg, setShowSugg] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const inputRef = useRef();
+
+  const suggestions = q.trim().length >= 2
+    ? STRAINS.filter(s =>
+        s.name.toLowerCase().includes(q.toLowerCase()) ||
+        (s.genetics || "").toLowerCase().includes(q.toLowerCase())
+      ).slice(0, 6)
+    : [];
+
+  const addEntry = (name) => {
+    const n = name.trim();
+    if (!n) return;
+    setEntries(prev => prev.includes(n) ? prev : [...prev, n]);
+    setQ(""); setShowSugg(false);
+    inputRef.current?.focus();
+  };
+
+  const removeEntry = (i) => setEntries(prev => prev.filter((_, j) => j !== i));
+
+  const runDecode = () => {
+    const allLines = [
+      ...entries,
+      ...(pasteText.trim() ? pasteText.split("\n") : []),
+    ].filter(Boolean);
+    if (!allLines.length) { onError("הוסיפו לפחות זן אחד"); return; }
+    const res = decodeMenu(allLines.join("\n"), ans, scored);
+    const unknowns = res.filter(r => r.unknown && r.name);
+    if (unknowns.length) api.submitPendingScan(unknowns.map(r => ({ name: r.name, cat: r.cat }))).catch(() => {});
+    onDecode(res);
+  };
+
+  return (
+    <div className="mb-3">
+      {/* Autocomplete input */}
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={e => { setQ(e.target.value); setShowSugg(true); }}
+          onKeyDown={e => {
+            if (e.key === "Enter")  { e.preventDefault(); suggestions[0] ? addEntry(suggestions[0].name) : addEntry(q); }
+            if (e.key === "Escape") { setShowSugg(false); setQ(""); }
+            if (e.key === "ArrowDown" && showSugg && suggestions.length > 0) {
+              e.preventDefault();
+              document.querySelector(".menu-sugg-item")?.focus();
+            }
+          }}
+          onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+          onFocus={() => q.length >= 2 && setShowSugg(true)}
+          placeholder="הקלידו שם זן — עברית או אנגלית..."
+          dir="rtl"
+          className="w-full rounded-xl border p-3 text-sm"
+          style={{ borderColor: C.line, color: C.ink, background: C.bg }}
+        />
+        {showSugg && suggestions.length > 0 && (
+          <div style={{
+            position: "absolute", top: "calc(100% + 4px)", right: 0, left: 0,
+            background: "#0F1E13", border: `1px solid ${C.line}`,
+            borderRadius: 12, zIndex: 50, overflow: "hidden",
+          }}>
+            {suggestions.map((s, i) => (
+              <button key={s.id}
+                className={`menu-sugg-item w-full text-right px-3 py-2 text-sm font-medium${i < suggestions.length - 1 ? " border-b" : ""}`}
+                style={{ color: C.ink, borderColor: "rgba(74,222,128,0.10)", background: "transparent",
+                  cursor: "pointer", display: "block" }}
+                onMouseDown={() => addEntry(s.name)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { e.preventDefault(); addEntry(s.name); }
+                  if (e.key === "Escape") { setShowSugg(false); inputRef.current?.focus(); }
+                }}>
+                <span style={{ fontWeight: 700 }}>{s.name}</span>
+                {s.genetics && <span style={{ fontSize: 11, color: "rgba(187,247,208,0.50)", marginRight: 6 }}>{s.genetics}</span>}
+              </button>
+            ))}
+            {q.trim().length >= 2 && (
+              <button
+                className="w-full text-right px-3 py-2 text-xs"
+                style={{ color: "rgba(187,247,208,0.45)", background: "transparent", cursor: "pointer", display: "block" }}
+                onMouseDown={() => addEntry(q)}>
+                הוסף "{q.trim()}" (לא מזוהה — ישלח לבדיקה)
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Chip list */}
+      {entries.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {entries.map((name, i) => (
+            <span key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
+              style={{ background: "rgba(74,222,128,0.12)", border: `1px solid ${C.line}`, color: C.ink }}>
+              {name}
+              <button onClick={() => removeEntry(i)} style={{ color: "rgba(187,247,208,0.50)", lineHeight: 1, fontSize: 14 }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Paste fallback (collapsible) */}
+      <button
+        onClick={() => setPasteOpen(v => !v)}
+        className="mt-3 text-xs"
+        style={{ color: "rgba(187,247,208,0.40)", background: "transparent", border: "none", cursor: "pointer" }}>
+        {pasteOpen ? "▲ סגור הדבקה" : "▼ הדביקו רשימה שלמה"}
+      </button>
+      {pasteOpen && (
+        <textarea
+          value={pasteText}
+          onChange={e => setPasteText(e.target.value)}
+          rows={5} dir="rtl"
+          placeholder={"הדביקו תפריט שלם — שורה לכל מוצר:\n\nWedding Cake T22/C4 — 280₪\nאור T15/C3 — 225₪"}
+          className="w-full mt-2 rounded-xl border p-3 text-sm"
+          style={{ borderColor: C.line, color: C.ink, background: C.bg, resize: "vertical" }}
+        />
+      )}
+
+      {/* Decode button */}
+      {(entries.length > 0 || pasteText.trim()) && (
+        <button
+          onClick={runDecode}
+          className="w-full mt-3 py-2.5 rounded-xl font-bold"
+          style={{ background: C.accent, color: "#061006" }}>
+          🔍 פענח {entries.length > 0 ? `(${entries.length} זנים)` : ""}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function MenuScan({ ans, scored, basket, addToBasket, user }) {
-  const [text, setText] = useState("");
   const [results, setResults] = useState(null);
+  const [resultKey, setResultKey] = useState(0);
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
-  const [inputMode, setInputMode] = useState("file"); // "file" | "text" | "manual"
+  const [inputMode, setInputMode] = useState("file"); // "file" | "manual"
   const fileRef = useRef();
   const camRef = useRef();
+  const isTouch = isTouchDevice();
 
-  // ── Paste / type text → decode locally ─────────────────────────────────────
-  const scan = () => {
-    const trimmed = text.trim();
-    if (!trimmed) { setError("הדביקו טקסט תפריט — שורה לכל מוצר"); return; }
-    setScanning(true); setError(null);
-    try {
-      const res = decodeMenu(trimmed, ans, scored);
-      setResults(res.length ? res : []);
-      if (!res.length) setError("לא זוהו מוצרים — ודאו שכל שורה כוללת שם זן");
-    } finally {
-      setScanning(false);
-    }
+  const handleDecodeResults = (res) => {
+    setResults(res.length ? res : []);
+    setResultKey(k => k + 1);
+    if (!res.length) setError("לא זוהו מוצרים — ודאו ששמות הזנים נכתבו נכון");
+    else setError(null);
   };
 
   // ── Photo / PDF → Tesseract OCR → decode locally ────────────────────────
   const processFile = async (file) => {
     if (!file) return;
-    setError(null);
+    setError(null); setResults(null); setResultKey(k => k + 1);
     const isImg = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name);
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     if (!isImg && !isPdf) {
@@ -3544,28 +3758,31 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
       return;
     }
     if (isPdf) {
-      setError("PDF: ייצאו כתמונה או הדביקו את הטקסט ידנית בלשונית ✏️ טקסט");
-      setInputMode("text");
+      setError("PDF: ייצאו כתמונה או הקלידו ידנית");
+      setInputMode("manual");
       return;
     }
     setScanning(true); setOcrPct(0);
     try {
       const raw = await ocrFile(file, setOcrPct);
       if (!raw || raw.trim().length < 5) {
-        setError("לא הצלחנו לקרוא את התמונה — ודאו שהטקסט ברור, או הדביקו ידנית");
-        setInputMode("text");
+        setError("לא הצלחנו לקרוא את התמונה — ודאו שהטקסט ברור, או הקלידו ידנית");
+        setInputMode("manual");
         return;
       }
-      setText(raw);
       const res = decodeMenu(raw, ans, scored);
       setResults(res.length ? res : []);
-      if (!res.length) setError("OCR הצליח אבל לא זיהינו שמות זנים — בדקו בלשונית ✏️ טקסט");
+      if (!res.length) setError("OCR הצליח אבל לא זיהינו שמות זנים — עברו לידני");
+      const unknowns = res.filter(r => r.unknown && r.name);
+      if (unknowns.length) api.submitPendingScan(unknowns.map(r => ({ name: r.name, cat: r.cat }))).catch(() => {});
     } catch (err) {
       console.warn("OCR error:", err.message);
-      setError("שגיאת OCR — נסו תמונה ברורה יותר, או הדביקו ידנית בלשונית ✏️ טקסט");
-      setInputMode("text");
+      setError("שגיאת OCR — נסו תמונה ברורה יותר, או עברו לידני");
+      setInputMode("manual");
     } finally {
       setScanning(false);
+      if (fileRef.current) fileRef.current.value = '';
+      if (camRef.current)  camRef.current.value  = '';
     }
   };
 
@@ -3581,14 +3798,13 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
         }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>פענוח תפריט 🌿</h3>
         <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.65)" }}>
-          צלמו תפריט, הדביקו טקסט, או הקלידו ידנית — הכל עובד במכשיר ללא רשת.
+          צלמו תפריט או הקלידו ידנית — הכל עובד ללא רשת.
         </p>
 
-        {/* Mode tabs */}
+        {/* Mode tabs — 2 tabs only */}
         <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: C.soft }}>
           {[
             { id: "file",   label: "📷 תמונה" },
-            { id: "text",   label: "✏️ הדבקה" },
             { id: "manual", label: "⌨️ ידני" },
           ].map((m) => (
             <button key={m.id} onClick={() => setInputMode(m.id)}
@@ -3608,19 +3824,21 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
             style={{ borderColor: dragOver ? C.accent : "rgba(74,222,128,0.30)", background: dragOver ? "rgba(74,222,128,0.08)" : C.soft }}>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
-            <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
+            {isTouch && <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />}
             <div className="flex gap-2 justify-center mb-2">
               <button onClick={() => fileRef.current?.click()} disabled={scanning}
-                className="font-bold text-sm px-4 py-2 rounded-xl text-white disabled:opacity-50"
+                className="font-bold text-sm px-4 py-2 rounded-xl disabled:opacity-50"
                 style={{ background: C.accent, color: "#061006" }}>
                 {scanning ? `🔍 קורא… ${ocrPct}%` : "📎 בחר תמונה"}
               </button>
-              <button onClick={() => camRef.current?.click()} disabled={scanning}
-                className="font-bold text-sm px-4 py-2 rounded-xl border disabled:opacity-50"
-                style={{ borderColor: C.accent, color: C.accent, background: C.card }}>
-                📷 צלם
-              </button>
+              {isTouch && (
+                <button onClick={() => camRef.current?.click()} disabled={scanning}
+                  className="font-bold text-sm px-4 py-2 rounded-xl border disabled:opacity-50"
+                  style={{ borderColor: C.accent, color: C.accent, background: C.card }}>
+                  📷 צלם
+                </button>
+              )}
             </div>
             {scanning && (
               <div className="w-full rounded-full mt-2" style={{ background: "rgba(74,222,128,0.10)", height: 4 }}>
@@ -3633,23 +3851,14 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
           </div>
         )}
 
-        {/* ── Paste text mode ─────────────────────────────────── */}
-        {(inputMode === "text" || inputMode === "manual") && (
-          <div className="mb-3">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={6}
-              dir="rtl"
-              placeholder={
-                inputMode === "text"
-                  ? "הדביקו כאן את תפריט בית המרקחת — שורה לכל מוצר:\n\nWedding Cake T22/C4 — 280₪\nאור T15/C3 — 225₪\nErez T10/C2 — 190₪\n\nשגיאות כתיב? מתקנים אוטומטית לפי 342 זנים."
-                  : "הקלידו שמות זנים שרואים על המדף — שורה לכל מוצר:\n\nOG Kush T20/C4 300 nis\nנורית T18/C3 250 שח"
-              }
-              className="w-full rounded-xl border p-3 text-sm"
-              style={{ borderColor: C.line, color: C.ink, background: C.bg, resize: "vertical" }}
-            />
-          </div>
+        {/* ── Manual entry with autocomplete ──────────────────── */}
+        {inputMode === "manual" && (
+          <ManualStrainEntry
+            ans={ans}
+            scored={scored}
+            onDecode={handleDecodeResults}
+            onError={setError}
+          />
         )}
 
         {/* ── Error banner ─────────────────────────────────────── */}
@@ -3667,31 +3876,11 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
             </span>
           </div>
         )}
-
-        {/* ── Action row ───────────────────────────────────────── */}
-        <div className="flex gap-2 mt-1">
-          {(inputMode === "text" || inputMode === "manual") && (
-            <button onClick={() => setText(SAMPLE_MENU)}
-              className="px-3 py-2.5 rounded-xl text-xs font-bold border"
-              style={{ borderColor: C.line, color: "rgba(187,247,208,0.55)" }}>
-              דוגמה
-            </button>
-          )}
-          {(inputMode === "text" || inputMode === "manual") && (
-            <button
-              disabled={!text.trim() || scanning}
-              className="flex-1 py-2.5 rounded-xl font-bold disabled:opacity-40"
-              style={{ background: C.accent, color: "#061006" }}
-              onClick={scan}>
-              {scanning ? "🔍 מנתח…" : "🔍 פענח"}
-            </button>
-          )}
-        </div>
       </div>
 
       {/* ── OCR loading skeleton ──────────────────────────────── */}
       {scanning && inputMode === "file" && (
-        <LoadingSkeleton message={`קורא תמונה עם OCR… ${ocrPct}% 🔍`} rows={3} />
+        <LoadingSkeleton message="התפריט בבדיקה אל מול ה-DNA שלך" rows={3} />
       )}
 
       {/* ── Duplicate genetics alert ──────────────────────────── */}
@@ -3739,7 +3928,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
 
       {/* ── Results list ──────────────────────────────────────── */}
       {results && results.length > 0 && (
-        <div className="space-y-2">
+        <div key={resultKey} className="space-y-2">
           <p className="text-sm font-semibold" style={{ color: C.ink }}>
             {results.length} מוצרים · ממוינים לפי התאמה לפרופיל שלך
           </p>
@@ -4453,7 +4642,7 @@ function HolographicBudScene() {
     {icon:"🎯",t:"התאמה אישית",d:"280+ זנים ישראלים"},
     {icon:"📸",t:"סריקת תפריטים",d:"QR, תמונה, הקלדה"},
     {icon:"🧭",t:"הכוונה חכמה",d:"פחות ניסוי ותהייה"},
-    {icon:"🫂",t:"קהילה סגורה",d:"רק בעלי רישיון"},
+    {icon:"🫂",t:"פווידר סגור",d:"רק בעלי רישיון"},
   ];
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden px-8 py-10"
@@ -4609,6 +4798,12 @@ function PharmacyNearby() {
 
 /* ── Strain Detail Drawer ── */
 function StrainDetailDrawer({ strain, onClose }) {
+  useEffect(() => {
+    if (!strain) return;
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [strain, onClose]);
   if (!strain) return null;
   const topEffs = strain.eff ? Object.entries(strain.eff).sort((a,b)=>b[1]-a[1]).slice(0,5) : [];
   const topNegs = strain.neg ? Object.entries(strain.neg).sort((a,b)=>b[1]-a[1]).slice(0,3) : [];
@@ -4776,7 +4971,7 @@ function StrainDetailDrawer({ strain, onClose }) {
 function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
   if (!licenseVerified) {
     return (
-      <div style={{ display:"flex", flexDirection:"column", height:"100%", position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"relative", minHeight:320 }}>
         {/* Blurred ghost posts */}
         <div style={{ position:"absolute", inset:0, filter:"blur(8px)", opacity:0.25, pointerEvents:"none", padding:"12px 10px" }}>
           {DEMO_POSTS.slice(0,4).map((p,i) => (
@@ -4828,15 +5023,15 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
 
   // Verified — empty state until real posts exist
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column" }}>
       {/* Feed header */}
       <div style={{
         padding:"12px 14px 10px", borderBottom:"1px solid rgba(74,222,128,0.10)",
-        background:"rgba(0,0,0,0.20)", flexShrink:0,
+        background:"rgba(0,0,0,0.20)",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
         <span style={{ fontSize:10, fontWeight:700, color:"rgba(187,247,208,0.60)" }}>
-          🌿 קהילה
+          🌿 פווידר
         </span>
         <button onClick={() => goTab("community")}
           style={{
@@ -4849,13 +5044,12 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
       </div>
       {/* Empty state */}
       <div style={{
-        flex:1, display:"flex", flexDirection:"column",
+        display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center",
-        padding:"20px 16px", textAlign:"center", gap:10,
+        padding:"44px 16px", textAlign:"center", gap:10,
       }}>
-        <span style={{ fontSize:32 }}>🌱</span>
         <p style={{ fontSize:12, fontWeight:700, color:"rgba(187,247,208,0.70)", lineHeight:1.4 }}>
-          הקהילה רק מתחילה
+          הפווידר רק מתחיל
         </p>
         <p style={{ fontSize:11, color:"rgba(187,247,208,0.45)", lineHeight:1.5 }}>
           היה הראשון לשתף — הדיווח שלך יעזור למטופלים אחרים עם אותה התוויה
@@ -4869,85 +5063,33 @@ function CommunityMiniPanel({ licenseVerified, ans, goTab, onGoLicense }) {
             background:"rgba(74,222,128,0.06)", color:"rgba(187,247,208,0.70)",
             fontSize:11, fontWeight:700, cursor:"pointer", textAlign:"center",
           }}>
-          ✍️ שתף עם הקהילה...
+          ✍️ שתף בפווידר...
         </button>
       </div>
     </div>
   );
 }
 
-function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, goTab, ratings = {}, onReport }) {
-  const [query, setQuery]               = useState("");
-  const [results, setResults]           = useState(null);
-  const [selectedStrain, setSelectedStrain] = useState(null);
-  const [mobilePane, setMobilePane]     = useState("nav"); // "nav" | "community"
-  const { loginStage }                  = useJourney();
+function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, goTab }) {
+  const [mobilePane, setMobilePane] = useState("menu");
+  const { loginStage }              = useJourney();
 
-  // Build terpene profile for friend-voice copy (uses same buildProfile defined in file)
-  const profile = useMemo(() => buildProfile(ans, ratings), [ans, ratings]);
-
-  // Strains already rated (have any rating value)
-  const ratedIds = useMemo(() => Object.keys(ratings), [ratings]);
-
-  // Kill-switch stats — before vs after filtering by avoided terps
-  const totalBeforeFilter = scored.length;
-  const totalAfterFilter  = scored.filter(s => (s.match || 0) >= 40).length;
-  const ksMsg = useMemo(
-    () => killSwitchSummary(profile, totalBeforeFilter, totalAfterFilter),
-    [profile, totalBeforeFilter, totalAfterFilter],
+  const MenuPane = (
+    <div>
+      <MenuScan ans={ans} scored={scored} basket={basket} user={user} addToBasket={addToBasket} />
+    </div>
   );
 
-  const search = (q) => {
-    if (!q.trim()) { setResults(null); return; }
-    const sl = q.toLowerCase();
-    const strains = STRAINS.filter(s =>
-      s.name.toLowerCase().includes(sl) ||
-      (s.genetics || "").toLowerCase().includes(sl) ||
-      (s.grower || "").toLowerCase().includes(sl)
-    ).slice(0, 6);
-    const pharms = (PHARMACIES || []).filter(p => p.name?.includes(q) || p.city?.includes(q));
-    setResults({ strains, pharms });
-  };
-
-  const openStrain = (s) => { setSelectedStrain(s); setResults(null); setQuery(""); };
-
-  const topReason      = ans.reasons?.[0];
-  const topReasonLabel = REASONS.find(r => r.id === topReason)?.label;
-
-  // Section 1 — strains the user named in onboarding (helped / loved)
-  const onboardingPicks = useMemo(() =>
-    (ans.helped || []).map(id => STRAINS.find(s => s.id === id)).filter(Boolean),
-    [ans.helped],
+  const CommPane = (
+    <div>
+      <CommunityMiniPanel licenseVerified={licenseVerified} ans={ans} goTab={goTab} onGoLicense={() => goTab("community")} />
+    </div>
   );
 
-  // Section 2 — strains from journal, highest-rated first
-  const triedStrains = useMemo(() =>
-    Object.entries(ratings)
-      .map(([id, r]) => ({ s: STRAINS.find(x => x.id === id), r }))
-      .filter(x => x.s)
-      .sort((a, b) => b.r - a.r)
-      .slice(0, 4),
-    [ratings],
-  );
-
-  // Section 3 — profile-matched suggestions, excluding already-seen strains
-  const profileMatches = useMemo(() => {
-    const seen = new Set([...(ans.helped || []), ...Object.keys(ratings)]);
-    return scored.filter(s => !seen.has(String(s.id))).slice(0, 3);
-  }, [scored, ans.helped, ratings]);
-
-  // Context-aware report nudge — timing-aware, once per day
-  const lastRatedStrain = useMemo(
-    () => scored.find(s => ratedIds.includes(String(s.id))) || null,
-    [scored, ratedIds],
-  );
-  const { shouldNudge, nudgeMsg, dismissNudge } = useReportTiming(lastRatedStrain);
-
-  // Mobile sub-tab bar
   const MobileTabBar = (
     <div className="lg:hidden flex rounded-2xl p-1 mb-3 mx-4"
       style={{ background:"rgba(0,0,0,0.35)", border:"1px solid rgba(74,222,128,0.14)" }}>
-      {[{ id:"nav", icon:"🧭", label:"ניווט אישי" }, { id:"community", icon:"🌿", label:"קהילה" }].map(t => (
+      {[{ id:"menu", icon:"📸", label:"סרוק תפריט" }, { id:"community", icon:"🌿", label:"פווידר" }].map(t => (
         <button key={t.id} onClick={() => setMobilePane(t.id)}
           className="flex-1 py-2 rounded-xl text-xs font-extrabold transition-all"
           style={{
@@ -4961,431 +5103,52 @@ function Dashboard({ ans, scored, basket, addToBasket, user, licenseVerified, go
     </div>
   );
 
-  // ── Navigator Pane content ───────────────────────────────────────────────
-  const NavigatorPane = (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
-
-      {/* Context-aware report nudge banner */}
-      <AnimatePresence>
-        {shouldNudge && lastRatedStrain && (
-          <motion.div
-            initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:"auto" }}
-            exit={{ opacity:0, height:0 }}
-            style={{ overflow:"hidden" }}>
-            <div style={{
-              display:"flex", alignItems:"center", gap:10,
-              padding:"10px 14px",
-              background:"rgba(74,222,128,0.07)",
-              borderBottom:"1px solid rgba(74,222,128,0.18)",
-            }}>
-              <span style={{ fontSize:17, flexShrink:0 }}>🌿</span>
-              <div style={{ flex:1, textAlign:"right" }}>
-                <div style={{ fontSize:12, fontWeight:700, color:"rgba(187,247,208,0.85)", lineHeight:1.5 }}>
-                  {nudgeMsg}
-                </div>
-              </div>
-              <button
-                onClick={() => { if (onReport) onReport(lastRatedStrain); }}
-                style={{
-                  padding:"7px 14px", borderRadius:10, border:"none", cursor:"pointer",
-                  background:"rgba(74,222,128,0.18)", color:"#4ADE80",
-                  fontSize:12, fontWeight:800, flexShrink:0,
-                }}>
-                דווח
-              </button>
-              <button onClick={dismissNudge}
-                style={{ background:"none", border:"none", cursor:"pointer",
-                  fontSize:16, color:"rgba(187,247,208,0.35)", flexShrink:0 }}>
-                ×
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Compact greeting */}
-      <motion.div
-        initial={{ opacity:0, y:-14 }} animate={{ opacity:1, y:0 }}
-        transition={{ duration:0.5, delay:0.1, ease:"easeOut" }}
-        style={{
-          display:"flex", alignItems:"center", gap:12, padding:"14px 16px 12px",
-          background:"rgba(8,18,12,0.88)", borderBottom:"1px solid rgba(74,222,128,0.12)",
-          backdropFilter:"blur(18px)", flexShrink:0,
-        }}>
-        <div style={{ position:"relative", width:42, height:42, flexShrink:0 }}>
-          <motion.div animate={{ scale:[0.85,1.12,0.85], opacity:[0.25,0.55,0.25] }}
-            transition={{ duration:3.5, repeat:Infinity }}
-            style={{ position:"absolute", inset:-8, background:"radial-gradient(circle,rgba(74,222,128,0.22) 0%,transparent 70%)", borderRadius:"50%" }} />
-          <motion.span animate={{ rotate:[-5,5,-5], y:[0,-5,0] }}
-            transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
-            style={{ fontSize:30, lineHeight:1, display:"block", filter:"drop-shadow(0 0 12px rgba(74,222,128,0.75))" }}>🌿</motion.span>
-        </div>
-        <div style={{ flex:1, textAlign:"right" }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#4ADE80", marginBottom:2 }}>
-            {user?.name ? `שלום ${user.name.split(" ")[0]} 👋` : "שלום! אני צמח 👋"}
-          </div>
-          <div style={{ fontSize:11, color:"rgba(187,247,208,0.65)" }}>
-            חפש זן, סרוק תפריט, או שאל אותי כל שאלה
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ── Flagship CTA — Menu Decoder ──────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
-        transition={{ delay:0.18 }}
-        style={{ padding:"10px 14px 4px", flexShrink:0 }}>
-        <motion.button
-          onClick={() => goTab("menu")}
-          whileHover={{ scale:1.02, boxShadow:"0 0 24px rgba(57,255,133,0.22)" }}
-          whileTap={{ scale:0.97 }}
-          style={{
-            width:"100%", padding:"13px 14px", borderRadius:16,
-            display:"flex", alignItems:"center", gap:12,
-            background:"rgba(57,255,133,0.07)", border:"1.5px solid rgba(57,255,133,0.28)",
-            cursor:"pointer", fontFamily:"'Heebo',sans-serif",
-          }}>
-          <span style={{ fontSize:24 }}>📸</span>
-          <div style={{ textAlign:"right" }}>
-            <p style={{ fontSize:13, fontWeight:800, color:"#39FF85", margin:0 }}>
-              מפענח תפריט
-            </p>
-            <p style={{ fontSize:10, color:"rgba(187,247,208,0.55)", margin:"2px 0 0" }}>
-              סרוק תפריט בית מרקחת — אגיד מה מתאים לך
-            </p>
-          </div>
-        </motion.button>
-      </motion.div>
-
-      {/* Search bar */}
-      <motion.div
-        initial={{ opacity:0 }} animate={{ opacity:1 }}
-        transition={{ delay:0.25 }}
-        style={{ padding:"10px 14px 6px", flexShrink:0, position:"relative" }}>
-        <div style={{
-          display:"flex", alignItems:"center", borderRadius:16, border:`2px solid ${query ? C.accent : C.line}`,
-          padding:"10px 14px", background:C.card,
-          boxShadow: query ? `0 0 0 3px ${C.accent}18` : "none",
-          transition:"border-color .2s, box-shadow .2s",
-        }}>
-          <span style={{ fontSize:17, marginLeft:10 }}>🔍</span>
-          <input style={{ flex:1, background:"transparent", outline:"none", color:C.ink, fontSize:13 }}
-            placeholder="חפש זן, מגדל, בית מרקחת..." value={query} dir="rtl"
-            onChange={e => { setQuery(e.target.value); search(e.target.value); }} />
-          {query && (
-            <button onClick={() => { setQuery(""); setResults(null); }}
-              style={{ color:"rgba(187,247,208,0.55)", background:"none", border:"none", cursor:"pointer", fontSize:16 }}>✕</button>
-          )}
-        </div>
-        {results && (
-          <div style={{
-            position:"absolute", top:"100%", right:14, left:14, zIndex:50, marginTop:6,
-            borderRadius:18, border:`1px solid ${C.line}`,
-            background:"rgba(8,14,10,0.98)", backdropFilter:"blur(20px)", overflow:"hidden",
-            boxShadow:"0 12px 40px rgba(0,0,0,0.70)",
-          }}>
-            {results.strains.map(s => (
-              <button key={s.id} onClick={() => openStrain(s)}
-                style={{ width:"100%", padding:"11px 14px", borderBottom:`1px solid ${C.line}`, display:"flex",
-                  alignItems:"center", gap:10, textAlign:"right", background:"transparent", cursor:"pointer" }}
-                onMouseEnter={e => e.currentTarget.style.background="rgba(74,222,128,0.06)"}
-                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:C.ink }}>{s.name}</div>
-                  <div style={{ fontSize:11, color:"rgba(187,247,208,0.55)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {s.genetics} · {s.grower} · {s.cat}
-                  </div>
-                </div>
-                <div style={{ textAlign:"left", flexShrink:0 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>₪{s.price}</div>
-                  <div style={{ fontSize:10, color:"rgba(187,247,208,0.45)" }}>לכל 10ג</div>
-                </div>
-              </button>
-            ))}
-            {results.strains.length === 0 && results.pharms.length === 0 && (
-              <div style={{ padding:"16px", textAlign:"center", color:"rgba(187,247,208,0.45)", fontSize:13 }}>לא נמצאו תוצאות</div>
-            )}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Quick filter chips */}
-      <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.35 }}
-        style={{ display:"flex", gap:6, padding:"0 14px 8px", overflowX:"auto", scrollbarWidth:"none", flexShrink:0 }}>
-        {["כאב כרוני","שינה","חרדה","PTSD","אפילפסיה"].map(chip => (
-          <button key={chip} onClick={() => { setQuery(chip); search(chip); }}
-            style={{
-              flexShrink:0, fontSize:11, padding:"5px 12px", borderRadius:20, fontWeight:600, cursor:"pointer",
-              background:"rgba(74,222,128,0.08)", color:"#BBF7D0", border:"1px solid rgba(74,222,128,0.20)", whiteSpace:"nowrap",
-            }}>{chip}</button>
-        ))}
-      </motion.div>
-
-      {/* Personalized home — 3 sections from user history + DNA profile */}
-      <div style={{ flex:1, overflowY:"auto", scrollbarWidth:"none", padding:"0 14px 12px" }}>
-        {ans.cats.length === 0 ? (
-          <div style={{ borderRadius:18, padding:18, textAlign:"center", background:C.card, border:`1px solid ${C.line}` }}>
-            <div style={{ fontSize:32, marginBottom:8 }}>🌿</div>
-            <p style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:4 }}>עוד לא בנינו את הפרופיל שלך</p>
-            <p style={{ fontSize:11, color:"rgba(187,247,208,0.60)", lineHeight:1.55 }}>
-              עברו לשאלון ונבנה יחד המלצות מדויקות לקנייה החודשית שלך
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* ── Section 1: onboarding choices ───────────────────────────── */}
-            {onboardingPicks.length > 0 && (
-              <div style={{ marginBottom:14 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>זנים שבחרת בשאלון</span>
-                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:"rgba(167,139,250,0.12)", color:"#A78BFA" }}>
-                    {onboardingPicks.length}
-                  </span>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {onboardingPicks.map((s, idx) => (
-                    <motion.div key={s.id}
-                      initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }}
-                      transition={{ delay: 0.2 + idx * 0.07 }}
-                      whileHover={{ scale:1.012 }}
-                      onClick={() => openStrain(s)}
-                      style={{
-                        borderRadius:14, border:`1.5px solid rgba(167,139,250,0.22)`,
-                        padding:"10px 13px", display:"flex", alignItems:"center", gap:10,
-                        background:"rgba(167,139,250,0.05)", cursor:"pointer",
-                      }}>
-                      <span style={{ fontSize:18, flexShrink:0 }}>🧬</span>
-                      <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
-                        <div style={{ fontSize:11, color:"rgba(187,247,208,0.50)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {s.genetics} · {s.cat}
-                        </div>
-                      </div>
-                      <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
-                        style={{
-                          fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:10,
-                          background: basket.includes(s.id) ? C.line : "rgba(167,139,250,0.18)",
-                          color: basket.includes(s.id) ? "rgba(187,247,208,0.35)" : "#A78BFA",
-                          border: `1px solid ${basket.includes(s.id) ? C.line : "rgba(167,139,250,0.35)"}`,
-                          cursor: basket.includes(s.id) ? "default" : "pointer", flexShrink:0,
-                        }}>
-                        {basket.includes(s.id) ? "✓" : "+"}
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Section 2: tried strains from journal ───────────────────── */}
-            {triedStrains.length > 0 && (
-              <div style={{ marginBottom:14 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>ניסית לאחרונה</span>
-                  <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:C.soft, color:C.accent }}>
-                    מהיומן שלך
-                  </span>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {triedStrains.map(({ s, r }, idx) => (
-                    <motion.div key={s.id}
-                      initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }}
-                      transition={{ delay: 0.25 + idx * 0.07 }}
-                      whileHover={{ scale:1.012 }}
-                      onClick={() => openStrain(s)}
-                      style={{
-                        borderRadius:14, border:`1.5px solid rgba(251,191,36,0.18)`,
-                        padding:"10px 13px", display:"flex", alignItems:"center", gap:10,
-                        background:"rgba(251,191,36,0.04)", cursor:"pointer",
-                      }}>
-                      <div style={{ textAlign:"center", flexShrink:0, width:36 }}>
-                        <div style={{ fontSize:14, fontWeight:900, color:"#FBBF24", lineHeight:1 }}>{r}</div>
-                        <div style={{ fontSize:9, color:"rgba(187,247,208,0.45)" }}>מתוך 10</div>
-                      </div>
-                      <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
-                        <div style={{ fontSize:11, color:"rgba(187,247,208,0.50)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {s.genetics} · {s.cat}
-                        </div>
-                      </div>
-                      {onReport && (
-                        <button onClick={e => { e.stopPropagation(); onReport(s); }}
-                          style={{
-                            fontSize:10, fontWeight:700, padding:"5px 8px", borderRadius:10,
-                            background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.22)",
-                            color:"#FBBF24", cursor:"pointer", flexShrink:0,
-                          }}>
-                          עדכן דיווח
-                        </button>
-                      )}
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Section 3: profile-matched suggestions ───────────────────── */}
-            {profileMatches.length > 0 && (
-              <div style={{ marginBottom:10 }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                  <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
-                    background:C.soft, color:C.accent }}>DNA · {topReasonLabel || "הפרופיל שלך"}</span>
-                  <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>לפי מה שעובד עליך</span>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {profileMatches.map((s, idx) => {
-                    const tier = matchTier(s.match);
-                    const isSymptomMatch = topReason && (s.effects || []).includes(topReason);
-                    return (
-                      <motion.div key={s.id}
-                        initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
-                        transition={{ delay: 0.35 + idx * 0.08 }}
-                        whileHover={{ scale:1.015 }}
-                        style={{
-                          borderRadius:18, border:`1.5px solid ${isSymptomMatch ? "#4ADE80" : s.match >= 85 ? `${C.accent}60` : C.line}`,
-                          padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
-                          background: isSymptomMatch ? "rgba(74,222,128,0.06)" : C.card,
-                          boxShadow: s.match >= 85 ? `0 0 0 1px ${C.accent}25` : "none",
-                          cursor:"pointer", position:"relative",
-                        }}
-                        onClick={() => openStrain(s)}>
-                        {isSymptomMatch && (
-                          <motion.div animate={{ opacity:[0.7,1,0.7] }} transition={{ duration:2, repeat:Infinity }}
-                            style={{
-                              position:"absolute", top:-1, left:10,
-                              fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:"0 0 8px 8px",
-                              background:"rgba(74,222,128,0.18)", color:"#4ADE80",
-                              border:"1px solid rgba(74,222,128,0.30)", borderTop:"none",
-                            }}>
-                            ✓ {topReasonLabel}
-                          </motion.div>
-                        )}
-                        <MatchRing pct={s.match} />
-                        <div style={{ flex:1, textAlign:"right", minWidth:0 }}>
-                          <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{s.name}</div>
-                          <div style={{ fontSize:11, color:"rgba(187,247,208,0.55)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                            {s.genetics} · {s.grower}
-                          </div>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, marginTop:3 }}>
-                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:tier.bg, color:tier.color }}>{tier.icon} {tier.label}</span>
-                            <span style={{ fontSize:11, fontWeight:700, color:C.accent }}>{s.cat} · ₪{s.price}</span>
-                          </div>
-                          <div style={{ fontSize:10.5, color:"rgba(187,247,208,0.68)", lineHeight:1.55, marginTop:4, fontStyle:"italic" }}>
-                            {friendWhy(s, profile, ans)}
-                          </div>
-                        </div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
-                          <button onClick={e => { e.stopPropagation(); addToBasket(s.id); }} disabled={basket.includes(s.id)}
-                            style={{
-                              fontSize:11, fontWeight:800, padding:"7px 11px", borderRadius:12,
-                              background: basket.includes(s.id) ? C.line : C.accent,
-                              color: basket.includes(s.id) ? "rgba(187,247,208,0.45)" : "#0c0d11",
-                              border: `1px solid ${basket.includes(s.id) ? C.line : C.accent}`,
-                              opacity: basket.includes(s.id) ? 0.6 : 1,
-                              cursor: basket.includes(s.id) ? "default" : "pointer",
-                            }}>
-                            {basket.includes(s.id) ? "✓" : "+"}
-                          </button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Kill-switch callout */}
-            {ksMsg && (
-              <motion.div initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.6 }}
-                style={{ marginBottom:10, padding:"9px 13px", borderRadius:12,
-                  background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.18)" }}>
-                <div style={{ fontSize:11, color:"rgba(248,113,113,0.85)", lineHeight:1.55 }}>{ksMsg}</div>
-              </motion.div>
-            )}
-
-            {/* Quick-nav */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:4 }}>
-              {[
-                { icon:"🏪", label:"בתי מרקחת", tab:"market" },
-                { icon:"📊", label:"יומן מעקב", tab:"journal" },
-                { icon:"🔍", label:"סריקת תפריט", tab:"menu" },
-                { icon:"🧬", label:"הפרופיל שלי", tab:"dna" },
-              ].map(item => (
-                <button key={item.tab} onClick={() => goTab(item.tab)}
-                  style={{
-                    padding:"9px 10px", borderRadius:12, border:`1px solid ${C.line}`,
-                    background:"rgba(255,255,255,0.03)", cursor:"pointer", textAlign:"center",
-                    fontSize:11, fontWeight:700, color:"rgba(187,247,208,0.70)",
-                  }}>
-                  {item.icon} {item.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <>
       {MobileTabBar}
 
-      {/* Desktop: CSS grid split; Mobile: single pane based on mobilePane */}
-      <div style={{
-        display:"grid",
-        gridTemplateColumns:"55fr 45fr",
-        height:"calc(100vh - 140px)",
-        gap:0,
-      }}
+      {/* Desktop: two panes — menu (right/RTL-primary) + community (left) */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", height:"calc(100vh - 140px)", gap:0 }}
         className="hidden lg:grid">
-        {/* Navigator */}
         <motion.div
           initial={{ opacity:0, x:20 }} animate={{ opacity:loginStage === "ready" ? 1 : 0, x: loginStage === "ready" ? 0 : 20 }}
           transition={{ duration:0.55, ease:[0.22,1,0.36,1] }}
           style={{ borderRight:"1px solid rgba(74,222,128,0.10)", overflow:"hidden" }}>
-          {NavigatorPane}
+          {MenuPane}
         </motion.div>
-        {/* Community */}
         <motion.div
           initial={{ opacity:0, x:-20 }} animate={{ opacity:loginStage === "ready" ? 1 : 0, x: loginStage === "ready" ? 0 : -20 }}
           transition={{ duration:0.55, delay:0.12, ease:[0.22,1,0.36,1] }}
           style={{ overflow:"hidden" }}>
-          <CommunityMiniPanel
-            licenseVerified={licenseVerified} ans={ans}
-            goTab={goTab}
-            onGoLicense={() => goTab("community")} />
+          {CommPane}
         </motion.div>
       </div>
 
       {/* Mobile: single pane */}
       <div className="lg:hidden" style={{ height:"calc(100vh - 170px)", overflow:"hidden" }}>
         <AnimatePresence mode="wait">
-          {mobilePane === "nav" ? (
-            <motion.div key="nav"
+          {mobilePane === "menu" ? (
+            <motion.div key="menu"
               initial={{ opacity:0, x:20 }} animate={{ opacity:1, x:0 }}
               exit={{ opacity:0, x:-20 }} transition={{ duration:0.25 }}
               style={{ height:"100%", overflow:"hidden" }}>
-              {NavigatorPane}
+              {MenuPane}
             </motion.div>
           ) : (
             <motion.div key="community"
               initial={{ opacity:0, x:-20 }} animate={{ opacity:1, x:0 }}
               exit={{ opacity:0, x:20 }} transition={{ duration:0.25 }}
               style={{ height:"100%", overflow:"hidden" }}>
-              <CommunityMiniPanel
-                licenseVerified={licenseVerified} ans={ans}
-                goTab={goTab}
-                onGoLicense={() => goTab("community")} />
+              {CommPane}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {selectedStrain && <StrainDetailDrawer strain={selectedStrain} onClose={() => setSelectedStrain(null)} />}
     </>
   );
 }
+
 
 /* ── AuthScreen — unified immersive dark layout ── */
 const AUTH_BG_IMAGES = [
@@ -5445,14 +5208,20 @@ function AuthLayout({ children }) {
         .auth-inner { -ms-overflow-style: none; scrollbar-width: none; }
         .auth-shell {
           position: relative; z-index: 10; flex: 1; min-height: 0;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
+          display: flex; flex-direction: column; align-items: stretch;
         }
         .auth-left-panel { display: none; }
         .auth-form-panel {
-          width: 100%; padding: 12px 16px;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
+          flex: 1; min-height: 0; overflow-y: auto;
+          width: 100%; padding: 14px 16px 28px; box-sizing: border-box;
+          display: flex; flex-direction: column; align-items: center;
+        }
+        .auth-mobile-hero { display: block; }
+        .auth-cards-grid {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
+        }
+        @media (max-width: 420px) {
+          .auth-cards-grid { grid-template-columns: 1fr; }
         }
         @media (min-width: 1024px) {
           .auth-shell { flex-direction: row; align-items: stretch; justify-content: flex-start; }
@@ -5461,12 +5230,13 @@ function AuthLayout({ children }) {
             align-items: center; justify-content: center; padding: 64px;
           }
           .auth-form-panel {
-            width: 520px; flex-shrink: 0; padding: 32px 40px;
+            flex: 0 0 520px; width: 520px; padding: 32px 40px;
             border-left: 1px solid rgba(74,222,128,0.14);
             background: rgba(3,10,6,0.55);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
           }
+          .auth-mobile-hero { display: none; }
+          .auth-cards-grid { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
 
@@ -5477,7 +5247,6 @@ function AuthLayout({ children }) {
         <div className="auth-form-panel">
           <div className="auth-inner" style={{
             width:"100%", maxWidth:440,
-            maxHeight:"100%", overflowY:"auto",
             display:"flex", flexDirection:"column",
           }}>
             {children}
@@ -5623,20 +5392,22 @@ function Login({ go, setUser, setVerifyNextScreen }) {
   return (
     <AuthCard title={T.auth.loginTitle} sub={T.auth.loginSub} onBack={() => go("welcome")}>
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
-      <Field label={T.auth.usernameLabel} value={u} onChange={setU} placeholder={T.auth.emailPlaceholder} />
-      <Field label={T.auth.passwordLabel} type="password" value={p} onChange={setP} placeholder="••••••••" />
-      {err && <p style={{ color:"#F87171", fontSize:13, textAlign:"center", marginBottom:8 }}>{err}</p>}
-      <button onClick={sendOtp} disabled={!u || loading}
-        style={{
-          width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: (!u || loading) ? "not-allowed" : "pointer",
-          background: (!u || loading) ? "rgba(74,222,128,0.18)" : "linear-gradient(135deg,#4ADE80,#22c55e)",
-          color: (!u || loading) ? "rgba(187,247,208,0.35)" : "#04120a",
-          fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
-          transition:"background .2s, color .2s",
-          letterSpacing:"-0.01em", minHeight:50,
-        }}>
-        {loading ? "שולח קוד..." : T.auth.loginBtn || "כניסה"}
-      </button>
+      <form onSubmit={e => { e.preventDefault(); sendOtp(); }}>
+        <Field label={T.auth.usernameLabel} value={u} onChange={setU} placeholder={T.auth.emailPlaceholder} />
+        <Field label={T.auth.passwordLabel} type="password" value={p} onChange={setP} placeholder="••••••••" />
+        {err && <p style={{ color:"#F87171", fontSize:13, textAlign:"center", marginBottom:8 }}>{err}</p>}
+        <button type="submit" disabled={!u || loading}
+          style={{
+            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: (!u || loading) ? "not-allowed" : "pointer",
+            background: (!u || loading) ? "rgba(74,222,128,0.18)" : "linear-gradient(135deg,#4ADE80,#22c55e)",
+            color: (!u || loading) ? "rgba(187,247,208,0.35)" : "#04120a",
+            fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
+            transition:"background .2s, color .2s",
+            letterSpacing:"-0.01em", minHeight:50,
+          }}>
+          {loading ? "שולח קוד..." : T.auth.loginBtn || "כניסה"}
+        </button>
+      </form>
       <button onClick={() => go("register")}
         style={{
           width:"100%", padding:"12px", background:"none",
@@ -5819,29 +5590,33 @@ function Register({ go, setUser }) {
   return (
     <AuthCard title="הרשמה" sub="דקה אחת ואתם בפנים" onBack={() => go("welcome")}>
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
-      <Field label="שם מלא" value={n} onChange={setN} placeholder="ישראל ישראלי" />
-      <Field label="מייל" type="email" value={e} onChange={setE} placeholder="israel@example.com" />
-      <Field label="סיסמה" type="password" value={p} onChange={setP} placeholder="8 תווים לפחות" />
-      <div style={{ borderRadius:13, padding:"10px 14px", marginBottom:10,
-        background:"rgba(74,222,128,0.05)", border:"1px solid rgba(74,222,128,0.16)" }}>
-        {checks.map((c, i) => (
-          <div key={i} style={{ fontSize:12, fontWeight:700, color: c.ok ? "#4ADE80" : "rgba(187,247,208,0.40)", marginBottom:i < checks.length-1 ? 4 : 0 }}>
-            {c.ok ? "✓" : "○"} {c.label}
-          </div>
-        ))}
-      </div>
-      <button onClick={async () => {
+      <form onSubmit={async ev => {
+        ev.preventDefault();
+        if (!allOk) return;
         setUser({ name: n, email: e, avatar:"🌿" });
         try { await api.sendOtp(e); } catch {}
         go("verify");
-      }} disabled={!allOk}
-        style={{
-          width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: allOk ? "pointer" : "not-allowed",
-          background: allOk ? "linear-gradient(135deg,#4ADE80,#22c55e)" : "rgba(74,222,128,0.18)",
-          color: allOk ? "#04120a" : "rgba(187,247,208,0.35)",
-          fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
-          transition:"background .2s, color .2s", letterSpacing:"-0.01em", minHeight:50,
-        }}>המשך לאימות מייל</button>
+      }}>
+        <Field label="שם מלא" value={n} onChange={setN} placeholder="ישראל ישראלי" />
+        <Field label="מייל" type="email" value={e} onChange={setE} placeholder="israel@example.com" />
+        <Field label="סיסמה" type="password" value={p} onChange={setP} placeholder="8 תווים לפחות" />
+        <div style={{ borderRadius:13, padding:"10px 14px", marginBottom:10,
+          background:"rgba(74,222,128,0.05)", border:"1px solid rgba(74,222,128,0.16)" }}>
+          {checks.map((c, i) => (
+            <div key={i} style={{ fontSize:12, fontWeight:700, color: c.ok ? "#4ADE80" : "rgba(187,247,208,0.40)", marginBottom:i < checks.length-1 ? 4 : 0 }}>
+              {c.ok ? "✓" : "○"} {c.label}
+            </div>
+          ))}
+        </div>
+        <button type="submit" disabled={!allOk}
+          style={{
+            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: allOk ? "pointer" : "not-allowed",
+            background: allOk ? "linear-gradient(135deg,#4ADE80,#22c55e)" : "rgba(74,222,128,0.18)",
+            color: allOk ? "#04120a" : "rgba(187,247,208,0.35)",
+            fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
+            transition:"background .2s, color .2s", letterSpacing:"-0.01em", minHeight:50,
+          }}>המשך לאימות מייל</button>
+      </form>
       <button onClick={() => go("login")}
         style={{
           width:"100%", padding:"12px", background:"none",
@@ -5941,7 +5716,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
         }}>
           <span style={{ fontSize:20 }}>🌿</span>
           <span style={{ fontSize:13, fontWeight:700, color:"rgba(134,239,172,0.75)" }}>
-            קנאמאצ׳ · קהילה סגורה לבעלי רישיון רפואי בתוקף
+            קנאמאצ׳ · פווידר סגור לבעלי רישיון רפואי בתוקף
           </span>
         </div>
       </motion.div>
@@ -5959,7 +5734,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
           textAlign:"right",
         }}>
         <p style={{ fontSize:13, fontWeight:600, color:"rgba(187,247,208,0.85)", lineHeight:1.7, margin:0 }}>
-          📋 המידע מבוסס על נתונים פתוחים, ספרות מחקרית ודיווחי מטופלים מהקהילה.
+          📋 המידע מבוסס על נתונים פתוחים, ספרות מחקרית ודיווחי מטופלים מהפווידר.
           תמיד יש להתייעץ עם הרופא/ה המטפל/ת לפני כל שינוי בטיפול.
         </p>
       </motion.div>
@@ -5971,7 +5746,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
         transition={{ delay:0.66, type:"spring", damping:32, stiffness:180 }}
         whileHover={{ scale:1.025, boxShadow:"0 0 36px rgba(74,222,128,0.50), 0 6px 20px rgba(0,0,0,0.40)" }}
         whileTap={{ scale:0.97 }}
-        onClick={() => go(hasProfile ? "app" : "onboarding")}
+        onClick={() => { localStorage.setItem("cm_welcome_seen", "1"); go(hasProfile ? "app" : "onboarding"); }}
         style={{
           width:"100%", padding:"18px", borderRadius:20, border:"none", cursor:"pointer",
           background:"linear-gradient(135deg,#4ADE80 0%,#22c55e 100%)",
@@ -6011,19 +5786,21 @@ function Verify({ go, user, setUser, nextScreen = "welcome_room" }) {
   return (
     <AuthCard title="אימות" sub={`שלחנו קוד בן 6 ספרות אל ${user?.email || "המייל שלך"}`}
       onBack={() => go("register")}>
-      <div className="rounded-xl p-3 mb-4 text-center text-sm"
-        style={{ background: "rgba(46,107,83,0.06)", color: "#374151", border:"1px solid rgba(46,107,83,0.20)" }}>
-        📧 בדקו את תיבת הדואר שלכם — הקוד נשלח כעת
-      </div>
-      <input value={code} maxLength={6} inputMode="numeric"
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-        className="w-full rounded-xl p-4 text-center text-2xl font-bold tracking-widest mb-3 neon-input"
-        style={{ borderColor: code.length === 6 ? "#4ADE80" : "rgba(46,107,83,0.28)", color: "#111827", letterSpacing: "0.5em" }}
-        placeholder="• • • • • •" dir="ltr" />
-      {err && <p className="text-xs text-center mb-2" style={{ color: "#F87171" }}>{err}</p>}
-      <button onClick={verify} disabled={code.length !== 6 || loading} className="auth-btn-primary">
-        {loading ? "מאמת..." : "אימות והמשך"}
-      </button>
+      <form onSubmit={e => { e.preventDefault(); verify(); }}>
+        <div className="rounded-xl p-3 mb-4 text-center text-sm"
+          style={{ background: "rgba(46,107,83,0.06)", color: "#374151", border:"1px solid rgba(46,107,83,0.20)" }}>
+          📧 בדקו את תיבת הדואר שלכם — הקוד נשלח כעת
+        </div>
+        <input value={code} maxLength={6} inputMode="numeric"
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          className="w-full rounded-xl p-4 text-center text-2xl font-bold tracking-widest mb-3 neon-input"
+          style={{ borderColor: code.length === 6 ? "#4ADE80" : "rgba(46,107,83,0.28)", color: "#111827", letterSpacing: "0.5em" }}
+          placeholder="• • • • • •" dir="ltr" />
+        {err && <p className="text-xs text-center mb-2" style={{ color: "#F87171" }}>{err}</p>}
+        <button type="submit" disabled={code.length !== 6 || loading} className="auth-btn-primary">
+          {loading ? "מאמת..." : "אימות והמשך"}
+        </button>
+      </form>
     </AuthCard>
   );
 }
@@ -6048,7 +5825,7 @@ function LicenseUpload({ go, setCats, onVerify, onSkip }) {
         borderRadius:12, padding:"10px 14px", marginBottom:14, textAlign:"right",
       }}>
         <p style={{ fontSize:12, color:"rgba(187,247,208,0.80)", lineHeight:1.6, margin:0, fontWeight:600 }}>
-          🔒 הרישיון נדרש <b>רק</b> לגישה לפיצ׳ר הקהילה — כדי להגן על מרחב שיח אותנטי ממשיינים ויחצנים.
+          🔒 הרישיון נדרש <b>רק</b> לגישה לפווידר — כדי להגן על מרחב שיח אותנטי ממשיינים ויחצנים.
           לכל שאר האפשרויות — הדילוג חופשי לחלוטין.
         </p>
       </div>
@@ -6481,7 +6258,7 @@ function CommunityLicenseGate({ onUnlock }) {
                   fontFamily:"'Heebo',sans-serif", letterSpacing:"-0.01em",
                   boxShadow:"0 0 22px rgba(74,222,128,0.40)",
                 }}>
-                📄 סרוק רישיון — כניסה לקהילה
+                📄 סרוק רישיון — כניסה לפווידר
               </button>
               <p style={{ textAlign:"center", fontSize:11, marginTop:10, color:"rgba(187,247,208,0.45)" }}>
                 רישיון ישראלי בתוקף בלבד · JPEG / PNG / PDF
@@ -6527,7 +6304,7 @@ function CommunityLicenseGate({ onUnlock }) {
                 fontFamily:"'Heebo',sans-serif",
                 boxShadow:"0 0 22px rgba(74,222,128,0.45)",
               }}>
-                כניסה לקהילה ←
+                כניסה לפווידר ←
               </button>
             </>
           )}
@@ -6618,7 +6395,7 @@ function Community({ ans, user }) {
     setChecking(true); setBlocked(null);
     const verdict = await moderatePost(text);
     setChecking(false);
-    if (verdict.verdict === "block") { setBlocked(verdict.reason || "הפוסט אינו תואם את כללי הקהילה"); return; }
+    if (verdict.verdict === "block") { setBlocked(verdict.reason || "הפוסט אינו תואם את כללי הפווידר"); return; }
     const myTag = REASONS.find(r => r.id === ans.reasons[0])?.label || "מטופל/ת";
     const nick = identity === "name" && user?.name ? `${user.name} · ${myTag}` : `${myTag} · אזורך`;
     setPosts([{ id:Date.now(), nick, tag:myTag, time:"עכשיו", text:text.trim(), helped:0, comments:[] }, ...posts]);
@@ -6683,7 +6460,7 @@ function Community({ ans, user }) {
         style={{ background:"linear-gradient(150deg,rgba(8,18,12,0.98),rgba(14,28,18,0.97))", border:"1.5px solid rgba(74,222,128,0.18)" }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-extrabold text-base mb-1" style={{ color:"#F0FDF4" }}>🌿 פיד הקהילה</h2>
+            <h2 className="font-extrabold text-base mb-1" style={{ color:"#F0FDF4" }}>🌿 פווידר</h2>
             <p className="text-xs leading-relaxed" style={{ color:"rgba(187,247,208,0.65)" }}>
               מרחב מאומת · אנונימי · ללא יחצנות
             </p>
@@ -6718,7 +6495,7 @@ function Community({ ans, user }) {
             style={{ background:"rgba(74,222,128,0.10)", border:"1px solid rgba(74,222,128,0.18)" }}>
             <span style={{ fontSize:16 }}>✍️</span>
           </div>
-          <span className="text-sm" style={{ color:"rgba(187,247,208,0.45)" }}>מה חדש אצלך? שתפ/י את הקהילה...</span>
+          <span className="text-sm" style={{ color:"rgba(187,247,208,0.45)" }}>מה חדש אצלך? שתפ/י בפווידר...</span>
         </button>
       ) : (
         <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }}
@@ -6757,7 +6534,7 @@ function Community({ ans, user }) {
             <button onClick={submit} disabled={!text.trim() || checking}
               className="flex-1 py-2.5 rounded-xl font-bold text-sm disabled:opacity-40"
               style={{ background:"linear-gradient(135deg,#4ADE80,#22c55e)", color:"#04120a" }}>
-              {checking ? "🤖 צמח בודק..." : "🌿 שיתוף עם הקהילה"}
+              {checking ? "🤖 צמח בודק..." : "🌿 שתף בפווידר"}
             </button>
           </div>
         </motion.div>
@@ -6994,6 +6771,11 @@ function NudgeSystem({ goComplete, goJournal }) {
 function PermissionModal({ onDone }) {
   const [step, setStep]     = useState(0);
   const [status, setStatus] = useState("idle");
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') onDone(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onDone]);
 
   const next = () => { if (step < 1) { setStep(1); setStatus("idle"); } else { onDone(); } };
 
@@ -7092,82 +6874,6 @@ function PermissionModal({ onDone }) {
   );
 }
 
-
-/* ── Greeting-only mascot — LEFT side, no chat, no API ── */
-const GREET_LINES = {
-  new:       ["ברוך הבא ל-CannaMatch 🌿", "כיף שאתה כאן 💚"],
-  returning: ["עבר זמן, כיף שחזרת 💚", "טוב לראות אותך שוב 🌿"],
-  morning:   ["בוקר טוב ☀️", "התחלה טובה 🌿"],
-  noon:      ["צהריים טובים", "איך מרגישים? 💚"],
-  evening:   ["ערב טוב 🌙", "ערב נעים 🌿"],
-  night:     ["לילה טוב 😴 שינה רגועה", "לילה שקט 🌙"],
-};
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-function GreetingMascot({ user }) {
-  const h = new Date().getHours();
-  const isNew = !localStorage.getItem("cm_avatar_seen");
-  const today = new Date().toDateString();
-  const lastGreet = localStorage.getItem("cm_last_greet");
-  const isReturning = !isNew && lastGreet && lastGreet !== today;
-  useEffect(() => {
-    localStorage.setItem("cm_avatar_seen", "1");
-    localStorage.setItem("cm_last_greet", today);
-  }, [today]);
-
-  const greeting = isNew         ? pick(GREET_LINES.new)
-    : isReturning                 ? pick(GREET_LINES.returning)
-    : h >= 5  && h < 12          ? pick(GREET_LINES.morning)
-    : h >= 12 && h < 17          ? pick(GREET_LINES.noon)
-    : h >= 17 && h < 21          ? pick(GREET_LINES.evening)
-    :                               pick(GREET_LINES.night);
-
-  const name = user?.name?.split(" ")[0];
-
-  return (
-    <div style={{
-      position: "fixed", bottom: 190, left: 10, zIndex: 9990,
-      pointerEvents: "none",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-    }}>
-      {/* Greeting bubble */}
-      <motion.div
-        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ delay: 0.6, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        style={{
-          background: "rgba(11,24,16,0.92)", border: "1px solid rgba(57,255,133,0.28)",
-          borderRadius: 14, padding: "7px 12px",
-          fontSize: 12, color: "#EBF6ED", textAlign: "center",
-          lineHeight: 1.55, backdropFilter: "blur(10px)",
-          boxShadow: "0 2px 20px rgba(0,0,0,0.60), 0 0 0 1px rgba(57,255,133,0.06) inset",
-          maxWidth: 148, direction: "rtl", whiteSpace: "pre-line",
-          zIndex: 1,
-        }}>
-        {name ? `${greeting}\n${name}` : greeting}
-      </motion.div>
-
-      {/* Avatar — emoji only (mp4 has no alpha channel, video rect would show) */}
-      <div style={{ position: "relative", width: 116, height: 116 }}>
-        <div style={{
-          position: "absolute",
-          inset: "-10px",
-          borderRadius: "62% 38% 52% 48% / 44% 56% 44% 56%",
-          background: "radial-gradient(circle, rgba(57,255,133,0.26) 0%, transparent 72%)",
-          filter: "blur(14px)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }} />
-        <span style={{
-          fontSize: 72, lineHeight: "116px", display: "block", textAlign: "center",
-          filter: "drop-shadow(0 0 14px rgba(57,255,133,0.70))",
-          position: "relative", zIndex: 1,
-        }}>🌿</span>
-      </div>
-    </div>
-  );
-}
-
 /* ── Staged login animation wrapper — fades in the main content column ── */
 function StageWrapper({ children, className, style }) {
   const { loginStage } = useJourney();
@@ -7183,6 +6889,22 @@ function StageWrapper({ children, className, style }) {
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}>
       {children}
     </motion.div>
+  );
+}
+
+/* ───────────── ניתוב מרכזי ───────────── */
+/*
+ * resolveScreen() — wrapper around the pure _resolveScreen function.
+ * The pure function (src/lib/resolveScreen.ts) is unit-tested.
+ * This wrapper binds it to localStorage and handles storage cleanup on corruption.
+ */
+function resolveScreen() {
+  return _resolveScreen(
+    { get: (k) => localStorage.getItem(k) },
+    () => {
+      localStorage.removeItem("cm_session_token");
+      localStorage.removeItem("cm_user");
+    },
   );
 }
 
@@ -7204,14 +6926,7 @@ export default function CannaMatch() {
   // Must be null initially — prevents app content flashing before gate activates.
   const [termsStatus, setTermsStatus] = useState(null);
 
-  const [screen, setScreen] = useState(() => {
-    try {
-      const token = localStorage.getItem("cm_session_token");
-      const raw   = localStorage.getItem("cm_user");
-      if (token && raw) { JSON.parse(raw); return "welcome"; }
-    } catch {}
-    return "welcome";
-  });
+  const [screen, setScreen] = useState(resolveScreen);
   const [tab, setTab] = useState("home");
   const [ans, setAns] = useState({
     cats: [], form: [], reasons: [], flavors: [],
@@ -7281,23 +6996,39 @@ export default function CannaMatch() {
   useEffect(() => { pingBackend().then(setBackendLive); }, []);
 
   // Terms check — runs when user logs in (user?.id changes).
-  // Fail closed: network error → accepted:false, text:null → gate shows reload prompt.
+  // 401 = expired/invalid token → purge session → back to welcome.
+  // Other error (network, 5xx) → fail open so app stays usable.
   useEffect(() => {
     if (!user) return;
     setTermsStatus(null);
     let cancelled = false;
     api.terms.status()
-      .then(s  => { if (!cancelled) setTermsStatus(s); })
-      .catch(() => { if (!cancelled) setTermsStatus({ accepted: false, version: 0, text: null }); });
+      .then(s => { if (!cancelled) setTermsStatus(s); })
+      .catch((e) => {
+        if (cancelled) return;
+        if (e?.message?.startsWith('HTTP 4')) {
+          // Expired or invalid token — purge and redirect
+          ["cm_session_token", "cm_user", "cm_welcome_seen", "cm_onboarding_done"]
+            .forEach(k => localStorage.removeItem(k));
+          setUser(null);
+          setScreen("welcome");
+          // termsStatus stays null — gate is guarded by `user &&` so it won't block
+        } else {
+          // Network / 5xx — fail open
+          setTermsStatus({ accepted: true, version: 0, text: null });
+        }
+      });
     return () => { cancelled = true; };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
-    localStorage.removeItem("cm_session_token");
-    localStorage.removeItem("cm_user");
+    // Clear ALL routing state so the next login starts from the beginning
+    ["cm_session_token", "cm_user", "cm_welcome_seen", "cm_onboarding_done"].forEach(k =>
+      localStorage.removeItem(k)
+    );
     setUser(null);
     setScreen("welcome");
-    setTermsStatus(null); // reset so next login re-checks
+    setTermsStatus(null);
   };
 
   /* ── Handle report submission: compute diff, update ratings, fire API ── */
@@ -7337,6 +7068,17 @@ export default function CannaMatch() {
     if (screen === "app") window.scrollTo(0, 0);
   }, [screen]);
 
+  // Global Escape: close top-most overlay in the root component
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key !== 'Escape') return;
+      if (showPerms) { setShowPerms(false); return; }
+      if (reportStrain) { closeReport(); return; }
+    };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [showPerms, reportStrain, closeReport]);
+
   useEffect(() => {
     if (screen === "app" && !localStorage.getItem("cm_perms_asked")) {
       const t = setTimeout(() => setShowPerms(true), 2000);
@@ -7346,13 +7088,9 @@ export default function CannaMatch() {
 
   const [indFilter, setIndFilter] = useState([]);
   const [typeFilter, setTypeFilter] = useState("all");
-  const [indFilterManual, setIndFilterManual] = useState(false);
-  const [chipExpanded, setChipExpanded] = useState(false);
 
   useEffect(() => {
-    if (!indFilterManual) {
-      setIndFilter(ans.reasons.length > 0 ? [...ans.reasons] : []);
-    }
+    setIndFilter(ans.reasons.length > 0 ? [...ans.reasons] : []);
   }, [ans.reasons]);
 
   // Auto-set type filter from onboarding form: oil-only → "oil", else "all"
@@ -7421,59 +7159,85 @@ export default function CannaMatch() {
           {screen === "welcome" && (
             <motion.div key="welcome" {...FMV} style={{ display:"flex", flexDirection:"column", gap:0 }}>
 
-              {/* ── Brand hero ── */}
+              {/* ── Brand logo ── */}
               <div style={{ textAlign:"center", marginBottom:20 }}>
                 <motion.div
-                  animate={{ y:[0,-8,0] }}
+                  animate={{ y:[0,-6,0] }}
                   transition={{ duration:5.5, repeat:Infinity, ease:"easeInOut" }}
-                  style={{
-                    fontSize:48, display:"inline-block", marginBottom:6,
-                    filter:"drop-shadow(0 0 22px rgba(74,222,128,0.60)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))",
-                    lineHeight:1,
-                  }}>
+                  style={{ fontSize:40, display:"inline-block", marginBottom:8, lineHeight:1,
+                    filter:"drop-shadow(0 0 18px rgba(74,222,128,0.55))" }}>
                   🌿
                 </motion.div>
                 <h1 style={{
-                  fontSize:32, fontWeight:900, color:"#FFFFFF",
-                  letterSpacing:"-0.03em", lineHeight:1.1, marginBottom:6,
-                  textShadow:"0 0 36px rgba(74,222,128,0.55), 0 2px 14px rgba(0,0,0,0.85)",
-                }}>
-                  ברוכים הבאים
-                </h1>
-                <p style={{
-                  fontSize:13, color:"rgba(134,239,172,0.65)",
-                  lineHeight:1.35, margin:"0 auto",
-                  textShadow:"0 1px 8px rgba(0,0,0,0.80)",
-                  fontWeight:600, letterSpacing:"0.04em",
+                  fontSize:42, fontWeight:900, color:"#4ADE80",
+                  margin:"0 auto", letterSpacing:"-0.04em", lineHeight:1,
+                  textShadow:"0 0 32px rgba(74,222,128,0.60), 0 2px 10px rgba(0,0,0,0.70)",
+                  fontFamily:"'Heebo',sans-serif",
                 }}>
                   קנאמאצ׳
+                </h1>
+                <p style={{ fontSize:12, color:"rgba(134,239,172,0.55)", margin:"6px 0 0",
+                  fontWeight:500, letterSpacing:"0.05em" }}>
+                  התאמה אישית לתפריט הקנאביס שלך
                 </p>
               </div>
 
+              {/* ── Mobile-only: heading + intro (desktop: left hero panel) ── */}
+              <div className="auth-mobile-hero" style={{ marginBottom:18 }}>
+                <h2 style={{
+                  fontSize:26, fontWeight:900, color:"#4ADE80",
+                  letterSpacing:"-0.03em", lineHeight:1.1,
+                  margin:"0 0 12px", textAlign:"right",
+                  textShadow:"0 0 24px rgba(74,222,128,0.45)",
+                }}>ברוכים הבאים</h2>
+                <div style={{
+                  background:"rgba(8,18,12,0.52)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+                  borderRadius:16, padding:"14px 18px",
+                  border:"1px solid rgba(74,222,128,0.14)",
+                }}>
+                  {[
+                    "שלום, אני תום, מטופל כבר לא מעט שנים.",
+                    "אני מכיר מקרוב את התסכול, את התפריטים האינסופיים, את הניסיון להבין מה באמת עובד ואת הדאגה התמידית שלא ייגמר מה שעוזר.",
+                    "עד היום אני עומד מול הרוקח ושואל מה לקחת, כי האמת שפשוט הלכתי לאיבוד בין כל השמות והחברות, אז בניתי את המקום שתמיד רציתי שיהיה לי.",
+                    "מקום שלוקח את כל הבלגן ומתרגם אותו לשפה אחת ברורה ומנסה לדייק את התאמת הקנייה לפי מה שמתאים לך באמת, לא לפי שם על אריזה, וזה עובד הכי טוב ביחד.",
+                    "כל דיווח שלך מחדד את ההתאמה של מישהו אחר, וכל דיווח שלו מחדד את שלך. ככה לאט לאט מפסיקים לנחש ומתחילים לדעת.",
+                    "אני יכול להגיד שלי זה עובד ואני מקווה שגם לכם זה יעבוד.",
+                  ].map((para, i) => (
+                    <p key={i} style={{
+                      fontSize:13, fontWeight:500,
+                      color:"rgba(245,234,200,0.88)",
+                      lineHeight:1.65, textAlign:"right",
+                      margin: i < 5 ? "0 0 9px" : "0",
+                    }}>{para}</p>
+                  ))}
+                </div>
+              </div>
+
               {/* ── Capabilities grid ── */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+              <div className="auth-cards-grid">
                 {[
                   { icon:"🎯", title:"התאמה אישית",  text:"מיטוב הקנייה החודשית שלך" },
-                  { icon:"📋", title:"סריקת תפריט",  text:"צלם תפריט של בית מרקחת, והמערכת תזהה את המוצרים, תתרגם שמות מסחריים לזהות הגנטית האמיתית, ותראה לך מה מתוכו מתאים לך." },
+                  { icon:"📋", title:"סריקת תפריט",  text:"צלם תפריט, קבל רשימה מותאמת לך" },
                   { icon:"📚", title:"ידע ומחקרים",  text:"נתונים אקדמיים ומחקרים פתוחים" },
-                  { icon:"🫂", title:"קהילה",         text:"מטופלים מאומתים משתפים מה עבד להם. דיווחים אמיתיים, מדורגים לפי אמינות, שעוזרים לך ולאחרים לדייק." },
+                  { icon:"🫂", title:"פווידר",         text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
                 ].map((f, i) => (
                   <motion.div key={i}
                     initial={{opacity:0, scale:0.90}} animate={{opacity:1, scale:1}}
                     transition={{delay:0.18 + i*0.05, type:"spring", damping:28, stiffness:220}}
                     style={{
-                      padding:"12px 10px", borderRadius:16,
+                      padding:"16px 12px", borderRadius:18,
                       display:"flex", flexDirection:"column",
                       alignItems:"center", justifyContent:"flex-start", textAlign:"center",
-                      background:"rgba(4,14,8,0.46)",
-                      border:"1px solid rgba(74,222,128,0.28)",
+                      background:"rgba(4,14,8,0.50)",
+                      border:"1.5px solid rgba(74,222,128,0.30)",
                       backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+                      gap:0,
                     }}>
-                    <span style={{ fontSize:22, display:"block", marginBottom:5 }}>{f.icon}</span>
-                    <div style={{ fontSize:13, fontWeight:800, color:"#FFFFFF",
-                      textShadow:"0 1px 6px rgba(0,0,0,0.70)", marginBottom:4, lineHeight:1.2 }}>{f.title}</div>
-                    <div style={{ fontSize:10, color:"rgba(187,247,208,0.80)",
-                      textShadow:"0 1px 4px rgba(0,0,0,0.60)", lineHeight:1.45 }}>{f.text}</div>
+                    <span style={{ fontSize:28, display:"block", marginBottom:8 }}>{f.icon}</span>
+                    <div style={{ fontSize:14, fontWeight:800, color:"#FFFFFF",
+                      textShadow:"0 1px 6px rgba(0,0,0,0.70)", marginBottom:5, lineHeight:1.2 }}>{f.title}</div>
+                    <div style={{ fontSize:11, color:"rgba(187,247,208,0.82)",
+                      textShadow:"0 1px 4px rgba(0,0,0,0.60)", lineHeight:1.5 }}>{f.text}</div>
                   </motion.div>
                 ))}
               </div>
@@ -7511,7 +7275,7 @@ export default function CannaMatch() {
                 </motion.button>
               </div>
 
-              <p style={{ fontSize:10, textAlign:"center", color:"rgba(187,247,208,0.45)", lineHeight:1.6, fontWeight:500, margin:"0 0 4px" }}>
+              <p style={{ fontSize:12, textAlign:"center", color:"rgba(187,247,208,0.55)", lineHeight:1.65, fontWeight:500, margin:"0 0 4px" }}>
                 המידע באתר אינו ייעוץ רפואי ואינו תחליף לרופא. הוא מבוסס על נתונים פתוחים וספרות אקדמית מהימנה, ונועד לסייע בהתמצאות בלבד. כל החלטה על הטיפול היא באחריותך ובהתייעצות עם הרופא המטפל.
               </p>
 
@@ -7562,7 +7326,7 @@ export default function CannaMatch() {
      false  → user has not accepted current version → full-screen gate.
      true   → accepted → proceed normally.
      ─────────────────────────────────────────────────────────────────────── */
-  if (termsStatus === null) {
+  if (user && termsStatus === null) {
     return (
       <div dir="rtl" style={{
         position: "fixed", inset: 0, zIndex: 9999,
@@ -7575,7 +7339,7 @@ export default function CannaMatch() {
     );
   }
 
-  if (!termsStatus.accepted) {
+  if (user && termsStatus && !termsStatus.accepted) {
     return (
       <TermsGate
         text={termsStatus.text}
@@ -7593,24 +7357,23 @@ export default function CannaMatch() {
       {PopupToast}
 
       {screen === "onboarding" && (
-        <div style={{
-          position:"fixed", inset:0, height:"100dvh", maxHeight:"100dvh",
-          overflow:"hidden", background:"#0B1810",
-        }}>
-          {/* subtle plant tint */}
+        <>
+          {/* Fixed background layers — stay behind scrolling content */}
+          <div style={{ position:"fixed", inset:0, background:"#0B1810", zIndex:0, pointerEvents:"none" }} />
           <div style={{
-            position:"absolute", inset:0, zIndex:0, pointerEvents:"none",
+            position:"fixed", inset:0, zIndex:1, pointerEvents:"none",
             backgroundImage:"url('/9-Best-Purple-Strains-2048x1080.jpg')",
             backgroundSize:"cover", backgroundPosition:"center 30%",
             filter:"saturate(1.4) brightness(0.22)",
           }} />
+          {/* Natural-flow content — body scrolls for long stages */}
           <div style={{
-            position:"relative", zIndex:1,
-            width:"100%",
-            height:"100dvh", display:"flex", flexDirection:"column",
-            alignItems:"center",
+            position:"relative", zIndex:2,
+            minHeight:"100dvh",
+            display:"flex", justifyContent:"center",
+            boxSizing:"border-box",
           }}>
-            <div style={{ width:"100%", maxWidth:680, flex:1, display:"flex", flexDirection:"column" }}>
+            <div style={{ width:"100%", maxWidth:680 }}>
             <OnboardingWizard
               user={user}
               onComplete={({ localAns }) => {
@@ -7633,30 +7396,19 @@ export default function CannaMatch() {
                   setLicenseVerified(true);
                   localStorage.setItem("cm_license", "1");
                 }
+                localStorage.setItem("cm_onboarding_done", "1");
                 setScreen("app");
               }}
-              onSkip={() => setScreen("app")}
+              onSkip={() => { localStorage.setItem("cm_onboarding_done", "1"); setScreen("app"); }}
             />
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {screen === "app" && (
         <JourneyProvider screen={screen} licenseVerified={licenseVerified} checked={checked}>
         <div className="relative flex" dir="rtl" style={{ background:"#04100a", height:"100dvh", overflow:"hidden" }}>
-          {/* ── Vivid plant background for the main app shell ── */}
-          <div style={{
-            position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
-            backgroundImage:"url('/9-Best-Purple-Strains-2048x1080.jpg')",
-            backgroundSize:"cover", backgroundPosition:"center 35%",
-            filter:"saturate(1.55) brightness(0.58)",
-          }} />
-          <div style={{
-            position:"fixed", inset:0, zIndex:1, pointerEvents:"none",
-            background:"linear-gradient(180deg,rgba(3,10,6,0.62) 0%,rgba(5,10,20,0.66) 100%)",
-          }} />
-
           {/* ── Right sidebar nav — desktop only ── */}
           <nav className="hidden lg:flex flex-col w-64 shrink-0 sticky top-0 h-screen overflow-y-auto border-l z-10"
             style={{
@@ -7707,6 +7459,7 @@ export default function CannaMatch() {
                 borderColor:"rgba(74,222,128,0.14)",
                 background:"rgba(4,14,8,0.60)",
                 backdropFilter:"blur(22px)",
+                position:"relative",
               }}>
               <button onClick={() => setScreen("onboarding")}
                 style={{
@@ -7716,40 +7469,17 @@ export default function CannaMatch() {
                 }}>
                 ✏️ עדכן
               </button>
-              <div className="flex items-center gap-2">
-                <h1 style={{ fontSize:18, fontWeight:800, color:"#4ADE80",
-                             filter:"drop-shadow(0 0 8px rgba(74,222,128,0.30))" }}>
-                  {user?.name ? `${user.avatar || "🌿"} ${user.name.split(" ")[0]}` : "🌿 קנאמאצ׳"}
-                </h1>
-                {user && (
-                  <button onClick={handleLogout}
-                    style={{
-                      fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:10, cursor:"pointer",
-                      color:"#F87171", background:"rgba(248,113,113,0.08)",
-                      border:"1px solid rgba(248,113,113,0.18)",
-                    }}>
-                    יציאה
-                  </button>
-                )}
-              </div>
-            </header>
-
-            {/* ── Smart Search shortcut bar ── */}
-            {tab !== "home" && (
-              <div className="px-5 pt-4 pb-1 lg:hidden">
-                <button onClick={() => setTab("home")}
+              {user ? (
+                <button onClick={handleLogout}
                   style={{
-                    width:"100%", padding:"12px", borderRadius:16, fontWeight:800, fontSize:13,
-                    display:"flex", alignItems:"center", justifyContent:"center", gap:8, cursor:"pointer",
-                    background:"rgba(74,222,128,0.09)",
-                    border:"1.5px solid rgba(74,222,128,0.18)",
-                    color:"#4ADE80",
-                    boxShadow:"0 0 14px rgba(74,222,128,0.10)",
+                    fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:10, cursor:"pointer",
+                    color:"#F87171", background:"rgba(248,113,113,0.08)",
+                    border:"1px solid rgba(248,113,113,0.18)",
                   }}>
-                  🔍 חפש זן, מגדל, או בית מרקחת
+                  יציאה
                 </button>
-              </div>
-            )}
+              ) : <div />}
+            </header>
 
             {/* ── Mobile horizontal tab nav ── */}
             <nav className="lg:hidden px-3 py-2 flex gap-1 overflow-x-auto border-b"
@@ -7773,99 +7503,6 @@ export default function CannaMatch() {
               ))}
             </nav>
 
-            {["recs", "menu", "pharm", "basket"].includes(tab) && (() => {
-              // Determine which chips are "mine" (any filterAs intersects ans.reasons)
-              const isUserChip = (chip) => chip.filterAs.some(r => ans.reasons.includes(r));
-              // Chip "on" = any filterAs ID in active indFilter
-              const isOn = (chip) => chip.filterAs.some(r => indFilter.includes(r));
-              const toggleChip = (chip) => {
-                setIndFilterManual(true);
-                const on = isOn(chip);
-                if (on) {
-                  // Remove all this chip's filterAs IDs from filter
-                  setIndFilter(prev => prev.filter(r => !chip.filterAs.includes(r)));
-                } else {
-                  // Add all this chip's filterAs IDs (merge, no dupes)
-                  setIndFilter(prev => [...new Set([...prev, ...chip.filterAs])]);
-                }
-              };
-              // Default visible: tier 1 + 2 always, tier 3 only if expanded
-              const visibleChips = INDICATION_CHIPS.filter(c => {
-                if (c.tier <= 2) return true;
-                if (chipExpanded) return true;
-                return isUserChip(c); // tier 3 own chips always visible
-              });
-              const hiddenCount = INDICATION_CHIPS.filter(c => c.tier === 3 && !isUserChip(c) && !chipExpanded).length;
-              return (
-                <div style={{ padding:"0 16px 8px" }}>
-                  <div style={{
-                    borderRadius:16, padding:"10px 14px",
-                    background:"rgba(20,23,32,0.80)",
-                    border:"1px solid rgba(74,222,128,0.12)",
-                    backdropFilter:"blur(12px)",
-                  }}>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        {indFilter.length > 0 && (
-                          <button onClick={() => { setIndFilter([]); setIndFilterManual(true); }}
-                            style={{ fontSize:11, fontWeight:700, color:"#F87171", background:"none", border:"none", cursor:"pointer" }}>
-                            נקה
-                          </button>
-                        )}
-                      </div>
-                      <span style={{ fontSize:11, fontWeight:700, color:"rgba(187,247,208,0.70)" }}>🔎 סנן לפי התוויה</span>
-                    </div>
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                      {visibleChips.map((chip) => {
-                        const on = isOn(chip);
-                        const mine = isUserChip(chip);
-                        return (
-                          <button key={chip.id}
-                            onClick={() => toggleChip(chip)}
-                            style={{
-                              fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
-                              transition:"all 0.18s",
-                              background: on ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.05)",
-                              color: on ? "#4ADE80" : "rgba(240,253,244,0.45)",
-                              border: on ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.08)",
-                              boxShadow: mine && on ? "0 0 8px rgba(74,222,128,0.20)" : "none",
-                            }}>
-                            {mine && <span style={{ marginLeft:3, fontSize:9 }}>★</span>}
-                            {chip.icon} {chip.label}
-                          </button>
-                        );
-                      })}
-                      {!chipExpanded && hiddenCount > 0 && (
-                        <button onClick={() => setChipExpanded(true)}
-                          style={{
-                            fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
-                            background:"rgba(200,85,255,0.08)", color:"#C855FF",
-                            border:"1px solid rgba(200,85,255,0.22)",
-                          }}>
-                          ➕ הרחב ({hiddenCount})
-                        </button>
-                      )}
-                      {chipExpanded && (
-                        <button onClick={() => setChipExpanded(false)}
-                          style={{
-                            fontSize:11, padding:"5px 11px", borderRadius:12, fontWeight:700, cursor:"pointer",
-                            background:"rgba(255,255,255,0.04)", color:"rgba(240,253,244,0.35)",
-                            border:"1px solid rgba(255,255,255,0.08)",
-                          }}>
-                          ➖ צמצם
-                        </button>
-                      )}
-                    </div>
-                    {ans.reasons.length > 0 && (
-                      <p style={{ fontSize:10, marginTop:6, color:"rgba(74,222,128,0.50)" }}>
-                        ★ ההתוויות שלך
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
             <main className="flex-1 pb-8 overflow-y-auto">
               <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
               {/* ── License expiry alert banner ── */}
@@ -7874,7 +7511,7 @@ export default function CannaMatch() {
                   style={{ background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.30)" }}>
                   <span style={{ fontSize: 18 }}>🛑</span>
                   <p className="text-xs flex-1" style={{ color: "#FCA5A5" }}>
-                    <b>הרישיון שלך פג תוקף</b> — הגישה לפרופיל ולקהילה נעולה עד חידוש הרישיון.
+                    <b>הרישיון שלך פג תוקף</b> — הגישה לפרופיל ולפווידר נעולה עד חידוש הרישיון.
                   </p>
                   <button onClick={() => setLicenseAlert(null)}
                     style={{ fontSize: 14, color: "#FCA5A5", background: "none", border: "none", cursor: "pointer" }}>✕</button>
@@ -7909,7 +7546,8 @@ export default function CannaMatch() {
                   <Insights ans={ans} ratings={ratings} scored={scored} />
                   <Recs scored={scored} basket={basket} ans={ans} ratings={ratings}
                     typeFilter={typeFilter} setTypeFilter={setTypeFilter}
-                    addToBasket={(id) => setBasket([...basket, id])} />
+                    addToBasket={(id) => setBasket([...basket, id])}
+                    setTab={setTab} />
                 </>
               )}
               {tab === "dna" && <GeneticDNA ans={ans} ratings={ratings} scored={scored} goJournal={() => setTab("journal")} />}
@@ -7964,7 +7602,6 @@ export default function CannaMatch() {
             goComplete={ans.cats.length === 0 ? () => setScreen("onboarding") : () => setTab("dna")}
             goJournal={() => setTab("journal")} />
 
-          <GreetingMascot user={user} />
           <AnimatePresence>
             {showPerms && (
               <PermissionModal onDone={() => {
