@@ -170,9 +170,9 @@ export async function runStrainDetectionJob(pool) {
           await pool.query(
             `INSERT INTO product_sku
                (commercial_name, normalized_name, batch_id, genetics_id, match_confidence,
-                match_method, source_id, status)
-             VALUES ($1,$2,'unknown',$3,$4,$5,$6,'active')
-             ON CONFLICT (normalized_name, batch_id, COALESCE(product_format, '')) DO NOTHING`,
+                match_method, source_id, status, product_format)
+             VALUES ($1,$2,'unknown',$3,$4,$5,$6,'active','inflorescence')
+             ON CONFLICT (normalized_name, batch_id, product_format, COALESCE(grower, '')) DO NOTHING`,
             [name, normed, genetics_id, confidence, method, source.id],
           );
           totalAutoApproved++;
