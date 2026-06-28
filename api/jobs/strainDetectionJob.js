@@ -172,7 +172,7 @@ export async function runStrainDetectionJob(pool) {
                (commercial_name, normalized_name, batch_id, genetics_id, match_confidence,
                 match_method, source_id, status)
              VALUES ($1,$2,'unknown',$3,$4,$5,$6,'active')
-             ON CONFLICT (normalized_name, batch_id) DO NOTHING`,
+             ON CONFLICT (normalized_name, batch_id, COALESCE(product_format, '')) DO NOTHING`,
             [name, normed, genetics_id, confidence, method, source.id],
           );
           totalAutoApproved++;
@@ -188,7 +188,7 @@ export async function runStrainDetectionJob(pool) {
                (commercial_name, normalized_name, batch_id, source_id,
                 auto_genetics_id, auto_confidence, auto_method)
              VALUES ($1,$2,'unknown',$3,$4,$5,$6)
-             ON CONFLICT (normalized_name, batch_id) DO NOTHING`,
+             ON CONFLICT (normalized_name, batch_id, COALESCE(product_format, '')) DO NOTHING`,
             [name, normed, source.id, genetics_id, confidence, method],
           );
           totalNewPending++;

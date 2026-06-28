@@ -75,27 +75,30 @@ export function parseOgTitle(rawOgTitle) {
     .replace(/\s*[-–]+\s*$/, '')              // trailing dash after cut
     .trim();
 
+  // 3b. Deduplicate repeated leading word — site sometimes emits "גליליות גליליות בלאק"
+  //     or "שמן שמן הולנדי". Strip the extra copy, keep one (which step 5 may then strip further).
+  name = name.replace(/^(\S+)\s+\1(\s+)/u, '$1$2').trim();
+
   // 4. Strip trailing " - pharmacy-or-context"
   name = name.replace(/\s*[-–]\s*[א-תA-Za-z].{2,60}$/u, '').trim();
 
-  // 5. Detect and strip format PREFIX (loop handles accidental doubles e.g. "שמן שמן X")
+  // 5. Detect and strip format PREFIX (single replace — dedup above handles doubles)
   let product_format = null;
   for (const { re, format } of FORMAT_PREFIXES) {
     if (re.test(name)) {
-      while (re.test(name)) name = name.replace(re, '').trim();
+      name = name.replace(re, '').trim();
       product_format = format;
       break;
     }
   }
 
-  // 6. Detect and strip format SUFFIX (only when no prefix matched)
-  if (!product_format) {
-    for (const { re, format } of FORMAT_SUFFIXES) {
-      if (re.test(name)) {
-        name = name.replace(re, '').trim();
-        product_format = format;
-        break;
-      }
+  // 6. Detect and strip format SUFFIX — always runs; 'small' beats 'inflorescence'
+  //    e.g. "תפרחת X מיני" → after prefix strip: "X מיני" → suffix: format=small
+  for (const { re, format } of FORMAT_SUFFIXES) {
+    if (re.test(name)) {
+      name = name.replace(re, '').trim();
+      product_format = format;
+      break;
     }
   }
 

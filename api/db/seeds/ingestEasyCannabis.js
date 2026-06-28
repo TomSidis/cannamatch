@@ -86,6 +86,19 @@ check('parse: גליליות בלאק kept as name',     p7?.strain_name,    'ג
 const p8 = parseOgTitle('ים מינון T22/C4 חנות קנאביס רסקו (טבריה) - איזי קנאביס');
 check('parse: row-23 leak → rejected',        p8, null);
 
+// double prefix dedup
+const p9 = parseOgTitle('מבצע! שמן שמן הולנדי - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: שמן שמן → oil',                 p9?.product_format, 'oil');
+check('parse: שמן שמן → הולנדי',              p9?.strain_name,    'הולנדי');
+const p10 = parseOgTitle('מבצע! גליליות גליליות בלאק - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: גליליות×2 → גליליות בלאק',     p10?.strain_name,   'גליליות בלאק');
+check('parse: גליליות×2 → inflorescence',     p10?.product_format,'inflorescence');
+
+// תפרחת + מיני — suffix beats inflorescence prefix
+const p11 = parseOgTitle('מבצע! תפרחת טי.אר.קיי מיני - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: תפרחת+מיני → small',           p11?.product_format,'small');
+check('parse: תפרחת+מיני → name',            p11?.strain_name,   'טי.אר.קיי');
+
 // canonicalKey() test
 check('canonicalKey: RTZ small',
   canonicalKey('אר.טי.זד', 'small', 'unknown'),
@@ -105,14 +118,14 @@ const sql     = readFileSync(sqlPath, 'utf8');
 await pool.query(sql);
 console.log('[migrate] Done.\n');
 
-// ── 2. Clear pre-migration rows (NULL canonical_key only) ─────────────────────
-// Only removes rows from before migration 023 that lack a canonical_key.
-// Rows with canonical_key are protected by ON CONFLICT — no delete-then-reinsert loop.
+// ── 2. Clear all still-pending easy-cannabis rows ────────────────────────────
+// Always delete before re-inserting: parser fixes change canonical_keys, so old
+// rows would block new inserts via (normalized_name, batch_id) constraint.
+// Approved rows (status != 'pending') are never touched.
 const { rowCount: cleared } = await pool.query(
-  `DELETE FROM pending_product
-   WHERE source_id = 'easy-cannabis' AND status = 'pending' AND canonical_key IS NULL`
+  `DELETE FROM pending_product WHERE source_id = 'easy-cannabis' AND status = 'pending'`
 );
-console.log(`[clear] Removed ${cleared} pre-migration (NULL canonical_key) rows.\n`);
+console.log(`[clear] Removed ${cleared} pending easy-cannabis rows.\n`);
 
 // ── 3. Sitemap → top 100 newest URLs ─────────────────────────────────────────
 async function safeFetch(url) {
@@ -229,7 +242,7 @@ try {
                $3,$4,$5,$6,
                $7,false,
                NULL,0,NULL)
-       ON CONFLICT (canonical_key) WHERE canonical_key IS NOT NULL DO NOTHING`,
+       ON CONFLICT (normalized_name, batch_id, COALESCE(product_format, '')) DO NOTHING`,
       [
         p.strain_name,                // commercial_name (raw from page)
         normed,                       // normalized_name
