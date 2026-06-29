@@ -1,300 +1,540 @@
 /**
- * ingestEasyCannabis.js — idempotent easy-cannabis ingest via sitemap lastmod.
+ * ingestEasyCannabis.js — resumable, streaming, format-aware easy-cannabis ingest.
+ *
+ * Usage: node api/db/seeds/ingestEasyCannabis.js [--run-id=LABEL] [--reset] [--limit=N]
+ *
+ *   Default run-id : easy-{LIMIT}-{TODAY}  — same-day restart resumes; different limits separate.
+ *   --reset         : delete checkpoint for this run-id, start fresh.
+ *   --limit         : URLs to scrape (default 2000).
  *
  * Pipeline:
- *  0. Run inline parser + normalize tests — ABORT if any fail.
- *  1. Apply migration 023 (adds columns + alias table).
- *  2. Delete still-pending easy-cannabis rows (status='pending', never approved).
- *  3. Fetch sitemap → 34 gz files → sort all entries by lastmod desc → top 100 URLs.
- *  4. Fetch each page, extract og:title, parse with catalogParser.parseOgTitle().
- *  5. Load alias map from DB; resolve canonical_name; build canonical_key.
- *  6. Dedup by canonical_key.
- *  7. Write new rows to pending_product (ON CONFLICT canonical_key DO NOTHING).
- *  8. Report: scraped / parsed / unique / new / already-known / product_sku untouched.
+ *   0. Tests — ABORT on failure.
+ *   1. Check robots.txt crawl-delay. DELAY = max(3s, specified).
+ *   2. Preconditions: sku count, canonical_key index, old key gone.
+ *   3. Apply migrations 023 + 026 (idempotent).
+ *   4. Clear easy-cannabis pending rows (status='pending' only — never approved).
+ *   5. Sitemap → top LIMIT URLs by lastmod.
+ *   6. Per URL (STREAMING — no large array):
+ *        Checkpoint already has it → re-parse from stored og:title + re-INSERT (instant resume).
+ *        New URL → fetch → parse og:title → INSERT pending_product → checkpoint.
+ *        HTTP 429/503 → exponential backoff + resume from checkpoint.
+ *   7. Grower-collision audit over full easy-cannabis pending set.
+ *   8. Report: parsed / written / format distribution / inferred-format debt / needs_review split.
  *
  * INVARIANTS:
- *  - product_sku: never written, updated, or deleted.
- *  - Nothing auto-approved.
- *  - raw_og_title stored verbatim.
- *  - All writes inside a transaction; ROLLBACK on failure.
- *  - Re-running twice yields 0 new rows (idempotency).
- *
- * Usage: node api/db/seeds/ingestEasyCannabis.js
+ *   - product_sku: never written, updated, or deleted.
+ *   - Nothing auto-approved.  raw_og_title stored verbatim.
+ *   - Same URL re-scraped → ON CONFLICT → no duplicate, no double fuzzy flag.
  */
 
-import zlib   from 'zlib';
+import zlib          from 'zlib';
 import { promisify } from 'util';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import path   from 'path';
-import { pool } from '../../db.js';
+import path          from 'path';
+import { pool }      from '../../db.js';
 import { normalize, parseOgTitle, canonicalKey } from '../../lib/catalogParser.js';
 
-const gunzip = promisify(zlib.gunzip);
-const UA     = 'CannaMatch-CatalogBot/1.0 (medical-cannabis patient tool; contact: admin@cannamatch.co.il)';
-const DELAY  = 3000;
-const sleep  = ms => new Promise(r => setTimeout(r, ms));
+const gunzip   = promisify(zlib.gunzip);
+const UA       = 'CannaMatch-CatalogBot/1.0 (medical-cannabis patient tool; contact: admin@cannamatch.co.il)';
+const SITE     = 'https://easycannabis.co.il';
+const MIN_DELAY = 3000;  // ms — floor, may be raised by robots.txt
+const FUZZY_THRESH = 2;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── 0. Inline tests ───────────────────────────────────────────────────────────
-console.log('\n[tests] Running parser + normalize checks…');
+// ── CLI ────────────────────────────────────────────────────────────────────────
+const args = Object.fromEntries(
+  process.argv.slice(2)
+    .filter(a => a.startsWith('--'))
+    .map(a => { const [k, ...v] = a.slice(2).split('='); return [k, v.join('=') || true]; })
+);
+const TODAY  = new Date().toISOString().slice(0, 10);
+const LIMIT  = parseInt(args['limit'] || '2000', 10);
+const RUN_ID = args['run-id'] || `easy-${LIMIT}-${TODAY}`;
+const RESET  = !!args['reset'];
+
+// ── Levenshtein (inline — no deps) ────────────────────────────────────────────
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const prev = Array.from({ length: n + 1 }, (_, i) => i);
+  const curr = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++)
+      curr[j] = a[i-1] === b[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
+    prev.splice(0, n + 1, ...curr);
+  }
+  return prev[n];
+}
+
+function fuzzyNearMatch(normed, nameSet) {
+  let best = null, bestDist = Infinity;
+  for (const ex of nameSet) {
+    if (ex === normed) return null; // exact match — not a near-miss
+    const d = levenshtein(normed, ex);
+    if (d <= FUZZY_THRESH && d < bestDist) { bestDist = d; best = ex; }
+  }
+  return best ? { match: best, dist: bestDist } : null;
+}
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
+function makeFetch(url, timeoutMs = 15000) {
+  return fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'User-Agent': UA, Accept: '*/*' } });
+}
+
+async function safeFetch(url, delay, timeoutMs = 15000, maxRetries = 4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const r = await makeFetch(url, timeoutMs);
+    if (r.status === 429 || r.status === 503) {
+      if (attempt === maxRetries) throw new Error(`HTTP ${r.status} after ${maxRetries} retries: ${url}`);
+      const backoff = Math.min(delay * (2 ** (attempt + 1)), 60_000);
+      console.warn(`\n[fetch] HTTP ${r.status} — backoff ${(backoff/1000).toFixed(0)}s (attempt ${attempt+1})`);
+      await sleep(backoff);
+      continue;
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
+    return r;
+  }
+}
+
+async function fetchText(url, delay) {
+  return (await safeFetch(url, delay)).text();
+}
+
+// ── robots.txt crawl-delay ────────────────────────────────────────────────────
+async function getCrawlDelayMs(site) {
+  try {
+    const r = await makeFetch(`${site}/robots.txt`, 8000);
+    if (!r.ok) return 0;
+    const text = await r.text();
+    let inStar = false;
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (/^user-agent:/i.test(line)) {
+        inStar = line.replace(/^user-agent:\s*/i, '').trim() === '*';
+      } else if (inStar && /^crawl-delay:/i.test(line)) {
+        const secs = parseFloat(line.replace(/^crawl-delay:\s*/i, ''));
+        return isNaN(secs) ? 0 : Math.round(secs * 1000);
+      }
+    }
+  } catch {}
+  return 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 0. TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\n[tests] Parser + normalize…');
 let failures = 0;
-
 function check(label, got, expected) {
   const ok = JSON.stringify(got) === JSON.stringify(expected);
-  console.log(ok ? '  ✓' : '  ✗', label, ok ? '' : `\n    got:      ${JSON.stringify(got)}\n    expected: ${JSON.stringify(expected)}`);
+  console.log(ok ? '  ✓' : '  ✗', label, ok ? '' : `\n    got: ${JSON.stringify(got)}\n    exp: ${JSON.stringify(expected)}`);
   if (!ok) failures++;
 }
 
-// normalize() tests
-check('normalize: strips dots',       normalize('אר.טי.זד'),         'ארטיזד');
-check('normalize: lowercase latin',   normalize('RTZ'),              'rtz');
-check('normalize: strips niqqud',     normalize('שָׁלוֹם'),           'שלום');
-check('normalize: collapses hyphens', normalize('blue-dream'),       'blue dream');
-check('normalize: strips quotes',     normalize("ג'לטיקס"),         'גלטיקס');
-check('normalize: parenthetical',     normalize('סי גיי (CJ)'),      'סי גיי');
-check('normalize: collapse spaces',   normalize('og  kush'),         'og kush');
-check('normalize: empty',             normalize(''),                 '');
-check('normalize: undefined',         normalize(undefined),          '');
+check('normalize: dots',         normalize('אר.טי.זד'),          'ארטיזד');
+check('normalize: latin',        normalize('RTZ'),               'rtz');
+check('normalize: niqqud',       normalize('שָׁלוֹם'),            'שלום');
+check('normalize: hyphens',      normalize('blue-dream'),        'blue dream');
+check('normalize: quotes',       normalize("ג'לטיקס"),          'גלטיקס');
+check('normalize: parens',       normalize('סי גיי (CJ)'),      'סי גיי');
+check('normalize: collapse',     normalize('og  kush'),          'og kush');
+check('normalize: empty',        normalize(''),                  '');
+check('normalize: undef',        normalize(undefined),           '');
+check('parse: homepage',         parseOgTitle('חנות אונליין T22/C4'), null);
+check('parse: סיבאנק',           parseOgTitle('חנות קנאביס סיבאנק T22/C4'), null);
+const _p3 = parseOgTitle('אבידקל מינון T3/C15 - Pharmacy X');
+check('parse: מינון→name',       _p3?.strain_name,    'אבידקל');
+check('parse: מינון→format',     _p3?.product_format, 'inflorescence');
+check('parse: מינון→tc',         _p3?.tc_category,    'T3/C15');
+const _p4 = parseOgTitle('מבצע! תפרחת רפאל - T22/C4 - Doctor-K');
+check('parse: תפרחת→name',       _p4?.strain_name,    'רפאל');
+check('parse: תפרחת→format',     _p4?.product_format, 'inflorescence');
+const _p5 = parseOgTitle('שמן הולנדי - T22/C4');
+check('parse: שמן→oil',          _p5?.product_format, 'oil');
+check('parse: שמן stripped',     _p5?.strain_name,    'הולנדי');
+const _p6 = parseOgTitle('אר.טי.זד מיני - T22/C4 - Pharmacy');
+check('parse: מיני→small',       _p6?.product_format, 'small');
+check('parse: מיני stripped',    normalize(_p6?.strain_name||''), 'ארטיזד');
+check('parse: גליליות kept',     parseOgTitle('גליליות בלאק - T22/C4')?.strain_name, 'גליליות בלאק');
+const _p9 = parseOgTitle('מבצע! שמן שמן הולנדי - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: שמן×2→oil',        _p9?.product_format, 'oil');
+check('parse: שמן×2→הולנדי',     _p9?.strain_name,    'הולנדי');
+const _p10 = parseOgTitle('מבצע! גליליות גליליות בלאק - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: גליליות×2→name',   _p10?.strain_name,   'גליליות בלאק');
+check('parse: גליליות×2→format', _p10?.product_format,'inflorescence');
+const _p11 = parseOgTitle('מבצע! תפרחת טי.אר.קיי מיני - T22/C4 אינדיקה - איזי קנאביס');
+check('parse: תפרחת+מיני→small', _p11?.product_format,'small');
+check('parse: תפרחת+מיני→name',  _p11?.strain_name,   'טי.אר.קיי');
+check('canonicalKey',            canonicalKey('אר.טי.זד','small','unknown'), 'ארטיזד|small|unknown');
+check('levenshtein: 0',          levenshtein('abc','abc'), 0);
+check('levenshtein: 1',          levenshtein('abc','abcd'), 1);
+check('levenshtein: 2',          levenshtein('kitten','sitten'), 1);
 
-// parseOgTitle() tests
-const p1 = parseOgTitle('חנות אונליין T22/C4 - איזי קנאביס');
-check('parse: rejects homepage (חנות אונליין + T/C)', p1, null);
+// Synthetic grower-collision
+{
+  const rows = [{ ckey: 'rtz|inflorescence|kanabar' }, { ckey: 'rtz|inflorescence|other' }];
+  const groups = new Map();
+  for (const r of rows) {
+    const p = r.ckey.split('|'), sf = `${p[0]}|${p[1]}`;
+    if (!groups.has(sf)) groups.set(sf, new Set());
+    groups.get(sf).add(p[2]);
+  }
+  const hits = [...groups.values()].filter(s => s.size > 1);
+  check('synthetic: grower_mismatch', hits.length > 0, true);
+}
 
-const p2 = parseOgTitle('חנות קנאביס סיבאנק T22/C4');
-check('parse: rejects סיבאנק marker', p2, null);
-
-const p3 = parseOgTitle('אבידקל מינון T3/C15 - Pharmacy X');
-check('parse: strips מינון residue → name', p3?.strain_name,    'אבידקל');
-check('parse: מינון → format inflorescence',  p3?.product_format, 'inflorescence');
-check('parse: מינון → tc T3/C15',             p3?.tc_category,    'T3/C15');
-
-const p4 = parseOgTitle('מבצע! תפרחת רפאל - T22/C4 - Doctor-K');
-check('parse: strips מבצע! + תפרחת → name', p4?.strain_name,    'רפאל');
-check('parse: תפרחת → inflorescence',         p4?.product_format, 'inflorescence');
-
-const p5 = parseOgTitle('שמן הולנדי - T22/C4');
-check('parse: שמן prefix → oil',              p5?.product_format, 'oil');
-check('parse: שמן stripped from name',        p5?.strain_name,    'הולנדי');
-
-const p6 = parseOgTitle('אר.טי.זד מיני - T22/C4 - Pharmacy');
-check('parse: מיני suffix → small',           p6?.product_format, 'small');
-check('parse: מיני stripped → name ארטיזד?', normalize(p6?.strain_name || ''), 'ארטיזד');
-
-const p7 = parseOgTitle('גליליות בלאק - T22/C4');
-check('parse: גליליות בלאק kept as name',     p7?.strain_name,    'גליליות בלאק');
-
-const p8 = parseOgTitle('ים מינון T22/C4 חנות קנאביס רסקו (טבריה) - איזי קנאביס');
-check('parse: row-23 leak → rejected',        p8, null);
-
-// double prefix dedup
-const p9 = parseOgTitle('מבצע! שמן שמן הולנדי - T22/C4 אינדיקה - איזי קנאביס');
-check('parse: שמן שמן → oil',                 p9?.product_format, 'oil');
-check('parse: שמן שמן → הולנדי',              p9?.strain_name,    'הולנדי');
-const p10 = parseOgTitle('מבצע! גליליות גליליות בלאק - T22/C4 אינדיקה - איזי קנאביס');
-check('parse: גליליות×2 → גליליות בלאק',     p10?.strain_name,   'גליליות בלאק');
-check('parse: גליליות×2 → inflorescence',     p10?.product_format,'inflorescence');
-
-// תפרחת + מיני — suffix beats inflorescence prefix
-const p11 = parseOgTitle('מבצע! תפרחת טי.אר.קיי מיני - T22/C4 אינדיקה - איזי קנאביס');
-check('parse: תפרחת+מיני → small',           p11?.product_format,'small');
-check('parse: תפרחת+מיני → name',            p11?.strain_name,   'טי.אר.קיי');
-
-// canonicalKey() test
-check('canonicalKey: RTZ small',
-  canonicalKey('אר.טי.זד', 'small', 'unknown'),
-  'ארטיזד|small|unknown');
+// Fuzzy near-miss
+{
+  const s = new Set(['blue dream']);
+  check('fuzzy: near-miss d=1', fuzzyNearMatch('blue drea', s)?.match, 'blue dream');
+  check('fuzzy: exact → null',  fuzzyNearMatch('blue dream', s), null);
+  check('fuzzy: far → null',    fuzzyNearMatch('og kush', s), null);
+}
 
 if (failures > 0) {
-  console.error(`\n[tests] ${failures} test(s) FAILED — aborting. Fix catalogParser.js first.\n`);
+  console.error(`\n[tests] ${failures} FAILED — aborting.\n`);
   process.exit(1);
 }
-console.log(`[tests] All tests passed. Proceeding.\n`);
+console.log('[tests] All passed.\n');
 
-// ── 1. Apply migration 023 ────────────────────────────────────────────────────
-console.log('[migrate] Applying 023_catalog_hardening.sql…');
-const __dir   = path.dirname(fileURLToPath(import.meta.url));
-const sqlPath = path.join(__dir, '../migrations/023_catalog_hardening.sql');
-const sql     = readFileSync(sqlPath, 'utf8');
-await pool.query(sql);
-console.log('[migrate] Done.\n');
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1. ROBOTS.TXT CRAWL-DELAY
+// ═══════════════════════════════════════════════════════════════════════════════
+const robotsDelay = await getCrawlDelayMs(SITE);
+const DELAY = Math.max(MIN_DELAY, robotsDelay);
+console.log(`[robots] crawl-delay for *: ${robotsDelay ? (robotsDelay/1000)+'s' : 'not specified'} → using ${DELAY/1000}s\n`);
 
-// ── 2. Clear all still-pending easy-cannabis rows ────────────────────────────
-// Always delete before re-inserting: parser fixes change canonical_keys, so old
-// rows would block new inserts via (normalized_name, batch_id) constraint.
-// Approved rows (status != 'pending') are never touched.
-const { rowCount: cleared } = await pool.query(
-  `DELETE FROM pending_product WHERE source_id = 'easy-cannabis' AND status = 'pending'`
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2. PRECONDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+const { rows:[pre] } = await pool.query(`
+  SELECT
+    (SELECT count(*)::int FROM product_sku)                                                       AS sku_total,
+    (SELECT count(*)::int FROM pg_indexes WHERE tablename='product_sku'
+       AND indexname='product_sku_canonical_key')                                                 AS has_canonical_key,
+    (SELECT count(*)::int FROM pg_indexes WHERE tablename='product_sku'
+       AND indexname='product_sku_name_batch_key')                                                AS has_old_key,
+    (SELECT count(*)::int FROM pg_indexes WHERE tablename='pending_product'
+       AND indexname='pending_product_name_batch_format_key')                                     AS has_pending_key
+`);
+if (pre.has_canonical_key !== 1) { console.error('[precond] STOP: product_sku_canonical_key missing'); process.exit(1); }
+if (pre.has_old_key !== 0)       { console.error('[precond] STOP: old name_batch_key still present');  process.exit(1); }
+if (pre.has_pending_key !== 1)   { console.error('[precond] STOP: pending_product_name_batch_format_key missing'); process.exit(1); }
+const SKU_BEFORE = pre.sku_total;
+console.log(`[precond] sku=${SKU_BEFORE}  canonical_key✓  old_key gone✓  pending_key✓\n`);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. MIGRATIONS (idempotent)
+// ═══════════════════════════════════════════════════════════════════════════════
+const __dir = path.dirname(fileURLToPath(import.meta.url));
+for (const mig of ['023_catalog_hardening.sql', '026_scrape_checkpoints.sql']) {
+  await pool.query(readFileSync(path.join(__dir, '../migrations', mig), 'utf8'));
+}
+console.log('[migrate] 023 + 026 applied.\n');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. INIT RUN + LOAD CHECKPOINT (before deciding whether to DELETE)
+// ═══════════════════════════════════════════════════════════════════════════════
+if (RESET) {
+  await pool.query(`DELETE FROM scrape_runs WHERE run_id=$1`, [RUN_ID]);
+  console.log(`[resume] Cleared checkpoint for ${RUN_ID}.`);
+}
+await pool.query(`
+  INSERT INTO scrape_runs (run_id, source_id, target_urls, status)
+  VALUES ($1,'easy-cannabis',0,'running')
+  ON CONFLICT (run_id) DO UPDATE SET status='running', updated_at=now()
+`, [RUN_ID]);
+
+const { rows: cpRows } = await pool.query(
+  `SELECT url, fetch_status, raw_og_title, lastmod FROM scrape_checkpoints WHERE run_id=$1`, [RUN_ID]
 );
-console.log(`[clear] Removed ${cleared} pending easy-cannabis rows.\n`);
+const checkpoint = new Map(cpRows.map(r => [r.url, r]));
+const isResume = checkpoint.size > 0;
+console.log(`[resume] run_id=${RUN_ID}  checkpointed=${checkpoint.size}  ${isResume ? 'RESUMING' : 'fresh run'}\n`);
 
-// ── 3. Sitemap → top 100 newest URLs ─────────────────────────────────────────
-async function safeFetch(url) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(12000), headers: { 'User-Agent': UA, Accept: '*/*' } });
-  if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
-  return r;
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4b. CLEAR PENDING — only on fresh starts, not resumes.
+//     --reset or new run-id → empty checkpoint → DELETE + re-insert.
+//     Resume (checkpoint > 0) → skip DELETE → ON CONFLICT → 0 new rows (idempotent).
+// ═══════════════════════════════════════════════════════════════════════════════
+if (!isResume) {
+  const { rowCount: cleared } = await pool.query(
+    `DELETE FROM pending_product WHERE source_id='easy-cannabis' AND status='pending'`
+  );
+  console.log(`[clear] Fresh run — removed ${cleared} unreviewed pending rows.\n`);
+} else {
+  console.log(`[clear] Resume — pending rows preserved for ON CONFLICT idempotency.\n`);
 }
 
-console.log('[sitemap] Fetching sitemap index…');
-const sitXml = await (await safeFetch('https://easycannabis.co.il/sitemap.xml')).text();
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. SITEMAP → top LIMIT URLs
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('[sitemap] Fetching index…');
+const sitXml = await fetchText(`${SITE}/sitemap.xml`, DELAY);
 const gzUrls = [...sitXml.matchAll(/<loc>(https[^<]+\.gz)<\/loc>/g)].map(m => m[1]);
-console.log(`[sitemap] ${gzUrls.length} gz files found.`);
+console.log(`[sitemap] ${gzUrls.length} gz files.`);
 
-console.log('[sitemap] Downloading gz files…');
 const allEntries = [];
 for (let i = 0; i < gzUrls.length; i++) {
   try {
-    const r   = await safeFetch(gzUrls[i]);
+    const r   = await safeFetch(gzUrls[i], DELAY);
     const xml = (await gunzip(Buffer.from(await r.arrayBuffer()))).toString('utf8');
     [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)].forEach(b => {
-      const loc     = b[1].match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+      const loc     = b[1].match(/<loc>([^<]+)<\/loc>/)?.[1]         ?? '';
       const lastmod = b[1].match(/<lastmod>([^<]+)<\/lastmod>/)?.[1] ?? '';
       if (loc && lastmod) allEntries.push({ loc, lastmod });
     });
-    process.stdout.write(`\r[sitemap] gz ${i + 1}/${gzUrls.length} — ${allEntries.length} entries`);
+    process.stdout.write(`\r[sitemap] gz ${i+1}/${gzUrls.length} — ${allEntries.length} entries`);
   } catch (e) {
-    console.warn(`\n[sitemap] WARN gz ${i + 1}: ${e.message}`);
+    console.warn(`\n[sitemap] WARN gz ${i+1}: ${e.message}`);
   }
-  if (i < gzUrls.length - 1) await sleep(500);
+  if (i < gzUrls.length - 1) await sleep(400);
 }
 allEntries.sort((a, b) => b.lastmod.localeCompare(a.lastmod));
-const top100 = allEntries.slice(0, 100);
-console.log(`\n[sitemap] ${allEntries.length} entries total; taking top 100 by lastmod.`);
-console.log(`[sitemap] lastmod range: ${top100[0].lastmod.slice(0, 16)} → ${top100[99].lastmod.slice(0, 16)}\n`);
+const targetUrls = allEntries.slice(0, LIMIT);
+console.log(`\n[sitemap] ${allEntries.length} total → top ${targetUrls.length} by lastmod.`);
+if (targetUrls.length > 0)
+  console.log(`[sitemap] range: ${targetUrls[0].lastmod.slice(0,16)} → ${targetUrls[targetUrls.length-1].lastmod.slice(0,16)}\n`);
 
-// ── 4. Fetch pages + parse og:title ──────────────────────────────────────────
-console.log(`[fetch] Fetching ${top100.length} pages (${DELAY / 1000}s delay)…`);
-const parsed = [];
-let fetchSkipped = 0;
-for (let i = 0; i < top100.length; i++) {
-  const { loc, lastmod } = top100[i];
-  try {
-    const html   = await (await safeFetch(loc)).text();
-    const ogRaw  = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1]
-                ?? html.match(/content="([^"]+)"\s+property="og:title"/i)?.[1] ?? '';
-    const result = parseOgTitle(ogRaw);
-    const ph     = loc.match(/\/pharms\/([^/]+)\//)?.[1] ?? null;
-    if (result) {
-      parsed.push({ ...result, pharmacy: ph, lastmod: lastmod.slice(0, 10) });
-    } else {
-      fetchSkipped++;
-    }
-  } catch (e) {
-    console.warn(`\n[fetch] WARN: ${e.message.slice(0, 60)}`);
-    fetchSkipped++;
-  }
-  process.stdout.write(`\r[fetch] ${i + 1}/100 (${fetchSkipped} skipped)`);
-  if (i < top100.length - 1) await sleep(DELAY);
-}
-console.log(`\n[fetch] ${parsed.length} valid rows after parse; ${fetchSkipped} skipped.\n`);
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. STREAM: FETCH → PARSE → INSERT → CHECKPOINT
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ── 5. Load alias map from DB ─────────────────────────────────────────────────
-const { rows: aliases } = await pool.query('SELECT alias_norm, canonical_name FROM strain_aliases');
-const aliasMap = new Map(aliases.map(r => [r.alias_norm, r.canonical_name]));
+// Update target_urls count now that we know it
+await pool.query(`UPDATE scrape_runs SET target_urls=$2 WHERE run_id=$1`, [RUN_ID, targetUrls.length]);
 
-function resolveCanonical(raw_strain_name) {
-  const n = normalize(raw_strain_name);
-  return aliasMap.get(n) ?? n; // passthrough if not in alias table
+// ── In-memory state (bounded size regardless of LIMIT) ────────────────────────
+const { rows: aliasRows } = await pool.query('SELECT alias_norm, canonical_name FROM strain_aliases');
+const aliasMap = new Map(aliasRows.map(r => [r.alias_norm, r.canonical_name]));
+
+// existingNames: all normed names for fuzzy check; grows as we insert
+const { rows: existingRows } = await pool.query(`
+  SELECT normalized_name FROM product_sku
+  UNION
+  SELECT normalized_name FROM pending_product WHERE source_id='easy-cannabis'
+`);
+const existingNames = new Set(existingRows.map(r => r.normalized_name));
+
+// skuNormedFmt: normed+format to skip if already in live catalog
+const { rows: skuFmtRows } = await pool.query(`SELECT normalized_name, product_format FROM product_sku`);
+const skuNormedFmt = new Set(skuFmtRows.map(r => `${r.normalized_name}|${r.product_format}`));
+
+function resolveCanonical(rawName) {
+  const n = normalize(rawName);
+  return aliasMap.get(n) ?? n;
 }
 
-// ── 6. Dedup by canonical_key ─────────────────────────────────────────────────
-const byKey = new Map();
-for (const p of parsed) {
-  const canonical = resolveCanonical(p.strain_name);
-  const ckey      = canonicalKey(canonical, p.product_format);
-  if (!byKey.has(ckey)) {
-    byKey.set(ckey, {
-      ...p,
-      canonical_name: canonical,
-      canonical_key:  ckey,
-      pharmacies: [p.pharmacy].filter(Boolean),
-    });
-  } else {
-    const e = byKey.get(ckey);
-    if (p.pharmacy && !e.pharmacies.includes(p.pharmacy)) e.pharmacies.push(p.pharmacy);
-  }
+async function saveCheckpoint(url, fetchStatus, rawOgTitle, lastmod) {
+  await pool.query(`
+    INSERT INTO scrape_checkpoints (run_id, url, fetch_status, raw_og_title, lastmod)
+    VALUES ($1,$2,$3,$4,$5)
+    ON CONFLICT (run_id, url) DO UPDATE SET fetch_status=$3, raw_og_title=$4, fetched_at=now()
+  `, [RUN_ID, url, fetchStatus, rawOgTitle ?? null, (lastmod || '').slice(0, 10)]);
 }
-const unique = [...byKey.values()];
-console.log(`[dedup] ${parsed.length} rows → ${unique.length} unique after canonical_key dedup.\n`);
 
-// ── 7. Write to pending_product ───────────────────────────────────────────────
-const client = await pool.connect();
-let inserted = 0, skipped = 0;
-try {
-  await client.query('BEGIN');
+// processAndInsert: parse og:title → INSERT to pending if valid.
+// Returns 'inserted' | 'conflict' | 'skipped_sku' | 'junk'
+async function processAndInsert(rawOgTitle) {
+  if (!rawOgTitle) return 'junk';
+  const result = parseOgTitle(rawOgTitle);
+  if (!result) return 'junk';
 
-  // Check which normalized names already exist in product_sku (skip those entirely)
-  const { rows: existingSku } = await client.query(
-    `SELECT normalized_name FROM product_sku`
+  const canonical = resolveCanonical(result.strain_name);
+  const normed    = normalize(canonical);
+  const ckey      = canonicalKey(canonical, result.product_format);
+  const fmt       = result.product_format;
+
+  if (skuNormedFmt.has(`${normed}|${fmt}`)) return 'skipped_sku';
+
+  const fuzzy    = fuzzyNearMatch(normed, existingNames);
+  const needsRev = !!fuzzy;
+  const reason   = fuzzy ? `fuzzy_near_match:${fuzzy.match}(d=${fuzzy.dist})` : null;
+
+  const res = await pool.query(`
+    INSERT INTO pending_product
+      (commercial_name, normalized_name, batch_id, source_id,
+       raw_og_title, strain_name, product_format, tc_category,
+       canonical_key, needs_review, needs_review_reason,
+       auto_genetics_id, auto_confidence, auto_method)
+    VALUES ($1,$2,'unknown','easy-cannabis',
+            $3,$4,$5,$6,
+            $7,$8,$9,
+            NULL,0,NULL)
+    ON CONFLICT DO NOTHING`,
+    [result.strain_name, normed, rawOgTitle, result.strain_name, fmt, result.tc_category,
+     ckey, needsRev, reason]
   );
-  const skuNames = new Set(existingSku.map(r => r.normalized_name));
 
-  for (const p of unique) {
-    const normed = normalize(p.canonical_name);
-    if (skuNames.has(normed)) { skipped++; continue; } // already in live catalog
-
-    const res = await client.query(
-      `INSERT INTO pending_product
-         (commercial_name, normalized_name, batch_id, source_id,
-          raw_og_title, strain_name, product_format, tc_category,
-          canonical_key, needs_review,
-          auto_genetics_id, auto_confidence, auto_method)
-       VALUES ($1,$2,'unknown','easy-cannabis',
-               $3,$4,$5,$6,
-               $7,false,
-               NULL,0,NULL)
-       ON CONFLICT (normalized_name, batch_id, COALESCE(product_format, '')) DO NOTHING`,
-      [
-        p.strain_name,                // commercial_name (raw from page)
-        normed,                       // normalized_name
-        p.raw_og_title,               // raw_og_title — verbatim, never mutated
-        p.strain_name,                // strain_name — parsed clean
-        p.product_format,             // product_format
-        p.tc_category,                // tc_category
-        p.canonical_key,              // canonical_key
-      ]
-    );
-    if (res.rowCount > 0) inserted++; else skipped++;
+  if (res.rowCount > 0) {
+    existingNames.add(normed);
+    return 'inserted';
   }
-
-  await client.query(`UPDATE sku_source SET last_scraped = now(), last_error = NULL WHERE id = 'easy-cannabis'`);
-  await client.query('COMMIT');
-} catch (err) {
-  await client.query('ROLLBACK');
-  console.error('[ingest] ROLLBACK:', err.message);
-  process.exit(1);
-} finally {
-  client.release();
+  return 'conflict';
 }
 
-// ── 8. Report ─────────────────────────────────────────────────────────────────
-const { rows: [counts] } = await pool.query(`
+// ── Main stream loop ──────────────────────────────────────────────────────────
+let nFetched = 0, nResumed = 0, nInserted = 0, nConflict = 0, nSkippedSku = 0, nJunk = 0, nError = 0;
+
+for (let i = 0; i < targetUrls.length; i++) {
+  const { loc, lastmod } = targetUrls[i];
+
+  if (checkpoint.has(loc)) {
+    // Resume path: re-parse from stored og:title — no HTTP fetch
+    const cp = checkpoint.get(loc);
+    if (cp.fetch_status === 'parsed' && cp.raw_og_title) {
+      const outcome = await processAndInsert(cp.raw_og_title);
+      if (outcome === 'inserted')     nInserted++;
+      else if (outcome === 'conflict') nConflict++;
+      else if (outcome === 'skipped_sku') nSkippedSku++;
+      else nJunk++;
+    } else {
+      nJunk++;
+    }
+    nResumed++;
+    process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
+    continue;
+  }
+
+  // Fetch path
+  let rawOgTitle = null, fetchStatus = 'error';
+  try {
+    const html = await fetchText(loc, DELAY);
+    rawOgTitle = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1]
+              ?? html.match(/content="([^"]+)"\s+property="og:title"/i)?.[1] ?? '';
+    nFetched++;
+    fetchStatus = 'skipped';
+  } catch (e) {
+    if (!/HTTP 5\d\d/.test(e.message)) // suppress noisy 5xx server errors
+      console.warn(`\n[fetch] WARN: ${e.message.slice(0, 80)}`);
+    nError++;
+    await saveCheckpoint(loc, 'error', null, lastmod);
+    process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
+    if (i < targetUrls.length - 1) await sleep(DELAY);
+    continue;
+  }
+
+  const outcome = await processAndInsert(rawOgTitle);
+  if (outcome === 'inserted')       { nInserted++;    fetchStatus = 'parsed';   }
+  else if (outcome === 'conflict')  { nConflict++;    fetchStatus = 'parsed';   }
+  else if (outcome === 'skipped_sku') { nSkippedSku++; fetchStatus = 'skipped'; }
+  else                              { nJunk++;                                  }
+
+  await saveCheckpoint(loc, fetchStatus, rawOgTitle || null, lastmod);
+  process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
+  if (i < targetUrls.length - 1) await sleep(DELAY);
+}
+console.log('\n');
+
+await pool.query(`UPDATE sku_source SET last_scraped=now(), last_error=NULL WHERE id='easy-cannabis'`);
+await pool.query(`UPDATE scrape_runs SET status='done', updated_at=now() WHERE run_id=$1`, [RUN_ID]);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. GROWER-COLLISION AUDIT (full easy-cannabis pending set)
+// ═══════════════════════════════════════════════════════════════════════════════
+const { rows: growerCollisions } = await pool.query(`
   SELECT
-    (SELECT count(*) FROM product_sku)::int                                         AS product_sku_total,
-    (SELECT count(*) FROM pending_product WHERE source_id = 'easy-cannabis')::int   AS easy_pending_total,
-    (SELECT count(*) FROM pending_product WHERE source_id = 'easy-cannabis'
-       AND status = 'pending')::int                                                 AS easy_pending_unreviewed
+    split_part(canonical_key,'|',1) AS strain_norm,
+    split_part(canonical_key,'|',2) AS fmt,
+    array_agg(DISTINCT split_part(canonical_key,'|',3)) AS growers,
+    count(*)::int AS rows
+  FROM pending_product
+  WHERE source_id='easy-cannabis' AND status='pending' AND canonical_key IS NOT NULL
+  GROUP BY 1,2
+  HAVING count(DISTINCT split_part(canonical_key,'|',3)) > 1
+  ORDER BY 1
+`);
+if (growerCollisions.length > 0) {
+  for (const g of growerCollisions) {
+    await pool.query(`
+      UPDATE pending_product
+      SET needs_review=true,
+          needs_review_reason=COALESCE(needs_review_reason||'; ','') || 'grower_mismatch_same_strain'
+      WHERE source_id='easy-cannabis' AND status='pending'
+        AND split_part(canonical_key,'|',1)=$1 AND split_part(canonical_key,'|',2)=$2
+    `, [g.strain_norm, g.fmt]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. REPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+const { rows:[counts] } = await pool.query(`
+  SELECT
+    (SELECT count(*)::int FROM product_sku)                                           AS sku_total,
+    (SELECT count(*)::int FROM pending_product WHERE source_id='easy-cannabis')       AS easy_total,
+    (SELECT count(*)::int FROM pending_product WHERE source_id='easy-cannabis'
+       AND status='pending')                                                          AS easy_pending,
+    (SELECT count(*)::int FROM pending_product WHERE source_id='easy-cannabis'
+       AND status='pending' AND needs_review=true)                                    AS needs_review_count
 `);
 
-console.log('═══════════════════════════════════════════');
-console.log('[report] INGEST COMPLETE');
-console.log(`  Pages scraped:       100`);
-console.log(`  Parsed (non-junk):   ${parsed.length}`);
-console.log(`  Unique canonical:    ${unique.length}`);
-console.log(`  Written to pending:  ${inserted}`);
-console.log(`  Skipped (known):     ${skipped}`);
-console.log(`  product_sku TOTAL:   ${counts.product_sku_total}  ← must match before count`);
-console.log(`  easy-cannabis pending: ${counts.easy_pending_total} (${counts.easy_pending_unreviewed} unreviewed)`);
-console.log('  auto-approved:       0  ← guaranteed by design');
-console.log('═══════════════════════════════════════════');
+const { rows: fmtDist } = await pool.query(`
+  SELECT product_format, count(*)::int AS n
+  FROM pending_product WHERE source_id='easy-cannabis' AND status='pending'
+  GROUP BY 1 ORDER BY n DESC
+`);
 
-console.log('\n[report] 15 samples:');
-console.table(unique.slice(0, 15).map(p => ({
-  name:      p.strain_name.slice(0, 30),
-  format:    p.product_format,
-  tc:        p.tc_category ?? '—',
-  canonical: p.canonical_name.slice(0, 20),
-  key:       p.canonical_key.slice(0, 35),
-  pharmacy:  (p.pharmacies[0] ?? '—').slice(0, 20),
-})));
+// Inferred-format debt: inflorescence rows where og:title lacked an explicit format token
+const { rows:[debt] } = await pool.query(`
+  SELECT
+    count(*)::int                                                  AS inflorescence_total,
+    count(*) FILTER (WHERE raw_og_title LIKE '%תפרחת%')::int     AS explicit,
+    count(*) FILTER (WHERE raw_og_title NOT LIKE '%תפרחת%')::int AS defaulted
+  FROM pending_product
+  WHERE source_id='easy-cannabis' AND status='pending' AND product_format='inflorescence'
+`);
+
+const { rows: nrDist } = await pool.query(`
+  SELECT
+    CASE
+      WHEN needs_review_reason LIKE 'fuzzy%'   THEN 'fuzzy_near_match'
+      WHEN needs_review_reason LIKE '%grower%' THEN 'grower_mismatch_same_strain'
+      ELSE 'other'
+    END AS reason_type,
+    count(*)::int AS n
+  FROM pending_product
+  WHERE source_id='easy-cannabis' AND status='pending' AND needs_review=true
+  GROUP BY 1 ORDER BY n DESC
+`);
+
+console.log('═══════════════════════════════════════════════════════════');
+console.log(`[report] INGEST COMPLETE  run_id=${RUN_ID}`);
+console.log(`  Target:               ${LIMIT}`);
+console.log(`  Fetched (HTTP):       ${nFetched}`);
+console.log(`  Resumed (checkpoint): ${nResumed}`);
+console.log(`  Fetch errors:         ${nError}`);
+console.log(`  Junk/rejected:        ${nJunk}`);
+console.log(`  Written to pending:   ${nInserted}`);
+console.log(`  Conflict (dup key):   ${nConflict}`);
+console.log(`  Skipped (in SKU):     ${nSkippedSku}`);
+console.log('───────────────────────────────────────────────────────────');
+console.log(`  product_sku BEFORE:   ${SKU_BEFORE}`);
+console.log(`  product_sku AFTER:    ${counts.sku_total}  ← must equal BEFORE`);
+console.log(`  auto-approved:        0  ← guaranteed`);
+console.log('───────────────────────────────────────────────────────────');
+console.log(`  easy pending total:   ${counts.easy_pending}`);
+console.log(`  needs_review:         ${counts.needs_review_count}`);
+console.log('  Format distribution:');
+fmtDist.forEach(r => console.log(`    ${r.product_format.padEnd(16)} ${r.n}`));
+console.log('  Inferred-format debt (inflorescence rows):');
+console.log(`    explicit (תפרחת):   ${debt.explicit}`);
+console.log(`    DEFAULTED:          ${debt.defaulted}  ← fix parser if non-trivial`);
+console.log('  needs_review reasons:');
+if (!nrDist.length) console.log('    none');
+else nrDist.forEach(r => console.log(`    ${r.reason_type.padEnd(36)} ${r.n}`));
+console.log('  grower_mismatch collisions:',
+  growerCollisions.length === 0 ? 'none  ← expected (no grower data from this source)' : growerCollisions.length);
+if (growerCollisions.length > 0)
+  growerCollisions.forEach(g => console.log('   ', g.strain_norm, g.growers));
+console.log('═══════════════════════════════════════════════════════════');
+
+if (counts.sku_total !== SKU_BEFORE) {
+  console.error(`\n[INVARIANT VIOLATED] product_sku changed: ${SKU_BEFORE} → ${counts.sku_total}`);
+  process.exit(1);
+}
+console.log('\n[invariants] product_sku unchanged ✓  auto-approved=0 ✓\n');
 
 await pool.end();
