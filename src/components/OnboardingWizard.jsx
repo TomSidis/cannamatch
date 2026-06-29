@@ -1535,6 +1535,30 @@ function ProductCard({ s, isLoved, isHated, onLove, onHate }) {
 function Stage6_Products({ payload, updatePayload }) {
   const [q, setQ]           = useState("");
   const [kindFilter, setKindFilter] = useState(null); // null | "אינדיקה" | "סאטיבה" | "היברידי"
+  const [liveCatalog, setLiveCatalog] = useState(ALL_CATALOG);
+
+  // Fetch live strains from DB on mount; fall back to static catalog on error
+  useEffect(() => {
+    api.getStrains({ limit: 500 }).then(res => {
+      const rows = Array.isArray(res) ? res : (res.results || []);
+      if (!rows.length) return;
+      const mapped = rows.map(r => ({
+        id:       r.id,
+        name:     r.name,
+        en:       r.name_en || '',
+        cat:      r.category || '',
+        type:     r.product_type || 'flower',
+        kind:     r.kind || 'היברידי',
+        grower:   '',
+        nReviews: 0,
+        terps:    Object.keys(r.terpene_dist || {}).slice(0, 3),
+      }));
+      // Merge: live rows + static-only rows not in live (by id)
+      const liveIds = new Set(mapped.map(m => m.id));
+      const staticOnly = ALL_CATALOG.filter(s => !liveIds.has(s.id));
+      setLiveCatalog([...mapped, ...staticOnly]);
+    }).catch(() => {}); // silent — static catalog remains
+  }, []);
 
   const loved = payload.lovedStrains || [];
   const hated = payload.hatedStrains || [];
@@ -1543,19 +1567,19 @@ function Stage6_Products({ payload, updatePayload }) {
 
   // Filter by license categories + consumption form
   const eligibleCatalog = useMemo(() => {
-    let list = ALL_CATALOG;
+    let list = liveCatalog;
     if (licCats.length > 0) list = list.filter((s) => licCats.includes(s.cat));
     if (consumptionForm === "oil")                              list = list.filter((s) => s.type === "oil");
     else if (consumptionForm === "flower" || consumptionForm === "vape") list = list.filter((s) => s.type !== "oil");
     // "mixed" → show all types
     return list;
-  }, [licCats, consumptionForm]);
+  }, [licCats, consumptionForm, liveCatalog]);
 
-  // Quick picks: top 12 by nReviews (most-recognised at the pharmacy)
+  // Quick picks: top 12 by nReviews (most-recognised at pharmacy); live rows lack nReviews so they sort after static
   const quickPicks = useMemo(() =>
     [...eligibleCatalog]
       .sort((a, b) => (b.nReviews || 0) - (a.nReviews || 0))
-      .slice(0, 12),
+      .slice(0, 16),
   [eligibleCatalog]);
 
   // Search results — client-side across all eligible products
@@ -1997,6 +2021,14 @@ function Stage7_Preview({ liveVector, killSwitches, payload }) {
   const blockedTerps = Object.keys(killSwitches);
   const [copied, setCopied] = useState(false);
 
+  // License-only: has category but no preference signal
+  const hasLicense = (payload.licenseCategories || []).length > 0;
+  const hasSignal  = (payload.effectGoals    || []).length > 0
+                  || (payload.lovedStrains   || []).length > 0
+                  || (payload.primaryGoals   || []).length > 0
+                  || Object.keys(payload.scentSelections || {}).length > 0;
+  const licenseOnly = hasLicense && !hasSignal;
+
   const share = () => {
     const txt = `🧬 ה-DNA הקנאבינואידי שלי\nרצף: ${seq}\nטרפנים מובילים: ${activeTerps.slice(0, 3).map((t) => t.label).join(", ")}\nנבנה עם קנאמאצ׳`;
     navigator.clipboard?.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -2080,6 +2112,20 @@ function Stage7_Preview({ liveVector, killSwitches, payload }) {
           <ZemachBubble key="preview" message={zemachMsg} stage={7} />
         </AnimatePresence>
       </motion.div>
+
+      {licenseOnly && (
+        <motion.div variants={FADE_UP} style={{
+          borderRadius: 14, padding: "12px 16px", marginBottom: 14,
+          background: "rgba(255,160,64,0.08)", border: "1.5px solid rgba(255,160,64,0.35)",
+        }}>
+          <p style={{ fontSize: 12, fontWeight: 800, color: "#FFA040", marginBottom: 4 }}>
+            ⚠️ הרישיון לבד לא מספיק
+          </p>
+          <p style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>
+            כדי לחשב התאמה לזן, צריך לפחות פרט אחד נוסף: המטרה שלך (שינה / כאב / ריכוז...), זן שעזר בעבר, או שעת השימוש — בחזרה לשאלון אפשר להוסיף את זה תוך דקה.
+          </p>
+        </motion.div>
+      )}
 
       <motion.div
         variants={FADE_UP}
@@ -2181,7 +2227,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
           updatePayload, goNext, skipStage, goPrev } = store;
 
   const reducedMotion              = useReducedMotion();
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [direction, setDirection] = useState(1);
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -2351,7 +2397,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
 
     let dna = null;
     try {
-      const data = await api.submitOnboarding({ ...payload, deliveryMethods: derivedDelivery });
+      const data = await api.submitOnboarding({ ...payload, deliveryMethods: derivedDelivery, indications: payload.medicalConditions || [] });
       dna = data.dna;
     } catch (err) {
       console.warn("Onboarding backend sync skipped:", err.message);
@@ -2394,16 +2440,15 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
     <div
       dir="rtl"
       style={{
-        flex: 1, minHeight: "100%",
-        background: T.bg,
-        color:      T.text,
-        fontFamily: "'Heebo','Segoe UI',sans-serif",
-        display:    "flex",
+        background:    T.bg,
+        color:         T.text,
+        fontFamily:    "'Heebo','Segoe UI',sans-serif",
+        display:       "flex",
         flexDirection: "column",
       }}
     >
       {/* Header */}
-      <div style={{ padding: "14px 20px 0", flexShrink: 0 }}>
+      <div style={{ padding: "14px 20px 0", flexShrink: 0, position: "sticky", top: 0, zIndex: 10, background: T.bg }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 800, color: T.text, margin: 0 }}>
@@ -2430,7 +2475,7 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
       </div>
 
       {/* Stage content */}
-      <div style={{ flex: 1, padding: "0 18px", overflowY: "auto", paddingBottom: 4,
+      <div style={{ padding: "0 18px", paddingBottom: 4,
         scrollbarWidth: "none", msOverflowStyle: "none" }}>
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
@@ -2500,15 +2545,19 @@ export default function OnboardingWizard({ user, onComplete, onSkip }) {
 
       {/* Navigation */}
       <div style={{
-        padding:     "10px 18px 16px",
-        borderTop:   `1px solid ${T.border}`,
-        background:  "rgba(0,0,0,0.3)",
-        backdropFilter: "blur(10px)",
-        display:     "flex",
-        gap:         10,
-        flexShrink:  0,
+        padding:              "10px 18px 16px",
+        borderTop:            `1px solid ${T.border}`,
+        background:           "rgba(11,24,16,0.96)",
+        backdropFilter:       "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        display:              "flex",
+        gap:                  10,
+        flexShrink:           0,
+        position:             "sticky",
+        bottom:               0,
+        zIndex:               10,
       }}>
-        <NeonButton onClick={stage === 0 ? handleBackToWelcome : handlePrev} variant="ghost" size="md">
+        <NeonButton onClick={stage === 0 ? onSkip : handlePrev} variant="ghost" size="md">
           ← חזרה
         </NeonButton>
         {!isLastStage ? (

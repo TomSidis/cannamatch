@@ -161,7 +161,8 @@ function Composer({ user, ans, onPost }) {
     <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <textarea
         value={text} onChange={e => setText(e.target.value)} rows={3}
-        placeholder='שתף/י חוויה — מה עזר, מה לא. לגמרי אנונימי.'
+        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }}
+        placeholder='שתף/י חוויה — מה עזר, מה לא. לגמרי אנונימי. (Ctrl+Enter לשליחה)'
         style={{
           width: '100%', boxSizing: 'border-box', padding: '11px 14px', borderRadius: 14,
           background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(74,222,128,0.18)',
@@ -225,7 +226,7 @@ export default function CommunitySplitScreen({ ans, user }) {
   const weeklyImpact = 9 + Math.floor(currentPosts.length * 2.3);
 
   return (
-    <div dir='rtl' style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div dir='rtl' style={{ display: 'flex', flexDirection: 'column' }}>
 
       {/* Anonymity + altruistic strip */}
       <div style={{
@@ -274,13 +275,13 @@ export default function CommunitySplitScreen({ ans, user }) {
           <div style={{ fontSize: 10.5, color: 'rgba(187,247,208,0.40)' }}>
             {tab === 'cats'
               ? `🏷️ דיווחים ממטופלים עם ${userCats.length > 0 ? userCats.join(", ") : "אותה קטגוריית רישיון"} — אותו פרוטוקול`
-              : '🌐 כל הקהילה — חוויות מכל הפרופילים'}
+              : '🌐 כל הפווידר — חוויות מכל הפרופילים'}
           </div>
         </motion.div>
       </AnimatePresence>
 
       {/* Feed */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 16px', scrollbarWidth: 'none' }}>
+      <div style={{ padding: '10px 16px 16px' }}>
         <AnimatePresence mode='wait'>
           <motion.div key={tab}
             initial={{ opacity: 0, x: tab === 'all' ? -20 : 20 }}

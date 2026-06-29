@@ -95,7 +95,7 @@ function RankedResults({ products = [], companionMessage, userName = "אלוף" 
     top
       ? `${userName}, תקשיב לחבר: ${top.commercial || top.strain} עם ${top.match}% התאמה — ` +
         `הגנטיקה המדויקת בשבילך. ${locked.length ? `ויש ${locked.length} שחסמתי כי הם טריגר — אל תתקרב.` : "לך על זה. 💚"}`
-      : "פענחתי את התפריט. הנה מה שמצאתי, מדורג לפי מה שעובד עליך. 🌿"
+      : "פענחתי את התפריט. הנה מה שמצאתי, מדורג לפי מה שדיווחת. 🌿"
   );
 
   return (

@@ -160,7 +160,7 @@ function EntryCard({ entry, helpedCount }) {
               transition:   'color 0.15s, border-color 0.15s',
             }}
           >
-            {isSharing ? 'משתף...' : 'שתף לקהילה'}
+            {isSharing ? 'משתף...' : 'שתף לפווידר'}
           </motion.button>
         )}
         {isShared && (

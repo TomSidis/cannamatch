@@ -59,6 +59,11 @@ export const api = {
       body: JSON.stringify({ image_base64, media_type }) }),
   fetchMenuUrl: (url) => apiFetch(`/api/fetch-menu`, { method: "POST", body: JSON.stringify({ url }) }),
 
+  // חדש בשוק
+  getNewOnMarket: (limit = 30) => apiFetch(`/api/new-on-market?limit=${limit}`),
+  // Task 1a — user-scan triggered ingestion
+  submitPendingScan: (names) => apiFetch('/api/pending-scan', { method: 'POST', body: JSON.stringify({ names }) }),
+
   // בתי מרקחת + מלאי
   getPharmacies: () => apiFetch(`/api/pharmacies`),
   syncPharmacies: () => apiFetch(`/api/pharmacies/sync`, { method: 'POST' }),

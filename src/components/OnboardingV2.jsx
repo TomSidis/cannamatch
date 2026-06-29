@@ -273,7 +273,7 @@ function StepLicense({ onVerified, onSkip }) {
               {COPY.onboarding.licenseExpired}
             </div>
           </motion.div>
-          <Btn variant='ghost' onClick={onSkip}>אמשיך בלי קהילה</Btn>
+          <Btn variant='ghost' onClick={onSkip}>אמשיך בלי פווידר</Btn>
         </>
       )}
 

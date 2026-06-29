@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../services/api.js";
 
 const REASON_LABELS = {
-  external_link: "קישורים חיצוניים אסורים בקהילה.",
+  external_link: "קישורים חיצוניים אסורים בפווידר.",
   sales:         "תוכן מסחרי/טלפון אינו מותר.",
   profanity:     "התגובה כוללת שפה פוגענית.",
   empty:         "יש לכתוב תגובה לפני השליחה.",
@@ -88,7 +88,8 @@ function CommentForm({ reviewId, parentId = null, placeholder, onSuccess, onCanc
       <textarea
         value={text} onChange={e => setText(e.target.value)} rows={2} autoFocus={!!parentId}
         placeholder={placeholder}
-        style={S.input} />
+        style={S.input}
+        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
         {onCancel && (
           <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "rgba(187,247,208,0.40)", fontFamily: "'Heebo',sans-serif" }}>

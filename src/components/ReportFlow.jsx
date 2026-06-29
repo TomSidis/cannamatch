@@ -93,6 +93,12 @@ export default function ReportFlow({ strain, onClose, onSubmit, mapDiff }) {
   const [effects, setEffects] = useState([]);
   const [burst, setBurst]     = useState(false);
 
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   // Auto-advance after rating selection (feels snappy)
   const pickRating = (r) => {
     setRating(r);

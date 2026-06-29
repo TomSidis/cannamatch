@@ -162,12 +162,16 @@ function computeLiveVector(payload) {
     for (const [t, w] of Object.entries(boost)) add(t, w * scale);
   }
 
-  // From products (real market names mapped through LEGACY_GENETICS for backward compat)
-  for (const sid of (payload.lovedStrains || [])) {
-    for (const [t, w] of Object.entries(LEGACY_GENETICS[sid] || {})) add(t, w * 1.3);
+  // From products (real market names mapped through LEGACY_GENETICS for backward compat).
+  // Weight decays with fewer picks so a single selection doesn't anchor the whole profile.
+  const lovedArr = payload.lovedStrains || [];
+  const lovedScale = Math.min(1.0, 0.4 * Math.max(lovedArr.length, 1));
+  for (const sid of lovedArr) {
+    for (const [t, w] of Object.entries(LEGACY_GENETICS[sid] || {})) add(t, w * lovedScale);
   }
-  for (const sid of (payload.hatedStrains || [])) {
-    for (const [t, w] of Object.entries(LEGACY_GENETICS[sid] || {})) add(t, -w * 0.9);
+  const hatedArr = payload.hatedStrains || [];
+  for (const sid of hatedArr) {
+    for (const [t, w] of Object.entries(LEGACY_GENETICS[sid] || {})) add(t, -w * 0.7);
   }
 
   // Normalize to [0, 1]

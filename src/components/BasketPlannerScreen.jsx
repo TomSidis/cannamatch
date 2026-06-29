@@ -32,7 +32,7 @@ const TRACKS = {
 // ── Confidence badge ──────────────────────────────────────────────────────────
 const LAYER_STYLE = {
   measured:  { bg: 'rgba(74,222,128,0.15)',  border: 'rgba(74,222,128,0.5)',  text: '#4ADE80', label: 'COA מאומת'      },
-  community: { bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.5)', text: '#818CF8', label: 'דיווחי קהילה'  },
+  community: { bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.5)', text: '#818CF8', label: 'דיווחי פווידר' },
   prior:     { bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.4)',  text: '#FBBF24', label: 'הערכת גנטיקה'  },
 };
 

@@ -137,7 +137,9 @@ export function parseLine(line) {
     line.match(/(\d{2,4})\s*₪/) ||
     line.match(/₪\s*(\d{2,4})/) ||
     line.match(/(\d{2,4})\s*(?:ש"?ח|שקל|nis|ils)/i);
-  const price = priceM ? +priceM[1] : null;
+  const rawPrice = priceM ? +priceM[1] : null;
+  // Sane per-10g range in Israel: ₪100–₪600. Discard OCR mis-reads.
+  const price = rawPrice !== null && rawPrice >= 100 && rawPrice <= 600 ? rawPrice : null;
 
   // Name: strip category, price, common separators, leading/trailing junk
   const rawName = line
@@ -153,15 +155,17 @@ export function parseLine(line) {
 }
 
 // ── Unknown-name plausibility guard ──────────────────────────────────────────
-// Applied ONLY to unmatched (unknown) lines before they reach the UI.
+// Applied ONLY to unmatched (unknown) lines before they reach the UI or pending queue.
 // Known DB matches are always trusted — they passed fuseFind already.
 //
-// Rejects:
-//   • Lines starting with section markers (§, #, ►, •)
-//   • Price-range header patterns ("עד 200 ש")
-//   • Strings with no run of ≥ 3 Hebrew or Latin letters
-//   • Short strings (< 8 chars) without a recognized category — OCR artifacts
-function isPlausibleProductName(rawName, cat) {
+// Rejects (in addition to original rules):
+//   • Any price signal: ₪ symbol, "ש"ח", number+₪ — menu lines not strain names
+//   • Garbage chars: ~ = ` ^ that appear in OCR artifacts
+//   • "תפריט" keyword — menu header lines
+//   • Ellipsis / multiple dots anywhere (OCR truncation)
+//   • Standalone price-like numbers (100–999) with no alphabetic context
+//   • Lines where < 30% of non-space chars are letters — mostly numeric/symbolic
+export function isPlausibleProductName(rawName, cat) {
   const s = rawName?.trim();
   if (!s || s.length < 4) return false;
   if (/^[§#*►•·\-–—→←]/.test(s)) return false;
@@ -172,8 +176,26 @@ function isPlausibleProductName(rawName, cat) {
   if (/\.\d{2}[./]\d{2,4}|\d{2}\/\d{2,4}/.test(s)) return false;
   // Barcode / ID: 5+ consecutive digits
   if (/\d{5,}/.test(s)) return false;
-  // Truncated OCR lines (trailing ellipsis)
-  if (/\.\.\.$/.test(s)) return false;
+  // Truncated OCR lines
+  if (/\.{2,}/.test(s)) return false;
+  // Price signals — ₪ or "שח/ש"ח" anywhere
+  if (/₪|ש"ח|שח\b/.test(s)) return false;
+  // Garbage chars common in OCR artifacts (~ = ` ^ and standalone double-quote)
+  if (/[~=`^"]/.test(s)) return false;
+  // Implausible length: a strain name is never a full sentence
+  if (s.length > 60) return false;
+  // Hash = lot/batch reference (RG#7, GW#3)
+  if (/#/.test(s)) return false;
+  // Version/date dot notation: 5.6.00, 1.2.3
+  if (/\d+\.\d+\.\d+/.test(s)) return false;
+  // CamelCase single-letter flip (e.g. "fF") — OCR code artifact
+  if (/\b[a-z][A-Z]\b/.test(s)) return false;
+  // Menu header keyword
+  if (/תפריט/.test(s)) return false;
+  // Letter density: less than 30% of non-space chars are letters → likely garbage
+  const nonSpace = s.replace(/\s/g, '');
+  const letters = (nonSpace.match(/[א-תa-zA-Z]/g) || []).length;
+  if (nonSpace.length > 6 && letters / nonSpace.length < 0.3) return false;
   return true;
 }
 

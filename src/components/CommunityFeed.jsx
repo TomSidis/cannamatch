@@ -208,7 +208,7 @@ export default function CommunityFeed({ categories = [] }) {
     return (
       <div style={{ textAlign: "center", padding: "44px 16px", color: "rgba(187,247,208,0.45)" }}>
         <div style={{ fontSize: 28, marginBottom: 10 }}>🌿</div>
-        <div style={{ fontSize: 12 }}>טוען דיווחי קהילה...</div>
+        <div style={{ fontSize: 12 }}>טוען את הפווידר...</div>
       </div>
     );
   }
