@@ -7102,7 +7102,7 @@ export default function CannaMatch() {
   const [termsStatus, setTermsStatus] = useState(null);
 
   const [screen, setScreen] = useState(resolveScreen);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("menu"); // MVP: land on menu scan (other tabs hidden from nav)
   const [ans, setAns] = useState({
     cats: [], form: [], reasons: [], flavors: [],
     helped: [], notHelped: [], current: [],
@@ -7298,15 +7298,16 @@ export default function CannaMatch() {
     { id: "profile",   label: T.tab.profile },
   ];
   const NAV_TABS = [
-    { id: "home",      label: T.nav.home },
-    { id: "community", label: T.nav.community },
     { id: "menu",      label: T.nav.menu },
-    { id: "market",    label: T.nav.market },
-    { id: "basket",    label: T.nav.basket },
-    { id: "journal",   label: T.nav.journal },
-    { id: "knowledge", label: T.nav.knowledge },
-    { id: "cooking",   label: T.nav.cooking },
-    { id: "dna",       label: T.nav.dna },
+    // HIDDEN FOR MVP — re-enable later (screens + tab handlers below stay intact):
+    // { id: "home",      label: T.nav.home },
+    // { id: "community", label: T.nav.community },
+    // { id: "market",    label: T.nav.market },
+    // { id: "basket",    label: T.nav.basket },
+    // { id: "journal",   label: T.nav.journal },
+    // { id: "knowledge", label: T.nav.knowledge },
+    // { id: "cooking",   label: T.nav.cooking },
+    // { id: "dna",       label: T.nav.dna },
   ];
   const isAuth = ["welcome", "login", "register", "verify", "welcome_room", "license"].includes(screen);
 
