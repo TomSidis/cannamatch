@@ -64,8 +64,13 @@ export const api = {
       body: JSON.stringify({ image_base64, media_type }) }),
   fetchMenuUrl: (url) => apiFetch(`/api/fetch-menu`, { method: "POST", body: JSON.stringify({ url }) }),
 
-  // קטלוג חי לבורר האונבורדינג — product_sku active בלבד (לא pending)
-  getCatalogStrains: (q = "") => apiFetch(`/api/catalog/strains?q=${encodeURIComponent(q)}`),
+  // קטלוג חי לבורר האונבורדינג — product_sku active בלבד (לא pending). cats = סינון לפי רישיון.
+  getCatalogStrains: (q = "", cats = []) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (cats.length) p.set("cats", cats.join(","));
+    return apiFetch(`/api/catalog/strains?${p}`);
+  },
 
   // חדש בשוק
   getNewOnMarket: (limit = 30) => apiFetch(`/api/new-on-market?limit=${limit}`),

@@ -170,29 +170,30 @@ function RemovableChip({ label, color, onRemove }) {
   );
 }
 
-function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLiked, removeDisliked, onComplete }) {
+function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLiked, removeDisliked, onComplete, cats = [] }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const catsKey = cats.join(',');
 
-  // Debounced search against the LIVE catalog (product_sku active); seed fallback offline.
+  // Live-catalog list (product_sku active). Empty query → a default "מומלץ עבורך" list filtered
+  // by the user's licensed categories (never a blank box). Typing → debounced search.
   useEffect(() => {
     const s = q.trim();
-    if (!s) { setResults([]); setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const { items } = await api.getCatalogStrains(s);
-        if (!cancelled) setResults(items?.length ? items : seedFallback(s));
+        const { items } = await api.getCatalogStrains(s, cats);
+        if (!cancelled) setResults(items?.length ? items : (s ? seedFallback(s) : []));
       } catch {
-        if (!cancelled) setResults(seedFallback(s));
+        if (!cancelled) setResults(s ? seedFallback(s) : []);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 250);
+    }, s ? 250 : 0);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [q]);
+  }, [q, catsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const inLiked    = (s) => liked.some(x => x.id === s.id);
   const inDisliked = (s) => disliked.some(x => x.id === s.id);
@@ -222,14 +223,14 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px', minHeight: 120 }}>
-        {/* initial hint */}
-        {!q.trim() && (
-          <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 24, lineHeight: 1.7 }}>
-            🔍 הקלד/י שם זן כדי לחפש בקטלוג.<br />יש כמה "וודינג קייק" ממגדלים שונים — בחר/י לפי המגדל.
+        {/* default-list header (empty query) — recommended/leading from the live catalog */}
+        {!q.trim() && results.length > 0 && (
+          <p style={{ fontSize: 11, fontWeight: 800, color: T.accent, margin: '4px 2px 10px', letterSpacing: '0.04em' }}>
+            ⭐ מומלץ עבורך · מוביל בקטלוג{cats.length ? ' (לפי הרישיון שלך)' : ''}
           </p>
         )}
-        {loading && q.trim() && (
-          <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 20 }}>מחפש…</p>
+        {loading && (
+          <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 20 }}>טוען…</p>
         )}
         {results.map(s => {
           const grower = s.grower || s.genetics;
@@ -455,7 +456,7 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
 
           {step === 2 && (
             screen3Mode(experience) === 'past_strain'
-              ? <ScreenPastStrains liked={liked} disliked={disliked}
+              ? <ScreenPastStrains liked={liked} disliked={disliked} cats={payload.licenseCategories || []}
                   pickLiked={pickLiked} pickDisliked={pickDisliked}
                   removeLiked={removeLiked} removeDisliked={removeDisliked} onComplete={goReveal} />
               : <ScreenGuidance onComplete={goReveal} />

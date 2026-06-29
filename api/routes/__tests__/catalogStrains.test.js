@@ -42,6 +42,22 @@ describe("GET /api/catalog/strains", () => {
     expect(params).toContain("%אור%");
   });
 
+  it("filters by licensed categories when cats provided", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await get("?cats=T15/C3,T22/C4");
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/category = ANY/);
+    expect(params).toContainEqual(["T15/C3", "T22/C4"]);
+  });
+
+  it("empty query returns the default active list (no ILIKE)", async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: "s", name: "אור", category: "T15/C3", grower: " x" }] });
+    const res = await get("");
+    expect(res.status).toBe(200);
+    expect((await res.json()).items.length).toBe(1);
+    expect(pool.query.mock.calls[0][0]).not.toMatch(/ILIKE/);
+  });
+
   it("returns [] gracefully when the table is missing (pre-migration)", async () => {
     pool.query.mockRejectedValue(Object.assign(new Error("no table"), { code: "42P01" }));
     const res = await get("?q=x");

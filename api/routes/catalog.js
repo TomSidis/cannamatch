@@ -275,11 +275,13 @@ router.post("/pending-scan", async (req, res) => {
 // Read-only; debounced search by commercial_name. Returns the real names patients see.
 router.get("/catalog/strains", async (req, res) => {
   const q     = (req.query.q || "").trim();
+  const cats  = (req.query.cats || "").split(",").map((s) => s.trim()).filter(Boolean);
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
   try {
     const params = [];
     let where = "WHERE p.status = 'active'";
-    if (q) { params.push(`%${q}%`); where += ` AND p.commercial_name ILIKE $${params.length}`; }
+    if (q)           { params.push(`%${q}%`); where += ` AND p.commercial_name ILIKE $${params.length}`; }
+    if (cats.length) { params.push(cats);     where += ` AND p.category = ANY($${params.length})`; } // filter to licensed categories
     params.push(limit);
     const { rows } = await pool.query(
       `SELECT p.id, p.commercial_name AS name, p.category, p.grower,
