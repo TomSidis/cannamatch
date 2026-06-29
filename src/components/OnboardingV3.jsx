@@ -19,7 +19,8 @@ import { useOnboardingStore } from '../hooks/useOnboardingStore.js';
 import { Stage0_License } from './OnboardingWizard.jsx';
 import { STRAINS } from '../data/strainsConfig.js';
 import { api } from '../services/api.js';
-import ChemProfile, { ChemProfileLegend } from './ChemProfile.jsx';
+import TerpRadar, { dnaSequence } from './TerpRadar.jsx';
+import { TERPENE_HUMAN } from '../lib/terpeneToHuman.js';
 import {
   READY_MICROCOPY, EXPERIENCE_OPTIONS, INDICATION_OPTIONS, DAYPART_OPTIONS,
   dayPartToTimes, experienceToTolerance, screen2Complete, screen3Mode, pastStrainComplete,
@@ -299,16 +300,41 @@ function ScreenGuidance({ onComplete }) {
 
 // ── Final screen — DNA reveal (the payoff) ───────────────────────────────────
 function ScreenDnaReveal({ batch, onComplete }) {
+  // batch.terpenes → { terpeneKey: weight } for the radar. Weights are RANK-derived from the
+  // user's onboarding answers (not measured %), so no "%" is shown — names only.
+  const profile = Object.fromEntries((batch.terpenes || []).map(t => [t.terpene, t.pct]));
+  const seq = dnaSequence(profile);
+  const top = Object.entries(profile).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
   return (
-    <div style={{ padding: '12px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-      <h2 style={{ fontSize: 20, fontWeight: 900, color: T.accent, margin: 0 }}>הפרופיל שלך 🧬</h2>
-      <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 16 }}>
-        <ChemProfile batch={batch} size={140} />
-      </motion.div>
-      <ChemProfileLegend batch={batch} style={{ textAlign: 'center', color: T.muted }} />
+    <div style={{ padding: '6px 18px 22px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', overflowY: 'auto', minHeight: 0 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 900, color: T.accent, margin: 0 }}>ה-DNA הטרפני שלך 🧬</h2>
+      <TerpRadar profile={profile} />
+
+      {/* Dominant terpene chips (rank, not %) */}
+      {top.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+          {top.map(([t]) => {
+            const info = TERPENE_HUMAN[t];
+            const col = info?.color || T.accent;
+            return (
+              <span key={t} style={{ fontSize: 12, fontWeight: 800, padding: '4px 11px', borderRadius: 14,
+                background: `${col}22`, color: col, border: `1px solid ${col}44` }}>
+                {info?.icon} {info?.shortLabel || t}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* DNA קנבינואידי code string */}
+      <div style={{ width: '100%', maxWidth: 320, textAlign: 'center', padding: '8px 12px', borderRadius: 12,
+        background: 'rgba(0,0,0,0.35)', color: '#A8E6C0', fontFamily: 'monospace', letterSpacing: '0.12em', fontSize: 14 }}>
+        {seq}
+      </div>
+
       <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', lineHeight: 1.7, margin: 0 }}>
-        הצורה מייצגת את יחס הקנבינואידים, והצבעים את הטרפנים הדומיננטיים. פרופיל דומה → התנהגות דומה.
+        טביעת האצבע הטרפנית שלך — נבנתה מהתשובות שלך. פרופיל דומה → התנהגות דומה.
       </p>
       <PrimaryBtn onClick={onComplete}>קח אותי לזנים 🌿</PrimaryBtn>
     </div>
