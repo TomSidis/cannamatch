@@ -105,7 +105,7 @@ describe("POST /api/auth/login", () => {
     expect(jwt.verify(body.token, JWT_SIGN_SECRET).sub).toBe("u9");
   });
 
-  it("wrong password → 401, no token, correct Hebrew error", async () => {
+  it("wrong password → 401, no token", async () => {
     const hash = await bcrypt.hash("rightpass1", 10);
     pool.query.mockResolvedValueOnce({ rows: [{ id: "u9", role: "user", password_hash: hash }] });
 
@@ -113,13 +113,24 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.token).toBeUndefined();
-    expect(body.error.message).toBe("סיסמה שגויה.");
   });
 
-  it("email not found → 401 with distinct Hebrew error", async () => {
-    pool.query.mockResolvedValueOnce({ rows: [] }); // no user
-    const res = await post("/api/auth/login", { email: "ghost@example.com", password: "whatever1" });
-    expect(res.status).toBe(401);
-    expect((await res.json()).error.message).toBe("כתובת המייל אינה רשומה במערכת.");
+  // Anti-enumeration: non-existent email and wrong password must be indistinguishable.
+  it("non-existent email and wrong password → IDENTICAL message and status", async () => {
+    const hash = await bcrypt.hash("rightpass1", 10);
+
+    pool.query.mockResolvedValueOnce({ rows: [] }); // email not found
+    const noUser = await post("/api/auth/login", { email: "ghost@example.com", password: "whatever1" });
+
+    pool.query.mockResolvedValueOnce({ rows: [{ id: "u9", role: "user", password_hash: hash }] });
+    const wrongPw = await post("/api/auth/login", { email: "u9@example.com", password: "WRONGpass" });
+
+    expect(noUser.status).toBe(401);
+    expect(wrongPw.status).toBe(noUser.status);
+
+    const a = await noUser.json();
+    const b = await wrongPw.json();
+    expect(a.error.message).toBe("אימייל או סיסמה שגויים");
+    expect(b.error.message).toBe(a.error.message);
   });
 });

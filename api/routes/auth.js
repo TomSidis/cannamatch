@@ -357,9 +357,15 @@ router.post("/signup", async (req, res) => {
   }
 });
 
+// Precomputed bcrypt hash of a throwaway string. When the email is not found we still run
+// bcrypt.compare against this so response timing does not reveal whether an email exists.
+// The user list is cannabis patients — email-existence must not be probeable.
+const DUMMY_HASH = bcrypt.hashSync("cannamatch-login-timing-dummy", 12);
+
 // POST /api/auth/login
-// Email + password login. Distinct Hebrew errors for "email not found" vs "wrong password"
-// are required by product spec (field-onboarding clarity outweighs enumeration risk here).
+// Email + password login. "email not found" and "wrong password" return the IDENTICAL
+// message and status (401) — deliberate anti-enumeration: an attacker cannot tell which
+// emails are registered. Timing is equalized via DUMMY_HASH above.
 router.post("/login", async (req, res) => {
   const { email, password } = req.body ?? {};
   const normalized = String(email ?? "").toLowerCase().trim();
@@ -374,13 +380,11 @@ router.post("/login", async (req, res) => {
       [normalized],
     );
 
-    if (!user || !user.password_hash) {
-      return res.status(401).json({ error: { message: "כתובת המייל אינה רשומה במערכת." } });
-    }
-
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: { message: "סיסמה שגויה." } });
+    // Always run a compare (real hash or dummy) so the no-such-email and wrong-password
+    // paths take the same time and return the same response.
+    const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+    if (!user || !user.password_hash || !valid) {
+      return res.status(401).json({ error: { message: "אימייל או סיסמה שגויים" } });
     }
 
     return res.json({
