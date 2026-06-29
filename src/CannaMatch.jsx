@@ -14,6 +14,7 @@ import { bridgeScore } from "./engine/legacyBridge.ts";
 import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
 import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
+import OnboardingV3 from "./components/OnboardingV3.jsx";
 import ReportFlow from "./components/ReportFlow.jsx";
 import NextExperiment from "./components/NextExperiment.jsx";
 import BasketPlannerScreen from "./components/BasketPlannerScreen.jsx";
@@ -7388,7 +7389,9 @@ export default function CannaMatch() {
             boxSizing:"border-box",
           }}>
             <div style={{ width:"100%", maxWidth:680 }}>
-            <OnboardingWizard
+            {/* Layer 3: OnboardingV3 (3-screen, experience-forked). OnboardingWizard kept as
+                dead code below until V3 is verified end-to-end — revert this mount line to roll back. */}
+            <OnboardingV3
               user={user}
               onComplete={({ localAns }) => {
                 // ALL_CATS: every category present in our strain database — used when user has no license

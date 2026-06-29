@@ -272,7 +272,9 @@ function parseLicenseOCR(text) {
   return { cats, expiry, grams, licenseId };
 }
 
-function Stage0_License({ payload, errors, updatePayload, onSkip }) {
+// Exported for reuse by OnboardingV3 (Layer 3). Closes over module-scope helpers
+// (T, NeonButton, ZemachBubble, LICENSE_CATEGORY_GROUPS, parseLicenseOCR) — keep them in this file.
+export function Stage0_License({ payload, errors, updatePayload, onSkip }) {
   const [mode, setMode]               = useState(null); // null | "manual" | "ocr-confirm" | "ocr-fail" | "expired" | "duplicate"
   const [scanning, setScanning]       = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
