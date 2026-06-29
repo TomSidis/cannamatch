@@ -23,7 +23,7 @@ import ChemProfile, { ChemProfileLegend } from './ChemProfile.jsx';
 import {
   READY_MICROCOPY, EXPERIENCE_OPTIONS, INDICATION_OPTIONS, DAYPART_OPTIONS,
   dayPartToTimes, experienceToTolerance, screen2Complete, screen3Mode, pastStrainComplete,
-  deriveProfileBatch,
+  deriveProfileBatch, indicationReasons,
 } from './onboardingV3Logic.js';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -119,13 +119,24 @@ function ScreenMedical({ experience, setExperience, indications, toggleIndicatio
 
       <section>
         <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '0 0 10px' }}>מתי ההקלה הכי נחוצה?</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {DAYPART_OPTIONS.map(o => (
-            <div key={o.id} style={{ flex: 1 }}>
-              <Chip label={o.label} emoji={o.emoji} selected={dayPart === o.id}
-                onClick={() => setDayPart(o.id)} />
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          {DAYPART_OPTIONS.map(o => {
+            const on = dayPart === o.id;
+            return (
+              <motion.button key={o.id} whileTap={{ scale: 0.96 }} onClick={() => setDayPart(o.id)}
+                style={{
+                  padding: '14px 6px', borderRadius: 14, cursor: 'pointer', fontFamily: T.font,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 72,
+                  background: on ? 'rgba(74,222,128,0.14)' : 'rgba(255,255,255,0.04)',
+                  color: on ? T.accent : T.muted,
+                  border: `1.5px solid ${on ? T.accent + '66' : 'rgba(255,255,255,0.08)'}`,
+                  transition: 'all .15s',
+                }}>
+                <span style={{ fontSize: 22 }}>{o.emoji}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{o.label}</span>
+              </motion.button>
+            );
+          })}
         </div>
       </section>
 
@@ -161,18 +172,22 @@ function RemovableChip({ label, color, onRemove }) {
 function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLiked, removeDisliked, onComplete }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   // Debounced search against the LIVE catalog (product_sku active); seed fallback offline.
   useEffect(() => {
     const s = q.trim();
-    if (!s) { setResults([]); return; }
+    if (!s) { setResults([]); setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
     const t = setTimeout(async () => {
       try {
         const { items } = await api.getCatalogStrains(s);
         if (!cancelled) setResults(items?.length ? items : seedFallback(s));
       } catch {
         if (!cancelled) setResults(seedFallback(s));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
@@ -206,29 +221,45 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px', minHeight: 120 }}>
-        {results.map(s => (
-          <div key={s.id} style={{
-            padding: '10px 12px', borderRadius: 12, marginBottom: 7,
-            background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.07)',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-              <div style={{ fontSize: 10, color: T.muted }}>{s.category || s.cat}{s.genetics ? ` · ${s.genetics}` : ''}</div>
+        {/* initial hint */}
+        {!q.trim() && (
+          <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 24, lineHeight: 1.7 }}>
+            🔍 הקלד/י שם זן כדי לחפש בקטלוג.<br />יש כמה "וודינג קייק" ממגדלים שונים — בחר/י לפי המגדל.
+          </p>
+        )}
+        {loading && q.trim() && (
+          <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 20 }}>מחפש…</p>
+        )}
+        {results.map(s => {
+          const grower = s.grower || s.genetics;
+          const onL = inLiked(s), onD = inDisliked(s);
+          return (
+            <div key={s.id} style={{
+              padding: '12px 14px', borderRadius: 14, marginBottom: 8,
+              background: onL ? 'rgba(74,222,128,0.07)' : onD ? 'rgba(255,107,107,0.06)' : 'rgba(255,255,255,0.03)',
+              border: `1.5px solid ${onL ? T.accent + '55' : onD ? T.danger + '55' : 'rgba(255,255,255,0.08)'}`,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  🏭 {grower || 'מגדל לא ידוע'}{(s.category || s.cat) ? ` · ${s.category || s.cat}` : ''}
+                </div>
+              </div>
+              <button onClick={() => pickLiked(s)} aria-label="אהבתי" style={{
+                width: 40, height: 40, borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', flexShrink: 0,
+                background: onL ? T.accent : 'rgba(74,222,128,0.16)',
+                color: onL ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
+              }}>👍</button>
+              <button onClick={() => pickDisliked(s)} aria-label="פחות" style={{
+                width: 40, height: 40, borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', flexShrink: 0,
+                background: onD ? T.danger : 'rgba(255,107,107,0.16)',
+                color: onD ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
+              }}>👎</button>
             </div>
-            <button onClick={() => pickLiked(s)} style={{
-              padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: inLiked(s) ? T.accent : 'rgba(74,222,128,0.18)',
-              color: inLiked(s) ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
-            }}>👍</button>
-            <button onClick={() => pickDisliked(s)} style={{
-              padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: inDisliked(s) ? T.danger : 'rgba(255,107,107,0.18)',
-              color: inDisliked(s) ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
-            }}>👎</button>
-          </div>
-        ))}
-        {q && results.length === 0 && (
+          );
+        })}
+        {q.trim() && !loading && results.length === 0 && (
           <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 16 }}>לא נמצא זן בשם הזה</p>
         )}
       </div>
@@ -330,7 +361,7 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
 
     const localAns = {
       cats,
-      reasons:          indications,
+      reasons:          indicationReasons(indications), // option ids → engine reason slugs
       timing:           times,                       // ansToNeed reads `timing` → need.times
       experience,                                    // flips newUserRoute in the engine
       helped:           likedIds,
@@ -348,7 +379,12 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
   const goMedical = () => { updatePayload({ experience, medicalConditions: indications }); setStep(1); };
   const goFork    = () => setStep(2);
   const goReveal  = () => setStep(3); // DNA reveal is the final screen, before finish()
-  const revealBatch = useMemo(() => deriveProfileBatch(indications, experience), [indications, experience]);
+  // DNA reveal: derive from the mapped engine reason slugs (NOT raw option ids), else the
+  // profile collapses to a single-terpene fallback that renders as a washed-out blob.
+  const revealBatch = useMemo(
+    () => deriveProfileBatch(indicationReasons(indications), experience),
+    [indications, experience],
+  );
 
   return (
     <div dir="rtl" style={{

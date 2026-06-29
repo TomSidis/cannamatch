@@ -25,9 +25,10 @@ export default function ChemProfile({ batch, size = 52 }) {
   const { shape, primaryColor, secondaryColor, tertiaryColor } = chemProfileData(batch);
 
   const radius   = SHAPE_RADIUS[shape];
+  // Solid, full-opacity fill so the profile renders crisply (not a washed-out / blurred blob).
   const gradient = secondaryColor
-    ? `linear-gradient(145deg, ${primaryColor}99, ${secondaryColor}66)`
-    : `${primaryColor}80`;
+    ? `linear-gradient(145deg, ${primaryColor}, ${secondaryColor})`
+    : primaryColor;
 
   return (
     <motion.div
@@ -40,8 +41,8 @@ export default function ChemProfile({ batch, size = 52 }) {
         borderRadius: radius,
         flexShrink:   0,
         background:   gradient,
-        border:       `2px solid ${secondaryColor ?? primaryColor}60`,
-        boxShadow:    `0 0 12px ${primaryColor}30`,
+        border:       `2px solid ${secondaryColor ?? primaryColor}`,
+        boxShadow:    `0 0 16px ${primaryColor}55`,
         position:     'relative',
         overflow:     'hidden',
       }}
