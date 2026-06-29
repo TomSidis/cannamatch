@@ -15,6 +15,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import T from "./locales/he.js";
 import OnboardingWizard, { RadarChart, TERP_ORDER } from "./components/OnboardingWizard.jsx";
 import OnboardingV3 from "./components/OnboardingV3.jsx";
+import ChemProfile, { ChemProfileLegend } from "./components/ChemProfile.jsx";
+import { deriveProfileBatch } from "./components/onboardingV3Logic.js";
 import ReportFlow from "./components/ReportFlow.jsx";
 import NextExperiment from "./components/NextExperiment.jsx";
 import BasketPlannerScreen from "./components/BasketPlannerScreen.jsx";
@@ -7288,7 +7290,8 @@ export default function CannaMatch() {
     { id: "profile",   label: T.tab.profile },
   ];
   const NAV_TABS = [
-    { id: "menu",      label: T.nav.menu },
+    { id: "menu",      label: "🔍 סריקת תפריט" },
+    { id: "dna",       label: "🧬 ה-DNA שלי" },
     // HIDDEN FOR MVP — re-enable later (screens + tab handlers below stay intact):
     // { id: "home",      label: T.nav.home },
     // { id: "community", label: T.nav.community },
@@ -7297,7 +7300,6 @@ export default function CannaMatch() {
     // { id: "journal",   label: T.nav.journal },
     // { id: "knowledge", label: T.nav.knowledge },
     // { id: "cooking",   label: T.nav.cooking },
-    // { id: "dna",       label: T.nav.dna },
   ];
   const isAuth = ["welcome", "login", "register", "verify", "welcome_room", "license"].includes(screen);
 
@@ -7673,7 +7675,7 @@ export default function CannaMatch() {
               ))}
             </nav>
 
-            <main className="flex-1 pb-8 overflow-y-auto">
+            <main className="flex-1 min-h-0 overflow-y-auto">
               <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
               {/* ── License expiry alert banner ── */}
               {licenseAlert === "expired" && (
@@ -7720,7 +7722,22 @@ export default function CannaMatch() {
                     setTab={setTab} />
                 </>
               )}
-              {tab === "dna" && <GeneticDNA ans={ans} ratings={ratings} scored={scored} goJournal={() => setTab("journal")} />}
+              {/* MVP: the DNA tab shows the same ChemProfile from onboarding, viewable any time.
+                  (GeneticDNA stays defined for later re-enable.) */}
+              {tab === "dna" && (() => {
+                const b = deriveProfileBatch(ans.reasons || [], ans.experience);
+                return (
+                  <div className="px-5 pt-6 flex flex-col items-center gap-4"
+                    style={{ maxWidth: 420, margin: "0 auto", width: "100%" }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 900, color: "#4ADE80", margin: 0 }}>ה-DNA שלי 🧬</h2>
+                    <ChemProfile batch={b} size={150} />
+                    <ChemProfileLegend batch={b} style={{ textAlign: "center", color: "rgba(187,247,208,0.65)" }} />
+                    <p style={{ fontSize: 12, color: "rgba(187,247,208,0.65)", textAlign: "center", lineHeight: 1.7 }}>
+                      הצורה מייצגת את יחס הקנבינואידים, והצבעים את הטרפנים הדומיננטיים שלך. פרופיל דומה → התנהגות דומה.
+                    </p>
+                  </div>
+                );
+              })()}
               {tab === "community" && (
                 licenseVerified
                   ? <CommunitySplitScreen ans={ans} user={user} />
