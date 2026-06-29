@@ -99,6 +99,11 @@ export interface UserNeed {
   // tie-breaker on top of indication fit (first-timers & non-veterans; veterans only
   // when anxiety is their stated indication). Indication fit always leads.
   newUserRoute: boolean;
+  // DISLIKE DEMOTION: effect vector derived from the disliked onboarding pick (chemovar +
+  // dominant terpenes). Strains chemically similar to it get a bounded rank demotion in the
+  // scorer — symmetric to the liked single-pick boost. null/absent → no demotion (first-timers,
+  // legacy callers). Never a hard exclude.
+  dislikedProfile?: EffectVector | null;
 }
 
 // ── community reports (pre-aggregated, keyed by grow_batch_id NOT strain) ────

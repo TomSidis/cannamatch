@@ -1,4 +1,4 @@
-import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis, TimeOfDay } from './types.ts';
+import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis, TimeOfDay, EffectVector } from './types.ts';
 import { EFFECT_AXIS_KEYS } from './types.ts';
 import { cosine, buildPriorVector, buildProductVector, chemotypeFromBatch, buildNeedVector } from './vectorMath.ts';
 import { TERPENE_EFFECTS, CHEMOTYPE_MARKERS, CLUSTERS, CLUSTER_EFFECT_FLAG } from '../data/terpeneScience.ts';
@@ -108,6 +108,18 @@ function applyNewUserRoute(need: UserNeed, batch: Batch, base: number): number {
   return clamp(base + Math.tanh(raw) * NEW_USER_MAX_NUDGE, 0, 1);
 }
 
+// ── DISLIKE DEMOTION (Layer 3) ────────────────────────────────────────────────
+// Symmetric to the liked single-pick boost: a strain chemically similar to the disliked
+// pick is demoted, proportional to cosine similarity, capped at ±DISLIKE_MAX_NUDGE and
+// tanh-squashed. A strong indication-fit strain can't be pushed below a low-fit one by
+// dislike alone (gap > 2× cap is preserved), and the floor is 0 — never a hard exclude.
+const DISLIKE_MAX_NUDGE = 0.05;
+
+function applyDislikeDemotion(dislikedProfile: EffectVector, batch: Batch, base: number): number {
+  const sim = cosine(buildProductVector(batch).vec, dislikedProfile); // ∈ [0,1]; 0 when dissimilar
+  return clamp(base - Math.tanh(sim * 2) * DISLIKE_MAX_NUDGE, 0, 1);
+}
+
 // ── §4.2 Three-layer blend ────────────────────────────────────────────────────
 export function scoreSingle(
   need: UserNeed,
@@ -164,7 +176,9 @@ export function scoreSingle(
   // indication-fit score above. Capped at ±NEW_USER_MAX_NUDGE so a fit gap larger than
   // 2× the cap can never be reordered — indication fit always leads (spec §Layer 3).
   const routedScore = need.newUserRoute ? applyNewUserRoute(need, batch, finalScore) : finalScore;
-  const matchPct    = Math.round(clamp(routedScore * 100, 0, 100));
+  // Disliked-strain demotion — bounded, after fit + route. Absent → unchanged (no regression).
+  const dislikeScore = need.dislikedProfile ? applyDislikeDemotion(need.dislikedProfile, batch, routedScore) : routedScore;
+  const matchPct     = Math.round(clamp(dislikeScore * 100, 0, 100));
 
   // §4.3 Confidence — prior+measured components modulated by literature evidence quality.
   // Community component is intentionally NOT modulated: real reports override evidence level.

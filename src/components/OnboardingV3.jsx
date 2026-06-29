@@ -247,7 +247,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
     setIndications(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const finish = () => {
-    const likedName = STRAINS.find(s => s.id === liked)?.name;
+    const likedName    = STRAINS.find(s => s.id === liked)?.name;
+    const dislikedName = STRAINS.find(s => s.id === disliked)?.name;
     const times = dayPartToTimes(dayPart);
     const cats = payload.licenseCategories || [];
     const grams = payload.gramsByCategory || {};
@@ -267,7 +268,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
       experience,                                    // flips newUserRoute in the engine
       helped:           liked ? [liked] : [],
       notHelped:        disliked ? [disliked] : [],
-      likedStrainNames: likedName ? [likedName] : [], // B3 single-pick nudge
+      likedStrainNames:    likedName ? [likedName] : [],       // B3 single-pick nudge
+      dislikedStrainNames: dislikedName ? [dislikedName] : [], // bounded dislike demotion
       thcTolerance:     tolerance,
       gramsByCategory:  grams,
       licenseVerified:  !!payload.licenseVerified,
