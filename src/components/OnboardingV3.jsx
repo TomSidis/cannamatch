@@ -19,9 +19,11 @@ import { useOnboardingStore } from '../hooks/useOnboardingStore.js';
 import { Stage0_License } from './OnboardingWizard.jsx';
 import { STRAINS } from '../data/strainsConfig.js';
 import { api } from '../services/api.js';
+import ChemProfile, { ChemProfileLegend } from './ChemProfile.jsx';
 import {
   READY_MICROCOPY, EXPERIENCE_OPTIONS, INDICATION_OPTIONS, DAYPART_OPTIONS,
   dayPartToTimes, experienceToTolerance, screen2Complete, screen3Mode, pastStrainComplete,
+  deriveProfileBatch,
 } from './onboardingV3Logic.js';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -264,6 +266,24 @@ function ScreenGuidance({ onComplete }) {
   );
 }
 
+// ── Final screen — DNA reveal (the payoff) ───────────────────────────────────
+function ScreenDnaReveal({ batch, onComplete }) {
+  return (
+    <div style={{ padding: '12px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+      <h2 style={{ fontSize: 20, fontWeight: 900, color: T.accent, margin: 0 }}>הפרופיל שלך 🧬</h2>
+      <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 16 }}>
+        <ChemProfile batch={batch} size={140} />
+      </motion.div>
+      <ChemProfileLegend batch={batch} style={{ textAlign: 'center', color: T.muted }} />
+      <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', lineHeight: 1.7, margin: 0 }}>
+        הצורה מייצגת את יחס הקנבינואידים, והצבעים את הטרפנים הדומיננטיים. פרופיל דומה → התנהגות דומה.
+      </p>
+      <PrimaryBtn onClick={onComplete}>קח אותי לזנים 🌿</PrimaryBtn>
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function OnboardingV3({ user, onComplete, onSkip }) {
   const store = useOnboardingStore();
@@ -327,6 +347,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
 
   const goMedical = () => { updatePayload({ experience, medicalConditions: indications }); setStep(1); };
   const goFork    = () => setStep(2);
+  const goReveal  = () => setStep(3); // DNA reveal is the final screen, before finish()
+  const revealBatch = useMemo(() => deriveProfileBatch(indications, experience), [indications, experience]);
 
   return (
     <div dir="rtl" style={{
@@ -334,7 +356,7 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
       display: 'flex', flexDirection: 'column', maxWidth: 480, marginInline: 'auto',
     }}>
       <div style={{ padding: '16px 20px 0' }}>
-        <Dots step={step} total={3} />
+        <Dots step={step} total={4} />
         {step > 0 && (
           <button onClick={() => setStep(s => Math.max(0, s - 1))}
             style={{ background: 'none', border: 'none', color: T.muted, fontSize: 12, cursor: 'pointer', fontFamily: T.font, padding: '4px 0' }}>
@@ -373,8 +395,12 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
             screen3Mode(experience) === 'past_strain'
               ? <ScreenPastStrains liked={liked} disliked={disliked}
                   pickLiked={pickLiked} pickDisliked={pickDisliked}
-                  removeLiked={removeLiked} removeDisliked={removeDisliked} onComplete={finish} />
-              : <ScreenGuidance onComplete={finish} />
+                  removeLiked={removeLiked} removeDisliked={removeDisliked} onComplete={goReveal} />
+              : <ScreenGuidance onComplete={goReveal} />
+          )}
+
+          {step === 3 && (
+            <ScreenDnaReveal batch={revealBatch} onComplete={finish} />
           )}
         </motion.div>
       </AnimatePresence>

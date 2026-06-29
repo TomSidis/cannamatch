@@ -51,6 +51,25 @@ export function screen3Mode(experience) {
   return experience === 'first' ? 'guidance' : 'past_strain';
 }
 
+// Build a representative chem profile from the derived onboarding answers, for the DNA reveal:
+// terpenes from the chosen indications (REASONS map), chemotype/shape from experience tolerance.
+import { REASONS } from '../data/strainsConfig.js';
+
+export function deriveProfileBatch(indications = [], experience) {
+  const counts = {};
+  for (const id of indications) {
+    const r = REASONS.find((x) => x.id === id);
+    (r?.terps || []).forEach((t, i) => { counts[t] = (counts[t] || 0) + (2 - i * 0.5); });
+  }
+  const terpenes = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([terpene, pct]) => ({ terpene, pct }));
+  const ratio = experience === 'experienced' ? { thcPct: 22, cbdPct: 4 }
+              : experience === 'little'       ? { thcPct: 15, cbdPct: 3 }
+              :                                 { thcPct: 10, cbdPct: 10 };
+  return { ...ratio, terpenes: terpenes.length ? terpenes : [{ terpene: 'myrcene', pct: 1 }] };
+}
+
 // Past-strain screen requires at least one liked AND one disliked pick.
 // Multi-select: liked/disliked are arrays (≥1 each). Strings/objects also accepted (single).
 export function pastStrainComplete({ liked, disliked }) {

@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   READY_MICROCOPY,
   dayPartToTimes, experienceToTolerance,
-  screen2Complete, screen3Mode, pastStrainComplete,
+  screen2Complete, screen3Mode, pastStrainComplete, deriveProfileBatch,
 } from '../onboardingV3Logic.js';
 
 describe('screen 2 gate — indication mandatory for everyone', () => {
@@ -84,6 +84,21 @@ describe('experience → tolerance', () => {
     expect(experienceToTolerance('first')).toBe('new');
     expect(experienceToTolerance('little')).toBe('medium');
     expect(experienceToTolerance('experienced')).toBe('veteran');
+  });
+});
+
+describe('deriveProfileBatch — DNA reveal profile from answers', () => {
+  it('terpenes come from the chosen indications, ratio from experience', () => {
+    const b = deriveProfileBatch(['anxiety'], 'first');           // anxiety → linalool, limonene
+    expect(b.terpenes.map((t) => t.terpene)).toEqual(expect.arrayContaining(['linalool', 'limonene']));
+    expect(b.thcPct).toBe(10); expect(b.cbdPct).toBe(10);         // first-timer balanced/low-THC
+  });
+  it('veteran gets a higher-THC shape', () => {
+    expect(deriveProfileBatch(['pain'], 'experienced').thcPct).toBe(22);
+  });
+  it('no indications → non-empty fallback profile (never crashes the reveal)', () => {
+    const b = deriveProfileBatch([], 'first');
+    expect(b.terpenes.length).toBeGreaterThan(0);
   });
 });
 
