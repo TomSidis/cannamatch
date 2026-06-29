@@ -5386,20 +5386,10 @@ function AuthLayout({ children }) {
         @media (max-width: 420px) {
           .auth-cards-grid { grid-template-columns: 1fr; }
         }
+        /* MVP: mobile-first everywhere — no desktop two-column split. Keep a single,
+           phone-width centered column on large screens too. */
         @media (min-width: 1024px) {
-          .auth-shell { flex-direction: row; align-items: stretch; justify-content: flex-start; }
-          .auth-left-panel {
-            display: flex; flex: 1; flex-direction: column;
-            align-items: center; justify-content: center; padding: 64px;
-          }
-          .auth-form-panel {
-            flex: 0 0 520px; width: 520px; padding: 32px 40px;
-            border-left: 1px solid rgba(74,222,128,0.14);
-            background: rgba(3,10,6,0.55);
-            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-          }
-          .auth-mobile-hero { display: none; }
-          .auth-cards-grid { grid-template-columns: 1fr 1fr; }
+          .auth-form-panel { padding: 28px 16px 36px; }
         }
       `}</style>
 
@@ -5485,7 +5475,7 @@ const Field = ({ label, type = "text", value, onChange, placeholder }) => (
 
 function AuthCard({ title, sub, children, onBack }) {
   return (
-    <div style={{ display:"flex", flexDirection:"column" }}>
+    <div style={{ display:"flex", flexDirection:"column", width:"100%", maxWidth:420, marginInline:"auto" }}>
       <div style={{
         background:"rgba(4,14,8,0.54)",
         backdropFilter:"blur(32px)",
