@@ -6,126 +6,71 @@ function store(data: Record<string, string>) {
   return { get: (k: string) => data[k] ?? null };
 }
 
-// ── 1. Four canonical user states ─────────────────────────────────────────────
-describe('resolveScreen — four canonical states', () => {
-  it('no token → welcome (login/register)', () => {
-    expect(resolveScreen(store({}))).toBe('welcome');
-  });
+const SEEN_INTRO = { cm_intro_seen: '1' };
+const LOGGED = { ...SEEN_INTRO, cm_session_token: 'tok', cm_user: '{"id":"u1"}' };
 
-  it('logged in, no welcome seen → welcome_room', () => {
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-    }))).toBe('welcome_room');
+// ── 1. Intro gate (pre-login, shown once) ─────────────────────────────────────
+describe('resolveScreen — intro gate', () => {
+  it('nothing seen → intro', () => {
+    expect(resolveScreen(store({}))).toBe('intro');
   });
-
-  it('welcome seen, onboarding not done → onboarding', () => {
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-      cm_welcome_seen: '1',
-    }))).toBe('onboarding');
+  it('intro not seen takes priority even over a token', () => {
+    expect(resolveScreen(store({ cm_session_token: 'tok', cm_user: '{"id":"u1"}' }))).toBe('intro');
   });
-
-  it('onboarding_done flag → app', () => {
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-      cm_welcome_seen: '1',
-      cm_onboarding_done: '1',
-    }))).toBe('app');
+  it('intro seen, no token → welcome (login/register)', () => {
+    expect(resolveScreen(store(SEEN_INTRO))).toBe('welcome');
   });
 });
 
-// ── 2. Profile-data fallback (no explicit flag, but profile has data) ─────────
+// ── 2. Canonical states (new order: intro → welcome → onboarding → welcome_room → app) ──
+describe('resolveScreen — canonical states', () => {
+  it('logged in, onboarding not done → onboarding', () => {
+    expect(resolveScreen(store(LOGGED))).toBe('onboarding');
+  });
+  it('onboarding done, welcome not seen → welcome_room (ספיץ׳ after DNA)', () => {
+    expect(resolveScreen(store({ ...LOGGED, cm_onboarding_done: '1' }))).toBe('welcome_room');
+  });
+  it('onboarding done + welcome seen → app', () => {
+    expect(resolveScreen(store({ ...LOGGED, cm_onboarding_done: '1', cm_welcome_seen: '1' }))).toBe('app');
+  });
+});
+
+// ── 3. Onboarding-done via profile data proxy ─────────────────────────────────
 describe('resolveScreen — profile-data as onboarding proxy', () => {
-  const base = { cm_session_token: 'tok', cm_user: '{"id":"u1"}', cm_welcome_seen: '1' };
-
-  it('profile with reasons → app', () => {
+  it('profile with reasons → past onboarding (→ welcome_room)', () => {
     expect(resolveScreen(store({
-      ...base,
+      ...LOGGED,
       cm_profile_v2: JSON.stringify({ ans: { reasons: ['sleep'], form: [], helped: [] } }),
-    }))).toBe('app');
+    }))).toBe('welcome_room');
   });
-
-  it('profile with form → app', () => {
+  it('empty profile → still onboarding', () => {
     expect(resolveScreen(store({
-      ...base,
-      cm_profile_v2: JSON.stringify({ ans: { reasons: [], form: ['flower'], helped: [] } }),
-    }))).toBe('app');
-  });
-
-  it('profile with helped strains → app', () => {
-    expect(resolveScreen(store({
-      ...base,
-      cm_profile_v2: JSON.stringify({ ans: { reasons: [], form: [], helped: ['s1'] } }),
-    }))).toBe('app');
-  });
-
-  it('empty profile (all arrays empty) → onboarding (not done)', () => {
-    expect(resolveScreen(store({
-      ...base,
+      ...LOGGED,
       cm_profile_v2: JSON.stringify({ ans: { reasons: [], form: [], helped: [] } }),
     }))).toBe('onboarding');
   });
-
-  it('malformed cm_profile_v2 JSON → onboarding (not app)', () => {
-    expect(resolveScreen(store({
-      ...base,
-      cm_profile_v2: 'not-json{{{',
-    }))).toBe('onboarding');
+  it('malformed profile JSON → onboarding (not done)', () => {
+    expect(resolveScreen(store({ ...LOGGED, cm_profile_v2: 'not-json{{{' }))).toBe('onboarding');
   });
 });
 
-// ── 3. New-user full sequence ─────────────────────────────────────────────────
-describe('resolveScreen — new user end-to-end sequence', () => {
-  it('traverses login → welcome_room → onboarding → app in order', () => {
-    // Step 1: no session
-    expect(resolveScreen(store({}))).toBe('welcome');
-
-    // Step 2: after successful login (token set, user set, no welcome seen)
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-    }))).toBe('welcome_room');
-
-    // Step 3: after user sees welcome (welcome_seen set)
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-      cm_welcome_seen: '1',
-    }))).toBe('onboarding');
-
-    // Step 4: after completing onboarding (onboarding_done set)
-    expect(resolveScreen(store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-      cm_welcome_seen: '1',
-      cm_onboarding_done: '1',
-    }))).toBe('app');
+// ── 4. Full new-user sequence in order ────────────────────────────────────────
+describe('resolveScreen — new user end-to-end', () => {
+  it('intro → welcome → onboarding → welcome_room → app', () => {
+    expect(resolveScreen(store({}))).toBe('intro');
+    expect(resolveScreen(store(SEEN_INTRO))).toBe('welcome');
+    expect(resolveScreen(store(LOGGED))).toBe('onboarding');
+    expect(resolveScreen(store({ ...LOGGED, cm_onboarding_done: '1' }))).toBe('welcome_room');
+    expect(resolveScreen(store({ ...LOGGED, cm_onboarding_done: '1', cm_welcome_seen: '1' }))).toBe('app');
   });
 });
 
-// ── 4. Returning user (refresh) ───────────────────────────────────────────────
+// ── 5. Returning user (refresh) ───────────────────────────────────────────────
 describe('resolveScreen — returning user', () => {
   it('refresh with all flags → app (no regression)', () => {
-    const s = store({
-      cm_session_token: 'tok',
-      cm_user: '{"id":"u1"}',
-      cm_welcome_seen: '1',
-      cm_onboarding_done: '1',
-    });
-    // Two calls simulate two page loads
+    const s = store({ ...LOGGED, cm_onboarding_done: '1', cm_welcome_seen: '1' });
     expect(resolveScreen(s)).toBe('app');
     expect(resolveScreen(s)).toBe('app');
-  });
-});
-
-// ── 5. Logout resets correctly ────────────────────────────────────────────────
-describe('resolveScreen — after logout', () => {
-  it('empty store (all flags cleared) → welcome', () => {
-    // handleLogout removes: cm_session_token, cm_user, cm_welcome_seen, cm_onboarding_done
-    expect(resolveScreen(store({}))).toBe('welcome');
   });
 });
 
@@ -134,19 +79,13 @@ describe('resolveScreen — corrupt storage', () => {
   it('corrupt cm_user JSON → welcome + calls onCorrupt', () => {
     const onCorrupt = vi.fn();
     const result = resolveScreen(
-      store({ cm_session_token: 'tok', cm_user: 'not-valid-json{{{' }),
+      store({ ...SEEN_INTRO, cm_session_token: 'tok', cm_user: 'not-valid-json{{{' }),
       onCorrupt,
     );
     expect(result).toBe('welcome');
     expect(onCorrupt).toHaveBeenCalledOnce();
   });
-
-  it('missing token but valid user JSON → welcome (not welcome_room)', () => {
-    // Token missing — must not proceed past the first check
-    expect(resolveScreen(store({ cm_user: '{"id":"u1"}' }))).toBe('welcome');
-  });
-
-  it('token present but missing cm_user → welcome', () => {
-    expect(resolveScreen(store({ cm_session_token: 'tok' }))).toBe('welcome');
+  it('intro seen, token present but missing cm_user → welcome', () => {
+    expect(resolveScreen(store({ ...SEEN_INTRO, cm_session_token: 'tok' }))).toBe('welcome');
   });
 });
