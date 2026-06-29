@@ -153,6 +153,7 @@ router.post('/basket/plan', verifySession, async (req, res) => {
       track,
       bagCount:  bags.length,
       bags,                       // backward-compatible single plan (enriched)
+      byFit:     routes.byFit,     // PRIMARY — pure best-fit
       expensive: routes.expensive,
       cheap:     routes.cheap,
       coverage:  plan.coverage,

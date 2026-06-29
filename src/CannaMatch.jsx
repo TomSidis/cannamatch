@@ -3749,7 +3749,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
   const [scanning, setScanning] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
   const [inputMode, setInputMode] = useState("file"); // "file" | "manual"
-  const [basketTab, setBasketTab] = useState("expensive"); // "expensive" (יקר) | "cheap" (זול)
+  const [basketTab, setBasketTab] = useState("byFit"); // "byFit" (התאמה, default) | "cheap" (זול) | "expensive" (יקר)
   const fileRef = useRef();
   const camRef = useRef();
   const isTouch = isTouchDevice();
@@ -4100,7 +4100,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
       {/* ── Two basket routes (יקר / זול) — suggestions BELOW the main ranked list ── */}
       {results && results.length > 0 && (() => {
         const routes = buildRoutesFromMenu(results, ans);
-        const active = basketTab === "cheap" ? routes.cheap : routes.expensive;
+        const active = routes[basketTab] || routes.byFit;
         if (!active.bags.length) return null;
         const allowance = Object.values(ans.gramsByCategory || {}).reduce((t, g) => t + (Number(g) || 0), 0);
         const totalGrams = active.bags.reduce((t, b) => t + (b.grams || 0), 0);
@@ -4116,8 +4116,9 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
             {/* Tabs */}
             <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: C.soft }}>
               {[
-                { id: "expensive", label: "יקר · קופסאות" },
+                { id: "byFit",     label: "התאמה" },
                 { id: "cheap",     label: "זול · שקיות" },
+                { id: "expensive", label: "יקר · קופסאות" },
               ].map((t) => (
                 <button key={t.id} onClick={() => setBasketTab(t.id)}
                   className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all"

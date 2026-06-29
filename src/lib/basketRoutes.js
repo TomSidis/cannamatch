@@ -22,6 +22,11 @@ import { buildWhy } from './menuRanking.js';
 //   offers: [{ price, packaging?: 'box'|'bag', format? }]
 function chooseOffer(offers, mode) {
   if (!Array.isArray(offers) || offers.length === 0) return null;
+
+  // by-fit: no packaging/price preference — take the representative offer. All offers are
+  // presentations of the SAME strain, so they share the strain's fit; price is ignored here.
+  if (mode === 'fit') return offers[0];
+
   const boxes = offers.filter((o) => o.packaging === 'box');
   const bags  = offers.filter((o) => o.packaging === 'bag');
 
@@ -57,13 +62,16 @@ function toRouteBag(bag, mode, offersByStrain, meta) {
 export function buildBasketRoutes(need, scored, batches, opts = {}) {
   const { offersByStrain = {}, meta = {}, maxBags = 5 } = opts;
   const plan = planBasket(need, scored, batches, { maxBags });
-
-  const expensive = plan.bags.map((b) => toRouteBag(b, 'expensive', offersByStrain, meta));
-  const cheap     = plan.bags.map((b) => toRouteBag(b, 'cheap', offersByStrain, meta));
+  const route = (mode) => ({
+    bags: plan.bags.map((b) => toRouteBag(b, mode, offersByStrain, meta)),
+    coverage: plan.coverage,
+    warnings: plan.warnings,
+  });
 
   return {
-    expensive: { bags: expensive, coverage: plan.coverage, warnings: plan.warnings },
-    cheap:     { bags: cheap,     coverage: plan.coverage, warnings: plan.warnings },
+    byFit:     route('fit'),       // PRIMARY — pure best-fit, no price/packaging lean
+    cheap:     route('cheap'),     // prefers bag / lower price
+    expensive: route('expensive'), // prefers box / higher price
     coverage:  plan.coverage,
     warnings:  plan.warnings,
   };

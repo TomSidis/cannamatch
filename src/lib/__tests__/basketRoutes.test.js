@@ -41,6 +41,40 @@ describe('20g + day&night → both baskets cover both day-parts within budget', 
   });
 });
 
+describe('three routes — התאמה (by-fit) primary + cheap + expensive', () => {
+  const need = buildNeedVector({ reasons: ['sleep'], gramsByCategory: { 'T22/C4': 20 } });
+  const batches = [sleepB];
+  const offersByStrain = {
+    sleep: [
+      { packaging: 'box', price: 320, format: 'inflorescence' }, // offers[0]
+      { packaging: 'bag', price: 180, format: 'inflorescence' },
+    ],
+  };
+  const routes = buildBasketRoutes(need, scoredOf(need, batches), batches, { offersByStrain });
+
+  it('returns byFit, cheap and expensive', () => {
+    expect(routes.byFit.bags.length).toBeGreaterThan(0);
+    expect(routes.cheap.bags.length).toBe(routes.byFit.bags.length);
+    expect(routes.expensive.bags.length).toBe(routes.byFit.bags.length);
+  });
+  it('byFit picks the best-fit (representative) offer, ignoring price — not min nor forced max', () => {
+    // offers[0] is the box (320); by-fit takes it regardless of price ordering
+    expect(routes.byFit.bags[0].presentation.price).toBe(320);
+    expect(routes.cheap.bags[0].presentation.price).toBe(180);     // cheap differs
+  });
+  it('all three routes share the identical strain selection', () => {
+    const ids = routes.byFit.bags.map((b) => b.batchId);
+    expect(routes.cheap.bags.map((b) => b.batchId)).toEqual(ids);
+    expect(routes.expensive.bags.map((b) => b.batchId)).toEqual(ids);
+  });
+  it('byFit bags carry matchPct top-level, price only nested', () => {
+    for (const b of routes.byFit.bags) {
+      expect(typeof b.matchPct).toBe('number');
+      expect('price' in b).toBe(false);
+    }
+  });
+});
+
 describe('יקר prefers box, זול prefers bag — same underlying fit ranking', () => {
   const need = buildNeedVector({ reasons: ['sleep'], gramsByCategory: { 'T22/C4': 20 } });
   const batches = [sleepB];
