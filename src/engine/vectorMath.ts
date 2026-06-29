@@ -1,6 +1,7 @@
 import type { EffectVector, EffectAxis, Terpene, Batch, Chemotype, Provenance, UserNeed, TerpeneReading, TimeOfDay } from './types.ts';
 import { EFFECT_AXIS_KEYS } from './types.ts';
 import { TERPENE_EFFECTS, CONDITION_LEANS, CHEMOTYPE_MARKERS } from '../data/terpeneScience.ts';
+import { resolveGenetics, derivePhenoPrior } from './genetics.ts';
 
 // ── §4.1 cosine ───────────────────────────────────────────────────────────────
 // Standard cosine over fixed key order. Returns 0 when either norm is 0 (§7).
@@ -62,6 +63,10 @@ function fillEffectVec(partial: Partial<Record<EffectAxis, number>>): EffectVect
   return out;
 }
 
+// B3: weight for a single onboarding strain pick (form[]).
+// 0.3 ensures tried strains nudge, not anchor, the need vector.
+const SINGLE_PICK_WEIGHT = 0.3;
+
 // ── §4 buildNeedVector ────────────────────────────────────────────────────────
 // Accepts the existing `ans` object from onboarding. Pure, deterministic.
 export function buildNeedVector(ans: {
@@ -72,15 +77,29 @@ export function buildNeedVector(ans: {
   terpWeights?: Record<string, number>;
   timing?: string[];
   killSwitches?: Terpene[];
+  // B3: tried-strain picks. Each is a strain name resolved via genetics.
+  // Contributes at SINGLE_PICK_WEIGHT (0.3) — weak signal, not an anchor.
+  form?: string[];
 }): UserNeed {
   const conditions = (ans.reasons ?? []).filter(Boolean);
   const acc = zeroVec();
 
-  // Accumulate condition leans
+  // Accumulate condition leans (weight 1.0)
   for (const cond of conditions) {
     const lean = CONDITION_LEANS.find(c => c.condition === cond);
     if (!lean) continue;
     addVec(acc, lean.lean);
+  }
+
+  // B3: single-pick decay — tried strains add a weak nudge (0.3×) to the need vec.
+  // 0.3 ensures one pick never anchors results; community reports correct it over time.
+  if (ans.form?.length) {
+    for (const name of ans.form) {
+      const node = resolveGenetics(name);
+      if (!node) continue;
+      const prior = derivePhenoPrior(node.id);
+      if (prior.conf > 0) addVec(acc, prior.vec, SINGLE_PICK_WEIGHT);
+    }
   }
 
   // Time-of-day modifiers (derived from conditions when not explicit)
@@ -98,6 +117,26 @@ export function buildNeedVector(ans: {
     licenseCategories: ans.licenseCategories ?? ans.cats ?? [],
     gramsByCategory:   ans.gramsByCategory ?? {},
   };
+}
+
+// B3: "minimum signal" guard.
+// License = eligibility filter only — never a scoring input by itself.
+// Returns true when the ans contains at least one preference signal beyond license.
+// Call before scoreAll; if false, show the "needs one more signal" onboarding nudge.
+export function hasMinimumSignal(ans: {
+  reasons?: string[];
+  timing?: string[];
+  killSwitches?: string[];
+  terpWeights?: Record<string, number>;
+  form?: string[];
+}): boolean {
+  return (
+    (ans.reasons?.length ?? 0) > 0 ||
+    (ans.timing?.length ?? 0) > 0 ||
+    (ans.killSwitches?.length ?? 0) > 0 ||
+    Object.keys(ans.terpWeights ?? {}).length > 0 ||
+    (ans.form?.length ?? 0) > 0
+  );
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

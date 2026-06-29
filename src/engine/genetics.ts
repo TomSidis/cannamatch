@@ -17,7 +17,7 @@
 import { EFFECT_AXIS_KEYS } from './types.ts';
 import type {
   EffectVector, GeneticsNode, DerivedPrior, NameClassification,
-  CultivationMethod,
+  CultivationMethod, Chemotype,
 } from './types.ts';
 import {
   GENETICS_NODES, LINEAGE_EDGES, CULTIVATION_MODIFIERS,
@@ -228,6 +228,86 @@ export function derivePhenoPrior(nodeId: string, depth = 0): DerivedPrior {
   const conf = Math.min(totalConf * DECAY, CAP);
 
   return { vec: merged, conf, source: 'derived' };
+}
+
+// ── §B3 deriveCross — two-layer cross prediction ─────────────────────────────
+//
+// Cannabinoid (THC/CBD ratio): follows Mendelian dominance → STRONG prior.
+//   Type I × Type III → Type II (F1 balanced), conf ≈ 0.65.
+//   Like × Like → same type, conf ≈ 0.70.
+//   Mixed or unknown → lower conf (0.25–0.40).
+//
+// Terpene profile: phenotype-driven, not Mendelian → WEAK prior, always flagged.
+//   conf capped at 0.30 regardless of parent quality.
+//   Must be corrected by community reports before used for recommendations.
+//   (The hard cap ensures a derived cross prior NEVER overrides community data.)
+
+export interface CrossPrior {
+  cannabinoidPrior: {
+    chemotype: Chemotype;  // predicted outcome type (thcDominant | balanced | cbdDominant)
+    conf: number;          // Mendelian: 0.25–0.70; higher = more predictable
+  };
+  terpenePrior: DerivedPrior & { flagged: true };  // conf <= 0.30, always flagged
+}
+
+// Infer chemotype from node's explicit field or effectVec heuristic.
+function nodeChemotype(node: GeneticsNode): Chemotype | null {
+  if (node.chemotype) return node.chemotype;
+  if (!node.effectVec) return null;
+  // THC axes: clearHead + mood; CBD axes: bodyCalm + antiAnxiety + sleep
+  const thcAxes = (node.effectVec.clearHead ?? 0) + (node.effectVec.mood ?? 0);
+  const cbdAxes = (node.effectVec.bodyCalm ?? 0) + (node.effectVec.antiAnxiety ?? 0) + (node.effectVec.sleep ?? 0);
+  const ratio   = cbdAxes > 0 ? thcAxes / cbdAxes : Infinity;
+  if (ratio >= 1.5)  return 'thcDominant';
+  if (ratio <= 0.67) return 'cbdDominant';
+  return 'balanced';
+}
+
+function mendelianCannabinoid(
+  a: Chemotype | null,
+  b: Chemotype | null,
+): CrossPrior['cannabinoidPrior'] {
+  if (!a || !b) return { chemotype: 'balanced', conf: 0.25 };  // unknown parent
+
+  if (a === b) return { chemotype: a, conf: 0.70 };  // Like × Like — high confidence
+
+  // Classic Mendelian: THC-dom × CBD-dom → balanced F1
+  if ((a === 'thcDominant' && b === 'cbdDominant') ||
+      (a === 'cbdDominant' && b === 'thcDominant')) {
+    return { chemotype: 'balanced', conf: 0.65 };
+  }
+
+  // One balanced parent: lean toward the extreme type, moderate conf
+  const extreme = (a === 'balanced' ? b : a) as Chemotype;
+  return { chemotype: extreme, conf: 0.40 };
+}
+
+function crossTerpenePrior(
+  p1: GeneticsNode,
+  p2: GeneticsNode,
+): DerivedPrior & { flagged: true } {
+  const TERPENE_CROSS_CAP = 0.30;
+  const merged = zeroVec();
+
+  const v1 = p1.effectVec ? fullVec(p1.effectVec) : zeroVec();
+  const v2 = p2.effectVec ? fullVec(p2.effectVec) : zeroVec();
+
+  for (const axis of EFFECT_AXIS_KEYS) {
+    merged[axis] = (v1[axis] + v2[axis]) * 0.5;
+  }
+
+  // conf: geometric-mean of parent confs × 0.6 terpene-uncertainty decay, capped
+  const parentMeanConf = ((p1.priorConf ?? 0) + (p2.priorConf ?? 0)) * 0.5;
+  const conf = Math.min(parentMeanConf * 0.6, TERPENE_CROSS_CAP);
+
+  return { vec: merged, conf, source: 'derived', flagged: true };
+}
+
+export function deriveCross(p1: GeneticsNode, p2: GeneticsNode): CrossPrior {
+  return {
+    cannabinoidPrior: mendelianCannabinoid(nodeChemotype(p1), nodeChemotype(p2)),
+    terpenePrior:     crossTerpenePrior(p1, p2),
+  };
 }
 
 // ── §2.5 applyCultivationModifier ─────────────────────────────────────────────

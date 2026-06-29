@@ -60,6 +60,25 @@ export interface Batch {
   // Phase 3: TRUE when cultivationMethod was inherited from a sibling batch (same genetics_id).
   // Scorer applies a 0.85× confidence penalty within the inferred tier for these batches.
   inheritedCultivation?: boolean;
+  // B5: genetics_node.id — same value across all product_sku twins of the same strain.
+  geneticsId?: string;
+  // B5: false = OOS; triggers twin substitution in findTwinSubstitutes.
+  inStock?: boolean;
+  // B5: display name (commercial_name from product_sku). Used in twin menu row.
+  commercialName?: string;
+}
+
+// ── B5: Twin substitution ─────────────────────────────────────────────────────
+// A TwinCandidate is an available substitute for an OOS batch.
+// Intentionally has NO price field — price is NEVER shown next to a match %.
+export interface TwinCandidate {
+  batchId: string;
+  productId: string;
+  commercialName: string;        // product name for the menu row
+  matchPct: number;              // from scorer (same need vector as the original)
+  confidence: number;
+  twinReason: 'same_genetics' | 'similar_terpenes' | 'near_chemotype';
+  reasonHuman: string;           // short Hebrew why (no chemistry, no price)
 }
 export interface Product {
   id: string; displayName: string;
@@ -134,6 +153,9 @@ export interface GeneticsNode {
   priorConf: number;                   // 0..1; any derived value capped at 0.5
   topTerpenes: Terpene[];
   notes?: string;
+  // B3: explicit cannabinoid type for Mendelian cross derivation.
+  // Optional — deriveCross infers heuristically from effectVec when absent.
+  chemotype?: Chemotype;
 }
 
 export interface LineageEdge {

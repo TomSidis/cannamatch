@@ -1,6 +1,6 @@
-import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis } from './types.ts';
+import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis, TimeOfDay } from './types.ts';
 import { EFFECT_AXIS_KEYS } from './types.ts';
-import { cosine, buildPriorVector, buildProductVector, chemotypeFromBatch } from './vectorMath.ts';
+import { cosine, buildPriorVector, buildProductVector, chemotypeFromBatch, buildNeedVector } from './vectorMath.ts';
 import { TERPENE_EFFECTS, CHEMOTYPE_MARKERS, CLUSTERS, CLUSTER_EFFECT_FLAG } from '../data/terpeneScience.ts';
 import { getKillSwitchThreshold } from '../data/killSwitchConfig.ts';
 
@@ -101,11 +101,18 @@ export function scoreSingle(
   const wMeasured = hasTerpenes ? 1 : 0;
   const wPrior    = Math.max(0, 1 - Math.max(wMeasured * 0.6, wCommunity));
 
-  const numerator   = wPrior * prior + wMeasured * 0.6 * measured + wCommunity * community;
-  const denominator = wPrior + wMeasured * 0.6 + wCommunity;
+  // B2 precedence rule: COA-measured batch data fully overrides genetics/chemotype prior.
+  // Derived prior may never override a measured value (spec §B2 hard rule).
+  const wPriorFinal = hasTerpenes && batch.provenance === 'measured' ? 0 : wPrior;
 
-  const finalScore = denominator > 0 ? numerator / denominator : prior;
-  const matchPct   = Math.round(clamp(finalScore * 100, 0, 100));
+  const numerator   = wPriorFinal * prior + wMeasured * 0.6 * measured + wCommunity * community;
+  const denominator = wPriorFinal + wMeasured * 0.6 + wCommunity;
+
+  // B2 community floor: prior may never push score below community mean.
+  // Research = zero scoring weight by design — no research term in this formula.
+  const blendScore  = denominator > 0 ? numerator / denominator : prior;
+  const finalScore  = clamp(reports.n > 0 ? Math.max(blendScore, community) : blendScore, 0, 1);
+  const matchPct    = Math.round(clamp(finalScore * 100, 0, 100));
 
   // §4.3 Confidence — prior+measured components modulated by literature evidence quality.
   // Community component is intentionally NOT modulated: real reports override evidence level.
@@ -127,8 +134,8 @@ export function scoreSingle(
   // Dominant layer for UI messaging (wMeasured unchanged → topLayer unaffected by provDiscount)
   const wMeas60 = wMeasured * 0.6;
   const topLayer: ScoredProduct['topLayer'] =
-    wCommunity > wMeas60 && wCommunity > wPrior ? 'community' :
-    wMeas60 > wPrior ? 'measured' : 'prior';
+    wCommunity > wMeas60 && wCommunity > wPriorFinal ? 'community' :
+    wMeas60 > wPriorFinal ? 'measured' : 'prior';
 
   // Human reason string — no chemistry, never shows terpene names
   const reasonHuman = buildReasonHuman(need, batch, topLayer, confidence);
@@ -194,31 +201,31 @@ function buildReasonHuman(
   // Match the user's top condition to a feeling
   const cond = need.conditions[0];
   const condLabels: Record<string, string> = {
-    sleep:    'מסייע לשינה 🌙',
-    anxiety:  'מרגיע חרדה 🧘',
-    pain:     'מקל על כאב 💊',
-    focus:    'מחדד ריכוז ⚡',
-    appetite: 'מגרה תיאבון 🍽️',
-    gi:       'עוזר למערכת העיכול',
-    ptsd:     'עוזר לפוסט-טראומה 🛡️',
-    mood:     'מרומם מצב רוח 🌞',
-    diabetes: 'מקל על כאב עצבי',
-    epilepsy: 'פרופיל מאוזן',
+    sleep:    'ייתכן שיסייע לשינה 🌙',
+    anxiety:  'ייתכן שירגיע חרדה 🧘',
+    pain:     'ייתכן שיקל על כאב 💊',
+    focus:    'ייתכן שיחדד ריכוז ⚡',
+    appetite: 'ייתכן שיגרה תיאבון 🍽️',
+    gi:       'ייתכן שיעזור למערכת העיכול',
+    ptsd:     'ייתכן שיעזור לפוסט-טראומה 🛡️',
+    mood:     'ייתכן שירומם מצב רוח 🌞',
+    diabetes: 'ייתכן שיקל על כאב עצבי',
+    epilepsy: 'ייתכן שמתאים — פרופיל מאוזן',
   };
   if (cond && condLabels[cond]) return condLabels[cond];
 
   // Fallback: describe the dominant effect axis
   const topAxis = dominantAxis(need.effect);
   const axisLabels: Record<EffectAxis, string> = {
-    bodyCalm:   'מרגיע את הגוף',
-    clearHead:  'ראש צלול',
-    sleep:      'מסייע לשינה',
-    antiPain:   'מקל על כאב',
-    mood:       'מרומם מצב רוח',
-    antiAnxiety:'מרגיע חרדה',
-    appetite:   'מגרה תיאבון',
+    bodyCalm:    'ייתכן שירגיע את הגוף',
+    clearHead:   'ייתכן שיתרום לראש צלול',
+    sleep:       'ייתכן שיסייע לשינה',
+    antiPain:    'ייתכן שיקל על כאב',
+    mood:        'ייתכן שירומם מצב רוח',
+    antiAnxiety: 'ייתכן שירגיע חרדה',
+    appetite:    'ייתכן שיגרה תיאבון',
   };
-  return axisLabels[topAxis] ?? 'פרופיל מתאים לך';
+  return axisLabels[topAxis] ?? 'ייתכן שמתאים לפרופיל שלך';
 }
 
 function dominantAxis(vec: Record<EffectAxis, number>): EffectAxis {
@@ -251,5 +258,41 @@ export function scoreAllWithMap(
       const reports = reportMap[batch.id] ?? { n: 0, mean: 0 };
       return scoreSingle(need, batch, reports);
     })
+    .sort((a, b) => b.matchPct - a.matchPct || b.confidence - a.confidence);
+}
+
+// ── B4: Goal-specific scoring ─────────────────────────────────────────────────
+// Effect ratings are per goal/indication, not a single blended number.
+// Rankings use the selected goal's score, not a multi-condition average.
+//
+// goal: a condition slug ('sleep'|'anxiety'|'pain'|'focus'|...) OR
+//       a time bucket ('morning'|'afternoon'|'evening'|'night') for day-vs-night.
+
+const TIME_BUCKETS = new Set<string>(['morning', 'noon', 'afternoon', 'evening', 'night']);
+
+function needForGoal(goal: string): UserNeed {
+  return TIME_BUCKETS.has(goal)
+    ? buildNeedVector({ timing: [goal as TimeOfDay] })
+    : buildNeedVector({ reasons: [goal] });
+}
+
+/** Score a single batch for one specific goal/indication. */
+export function scoreForGoal(
+  goal: string,
+  batch: Batch,
+  reports: ReportAggregate = { n: 0, mean: 0 },
+): number {
+  return scoreSingle(needForGoal(goal), batch, reports).matchPct;
+}
+
+/** Score and rank all batches for one specific goal. */
+export function scoreAllForGoal(
+  goal: string,
+  batches: Batch[],
+  reportMap: BatchReportMap = {},
+): ScoredProduct[] {
+  const need = needForGoal(goal);
+  return batches
+    .map(batch => scoreSingle(need, batch, reportMap[batch.id] ?? { n: 0, mean: 0 }))
     .sort((a, b) => b.matchPct - a.matchPct || b.confidence - a.confidence);
 }
