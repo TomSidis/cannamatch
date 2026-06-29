@@ -5395,7 +5395,7 @@ function AuthLayout({ children }) {
         }
       `}</style>
 
-      <AuthBgSlideshow />
+      <LeafBackground />
 
       <div className="auth-shell">
         {/* Form panel — right side on desktop (RTL primary), full-width on mobile */}
@@ -7360,12 +7360,12 @@ export default function CannaMatch() {
                 </p>
               </div>
 
-              <div className="auth-cards-grid">
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 {[
-                  { icon:"🎯", title:"התאמה אישית", text:"מיטוב הקנייה החודשית שלך" },
                   { icon:"📋", title:"סריקת תפריט", text:"צלם תפריט, קבל רשימה מותאמת לך" },
-                  { icon:"📚", title:"ידע ומחקרים", text:"נתונים אקדמיים ומחקרים פתוחים" },
-                  { icon:"🫂", title:"פווידר",        text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
+                  { icon:"🎯", title:"התאמה אישית", text:"מיטוב הקנייה החודשית שלך" },
+                  { icon:"🫂", title:"קהילה",        text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
+                  { icon:"📚", title:"ידע ומחקר",   text:"נתונים אקדמיים ומחקרים פתוחים" },
                 ].map((f, i) => (
                   <motion.div key={i}
                     initial={{ opacity:0, scale:0.90 }} animate={{ opacity:1, scale:1 }}
@@ -7669,22 +7669,12 @@ export default function CannaMatch() {
                     setTab={setTab} />
                 </>
               )}
-              {/* MVP: the DNA tab shows the same ChemProfile from onboarding, viewable any time.
-                  (GeneticDNA stays defined for later re-enable.) */}
-              {tab === "dna" && (() => {
-                const b = deriveProfileBatch(ans.reasons || [], ans.experience);
-                return (
-                  <div className="px-5 pt-6 flex flex-col items-center gap-4"
-                    style={{ maxWidth: 420, margin: "0 auto", width: "100%" }}>
-                    <h2 style={{ fontSize: 20, fontWeight: 900, color: "#4ADE80", margin: 0 }}>ה-DNA שלי 🧬</h2>
-                    <ChemProfile batch={b} size={150} />
-                    <ChemProfileLegend batch={b} style={{ textAlign: "center", color: "rgba(187,247,208,0.65)" }} />
-                    <p style={{ fontSize: 12, color: "rgba(187,247,208,0.65)", textAlign: "center", lineHeight: 1.7 }}>
-                      הצורה מייצגת את יחס הקנבינואידים, והצבעים את הטרפנים הדומיננטיים שלך. פרופיל דומה → התנהגות דומה.
-                    </p>
-                  </div>
-                );
-              })()}
+              {/* DNA tab — the rich terpene radar (TerpRadar + dnaSequence + chips), viewable any time. */}
+              {tab === "dna" && (
+                <div className="px-4 pt-4">
+                  <GeneticDNA ans={ans} ratings={ratings} scored={scored} goJournal={() => setTab("menu")} />
+                </div>
+              )}
               {tab === "community" && (
                 licenseVerified
                   ? <CommunitySplitScreen ans={ans} user={user} />
