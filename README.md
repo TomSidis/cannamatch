@@ -263,6 +263,74 @@ GET  /api/community-stats
 
 ---
 
+## פריסה לפרודקשן (URL ציבורי ב-HTTPS)
+
+המטרה: כתובת אחת ב-HTTPS שנפתחת מכל טלפון בסלולר וניתנת לשיתוף בלינק. הארכיטקטורה: **מקור יחיד** — שרת ה-Node (`api/server.js`) מגיש גם את ה-API וגם את ה-React build (`dist/`) מאותו דומיין, כך שקריאות `/api` היחסיות והמצלמה (`getUserMedia`) נשארות same-origin. המסד הוא Postgres מנוהל נפרד.
+
+> **מה שאתה (האדם) עושה ידנית — אל תיתן ל-AI:** פתיחת חשבונות, הזנת כרטיס אשראי, הדבקת סודות אמיתיים בלוח הסביבה של המארח. הסודות נוצרים אצלך ולא נכנסים ל-Git.
+
+### שלב 1 — מסד נתונים מנוהל (Postgres)
+1. פתח Postgres מנוהל אצל ספק לבחירתך (Render PostgreSQL / Railway / Neon / Supabase).
+2. ודא שהתוספים נתמכים: `vector` (pgvector), `pgcrypto`, `pg_trgm`. ב-Neon/Supabase הם זמינים; אם חסר pgvector — בחר ספק שתומך.
+3. העתק את ה-`DATABASE_URL` (פורמט `postgresql://USER:PASS@HOST:5432/DB?sslmode=require`).
+
+### שלב 2 — סודות סביבה (נוצרים אצלך, לא ב-Git)
+הרץ מקומית וצור ערכים:
+```bash
+node -e "console.log('JWT_SECRET='+require('crypto').randomBytes(48).toString('hex'))"
+node -e "console.log('SERVER_HMAC_SECRET='+require('crypto').randomBytes(32).toString('hex'))"
+```
+**צ׳קליסט משתני סביבה (חובה בפרודקשן — השרת מסרב לעלות בלעדיהם):**
+
+| משתנה | חובה | תיאור |
+|---|---|---|
+| `NODE_ENV` | ✅ | `production` — מפעיל הגשת SPA + אכיפת CORS + בדיקות fail-fast |
+| `JWT_SECRET` | ✅ | חתימת טוקני התחברות |
+| `SERVER_HMAC_SECRET` | ✅ | HMAC של מספרי רישיון — **לעולם אל תאפס בפרודקשן** |
+| `DATABASE_URL` | ✅ | חיבור ה-Postgres המנוהל |
+| `PRODUCTION_ORIGIN` | ✅ | דומיין הפרודקשן המלא (במקור יחיד — אותו דומיין של השירות) |
+| `PORT` | ⬜ | לרוב מוזרק ע״י המארח |
+| `ANTHROPIC_API_KEY` | ⬜ | לא נדרש למסלול הליבה (OCR/דירוג מקומיים) |
+
+(התבנית המלאה: `.env.example`.)
+
+### שלב 3 — הרצת מיגרציות מול המסד המנוהל
+מהמחשב שלך, עם `DATABASE_URL` של הפרודקשן:
+```bash
+# Bash / macOS / Linux
+DATABASE_URL="postgresql://USER:PASS@HOST:5432/DB?sslmode=require" npm run db:migrate
+
+# PowerShell
+$env:DATABASE_URL="postgresql://USER:PASS@HOST:5432/DB?sslmode=require"; npm run db:migrate
+```
+`db:migrate` (api/db/migrate.js) רץ אידמפוטנטית — מריץ רק מיגרציות שטרם הוחלו, עוקב בטבלת `schema_migrations`. אופציונלי: `npm run db:seed` לזריעת זנים.
+
+### שלב 4 — פריסת השירות (frontend + API במקור אחד)
+ה-`Dockerfile` בונה את ה-React (`vite build`) ומריץ `node api/server.js` שמגיש גם את `dist/` וגם את `/api`.
+
+**Render (דוגמה):**
+1. New → **Web Service** → חבר את ריפו ה-GitHub.
+2. Environment: **Docker** (משתמש ב-`Dockerfile` הקיים).
+3. הוסף את משתני הסביבה משלב 2. הגדר `PRODUCTION_ORIGIN` ל-URL שהמארח נותן (למשל `https://cannamatch.onrender.com`).
+4. Deploy. המארח מספק HTTPS אוטומטית.
+
+**Railway / Fly.io:** אותו עיקרון — Docker deploy + אותם משתני סביבה.
+
+חלופה (split): frontend ב-Vercel (`vercel.json` קיים) + API נפרד — דורש להצביע את ה-frontend ל-base URL של ה-API ולהתאים CORS. מסלול המקור-היחיד פשוט יותר ומומלץ ל-MVP.
+
+### שלב 5 — אימות אחרי פריסה
+- `GET https://<domain>/api/health` → `200`.
+- פתח את ה-URL בטלפון בסלולר — האפליקציה נטענת ב-HTTPS.
+- **מצלמה:** "צלם עכשיו" עובד רק ב-HTTPS (או localhost) — secure context. בפרודקשן זמין אוטומטית.
+- **Service worker / PWA:** `manifest.webmanifest` + `sw.js` נרשמים ב-HTTPS; "הוסף למסך הבית" הופך לזמין. ה-SW לעולם לא מטמן `/api` (auth/דירוג נשארים חיים).
+
+### הערות
+- אל תקבע סודות בקוד. אל תעלה `.env` (ב-`.gitignore`).
+- בדיקת build מקומית לפני פריסה: `npm run build` ואז `npm run preview`. ב-localhost המצלמה וה-SW עובדים (localhost = secure context).
+- מ job ה-scraper (קטלוג) רץ ב-cron בתוך אותו שרת; אינו דורש הגדרה נוספת.
+
+---
+
 ## פרטיות ובטיחות
 
 - מספר הרישיון המקורי ומספר ת"ז **לא נכתבים לעולם ל-DB** — נשמר רק HMAC ותוצאת האימות.
