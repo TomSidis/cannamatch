@@ -80,6 +80,9 @@ export function buildNeedVector(ans: {
   // B3: tried-strain picks. Each is a strain name resolved via genetics.
   // Contributes at SINGLE_PICK_WEIGHT (0.3) — weak signal, not an anchor.
   form?: string[];
+  // Layer 3: cannabis experience. 'first'/'little' = non-veteran → new-user route ON.
+  // 'experienced' = veteran (≥1yr) → route only when anxiety is a stated indication.
+  experience?: 'first' | 'little' | 'experienced';
 }): UserNeed {
   const conditions = (ans.reasons ?? []).filter(Boolean);
   const acc = zeroVec();
@@ -109,6 +112,14 @@ export function buildNeedVector(ans: {
   // Normalize to [0..1]
   const effect = normalizeVec(acc);
 
+  // New-user route gate. Non-veterans (first/little) always get it; a veteran gets it
+  // only when anxiety is their stated indication. Unknown experience → off (conservative:
+  // never silently re-route a returning user). Existing callers omit experience → off.
+  const exp = ans.experience;
+  const newUserRoute = exp
+    ? (exp !== 'experienced' || conditions.includes('anxiety'))
+    : false;
+
   return {
     effect,
     times,
@@ -116,6 +127,7 @@ export function buildNeedVector(ans: {
     killSwitches:      ans.killSwitches ?? [],
     licenseCategories: ans.licenseCategories ?? ans.cats ?? [],
     gramsByCategory:   ans.gramsByCategory ?? {},
+    newUserRoute,
   };
 }
 

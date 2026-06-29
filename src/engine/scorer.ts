@@ -61,6 +61,53 @@ function computeClusterBonus(batch: Batch, need: UserNeed): number {
   return best;
 }
 
+// ── NEW-USER ROUTE (Layer 3) ──────────────────────────────────────────────────
+// A bounded modifier applied AFTER the indication-fit blend. It nudges between close
+// matches and demotes the anxiogenic, but never floats a poor indication-match above a
+// strong one: the nudge is capped at ±NEW_USER_MAX_NUDGE, so any pair whose base-fit gap
+// exceeds 2× the cap keeps its order. Indication fit leads.
+// ponytail: cap is the one knob to tune if the layer feels too weak/strong in the field.
+const NEW_USER_MAX_NUDGE = 0.05;
+
+// Dominant terpenes, highest first. Measured/declared → sorted by pct; inferred → chemotype
+// markers (rank only, no pct). Empty when neither is available.
+function batchDominantTerpenes(batch: Batch): Terpene[] {
+  if (batch.terpenes.length > 0) {
+    return [...batch.terpenes].sort((a, b) => b.pct - a.pct).map(r => r.terpene);
+  }
+  return CHEMOTYPE_MARKERS[chemotypeFromBatch(batch)] ?? [];
+}
+
+function applyNewUserRoute(need: UserNeed, batch: Batch, base: number): number {
+  const ranked = batchDominantTerpenes(batch);
+  const rankOf = (t: Terpene) => ranked.indexOf(t);
+  const has    = (t: Terpene) => ranked.includes(t);
+
+  let raw = 0;
+
+  // Anxiolytic preference — linalool strongest (GABA pathway), limonene best human evidence.
+  if (has('linalool'))      raw += rankOf('linalool') === 0 ? 1.0 : 0.6;
+  if (has('limonene'))      raw += rankOf('limonene') === 0 ? 0.8 : 0.5;
+  if (has('caryophyllene')) raw += 0.3; // secondary credit (CB2)
+
+  // Myrcene counts ONLY for night / all-day (sedating) — never boosts a day-only patient.
+  const coversNight = need.times.some(t => t === 'evening' || t === 'night');
+  if (has('myrcene') && coversNight) raw += 0.4;
+
+  // Penalize terpinolene (evidence: neutral-to-anxiogenic); harder when it is dominant.
+  if (rankOf('terpinolene') === 0)   raw -= 1.0;
+  else if (has('terpinolene'))       raw -= 0.4;
+
+  // Prefer lower-THC / milder categories — high THC + no tolerance is the classic anxiety path.
+  const chem = chemotypeFromBatch(batch);
+  if (chem === 'cbdDominant')   raw += 0.6;
+  else if (chem === 'balanced') raw += 0.3;
+  else                          raw -= 0.5; // thcDominant
+
+  // Squash unbounded raw into (-1, 1), then scale to the bounded nudge.
+  return clamp(base + Math.tanh(raw) * NEW_USER_MAX_NUDGE, 0, 1);
+}
+
 // ── §4.2 Three-layer blend ────────────────────────────────────────────────────
 export function scoreSingle(
   need: UserNeed,
@@ -112,7 +159,12 @@ export function scoreSingle(
   // Research = zero scoring weight by design — no research term in this formula.
   const blendScore  = denominator > 0 ? numerator / denominator : prior;
   const finalScore  = clamp(reports.n > 0 ? Math.max(blendScore, community) : blendScore, 0, 1);
-  const matchPct    = Math.round(clamp(finalScore * 100, 0, 100));
+
+  // NEW-USER ROUTE: bounded anxiolytic / lower-THC tie-breaker layered ON TOP of the
+  // indication-fit score above. Capped at ±NEW_USER_MAX_NUDGE so a fit gap larger than
+  // 2× the cap can never be reordered — indication fit always leads (spec §Layer 3).
+  const routedScore = need.newUserRoute ? applyNewUserRoute(need, batch, finalScore) : finalScore;
+  const matchPct    = Math.round(clamp(routedScore * 100, 0, 100));
 
   // §4.3 Confidence — prior+measured components modulated by literature evidence quality.
   // Community component is intentionally NOT modulated: real reports override evidence level.

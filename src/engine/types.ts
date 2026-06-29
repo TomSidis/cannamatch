@@ -95,6 +95,10 @@ export interface UserNeed {
   killSwitches: Terpene[];
   licenseCategories: string[];
   gramsByCategory: Record<string, number>;
+  // NEW-USER ROUTE: when true the scorer applies a bounded anxiolytic / lower-THC
+  // tie-breaker on top of indication fit (first-timers & non-veterans; veterans only
+  // when anxiety is their stated indication). Indication fit always leads.
+  newUserRoute: boolean;
 }
 
 // ── community reports (pre-aggregated, keyed by grow_batch_id NOT strain) ────
