@@ -14,6 +14,9 @@
  * `presentation`) so the renderer never places a price adjacent to a match %.
  */
 import { planBasket } from '../engine/basketPlanner.ts';
+import { buildNeedVector } from '../engine/vectorMath.ts';
+import { strainToBatch } from '../engine/legacyBridge.ts';
+import { buildWhy } from './menuRanking.js';
 
 // Pick the presentation for one selected strain from its available menu offers.
 //   offers: [{ price, packaging?: 'box'|'bag', format? }]
@@ -64,4 +67,48 @@ export function buildBasketRoutes(need, scored, batches, opts = {}) {
     coverage:  plan.coverage,
     warnings:  plan.warnings,
   };
+}
+
+/**
+ * buildRoutesFromMenu — convenience for the client: build both routes directly from the
+ * merged scan-session items + the user's profile. Each menu item is one offer; multiple
+ * items for the same strain (e.g. different price/format) become its presentation options.
+ * Selection stays fit-first (planBasket via buildBasketRoutes) — price never enters it.
+ *
+ * @param items merged decoded items: { known:{id,cat,terps}, match, price, format, name, packaging? }
+ * @param ans   user profile: { reasons, cats, gramsByCategory, times|timing, experience }
+ */
+export function buildRoutesFromMenu(items = [], ans = {}) {
+  const ctx = { experience: ans.experience, reasons: ans.reasons };
+  const known = items.filter((it) => it.known && typeof it.match === 'number' && it.match > 0);
+
+  const offersByStrain = {};
+  const meta = {};
+  const scored = [];
+  const batches = [];
+  const seen = new Set();
+
+  for (const it of known) {
+    const id = it.known.id;
+    (offersByStrain[id] ||= []).push({ price: it.price ?? null, packaging: it.packaging ?? null, format: it.format ?? null });
+    if (!seen.has(id)) {
+      seen.add(id);
+      batches.push(strainToBatch(it.known));
+      scored.push({ productId: id, batchId: id, matchPct: it.match, confidence: 1, reasonHuman: '', topLayer: 'prior' });
+      meta[id] = { name: it.name, why: buildWhy(it, ctx) };
+    } else {
+      const s = scored.find((x) => x.batchId === id);  // keep the strain's best match
+      if (s && it.match > s.matchPct) s.matchPct = it.match;
+    }
+  }
+
+  const need = buildNeedVector({
+    reasons:         ans.reasons || [],
+    cats:            ans.cats || [],
+    gramsByCategory: ans.gramsByCategory || {},
+    timing:          ans.times || ans.timing || [],
+    experience:      ans.experience,
+  });
+
+  return buildBasketRoutes(need, scored, batches, { offersByStrain, meta, maxBags: 5 });
 }

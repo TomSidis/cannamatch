@@ -8,7 +8,7 @@
  *   - price never adjacent to a match % (separate fields)
  */
 import { describe, it, expect } from 'vitest';
-import { buildBasketRoutes } from '../basketRoutes.js';
+import { buildBasketRoutes, buildRoutesFromMenu } from '../basketRoutes.js';
 import { buildNeedVector } from '../../engine/vectorMath.ts';
 import { scoreAll } from '../../engine/scorer.ts';
 
@@ -112,6 +112,34 @@ describe('no gram data → both baskets still built', () => {
     expect(routes.expensive.bags.length).toBeGreaterThan(0);
     expect(routes.cheap.bags.length).toBeGreaterThan(0);
     expect(routes.warnings.some((w) => w.includes('גרמים'))).toBe(true);
+  });
+});
+
+describe('buildRoutesFromMenu — the client panel path (merged scan items + profile)', () => {
+  const item = (id, name, match, price, terps) => ({
+    name, match, price, format: 'inflorescence',
+    known: { id, name, cat: 'T22/C4', terps },
+  });
+  const items = [
+    item('sleep', 'אור',  88, 300, { myrcene: 0.8, linalool: 0.4 }),
+    item('pain',  'פיין', 70, 180, { caryophyllene: 0.7 }),
+  ];
+  const ans = { reasons: ['sleep'], cats: ['T22/C4'], gramsByCategory: { 'T22/C4': 20 } };
+
+  it('produces both routes with the same fit-first selection', () => {
+    const r = buildRoutesFromMenu(items, ans);
+    expect(r.expensive.bags.length).toBeGreaterThan(0);
+    expect(r.cheap.bags.map((b) => b.batchId)).toEqual(r.expensive.bags.map((b) => b.batchId));
+  });
+
+  it('excludes a low-fit menu strain (match 0) from both routes', () => {
+    const withLowFit = [...items, item('bad', 'גרוע', 0, 50, { terpinolene: 0.9 })];
+    const r = buildRoutesFromMenu(withLowFit, ans);
+    expect(r.expensive.bags.map((b) => b.batchId)).not.toContain('bad');
+  });
+
+  it('rows carry no top-level price', () => {
+    for (const b of buildRoutesFromMenu(items, ans).cheap.bags) expect('price' in b).toBe(false);
   });
 });
 

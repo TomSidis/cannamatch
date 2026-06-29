@@ -34,6 +34,7 @@ import {
   saveSession, loadSession, clearSession, imageHash,
 } from "./lib/scanSession.js";
 import { rankMenu, SOFT_LINE } from "./lib/menuRanking.js";
+import { buildRoutesFromMenu } from "./lib/basketRoutes.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PEEK_WINDOW_ENABLED } from "./lib/categoryConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
@@ -3748,6 +3749,7 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
   const [scanning, setScanning] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
   const [inputMode, setInputMode] = useState("file"); // "file" | "manual"
+  const [basketTab, setBasketTab] = useState("expensive"); // "expensive" (יקר) | "cheap" (זול)
   const fileRef = useRef();
   const camRef = useRef();
   const isTouch = isTouchDevice();
@@ -4091,6 +4093,87 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
             )}
 
             {partial.map(Row)}
+          </div>
+        );
+      })()}
+
+      {/* ── Two basket routes (יקר / זול) — suggestions BELOW the main ranked list ── */}
+      {results && results.length > 0 && (() => {
+        const routes = buildRoutesFromMenu(results, ans);
+        const active = basketTab === "cheap" ? routes.cheap : routes.expensive;
+        if (!active.bags.length) return null;
+        const allowance = Object.values(ans.gramsByCategory || {}).reduce((t, g) => t + (Number(g) || 0), 0);
+        const totalGrams = active.bags.reduce((t, b) => t + (b.grams || 0), 0);
+        const PACK_LABEL = { box: "קופסה", bag: "שקית" };
+
+        return (
+          <div className="rounded-2xl p-4 border" style={{ background: C.card, borderColor: C.line }}>
+            <h3 className="font-bold mb-1" style={{ color: C.ink }}>🛒 סלים מוצעים</h3>
+            <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.55)" }}>
+              שני הסלים מתאימים אותו דבר — נבדלים רק באופן מילוי תקציב הגרמים. אפשר גם לבחור ידנית מהרשימה למעלה.
+            </p>
+
+            {/* Tabs */}
+            <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: C.soft }}>
+              {[
+                { id: "expensive", label: "יקר · קופסאות" },
+                { id: "cheap",     label: "זול · שקיות" },
+              ].map((t) => (
+                <button key={t.id} onClick={() => setBasketTab(t.id)}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all"
+                  style={{
+                    background: basketTab === t.id ? "rgba(74,222,128,0.10)" : "transparent",
+                    color: basketTab === t.id ? "#4ADE80" : "rgba(187,247,208,0.50)",
+                  }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Gram total vs allowance */}
+            <div className="mb-3 px-3 py-2 rounded-xl flex items-center justify-between"
+              style={{ background: C.soft, border: `1px solid ${C.line}` }}>
+              <span className="text-xs" style={{ color: "rgba(187,247,208,0.65)" }}>סה״כ בסל</span>
+              <span className="text-xs font-bold" style={{ color: C.ink }}>
+                {totalGrams} ג׳{allowance > 0 ? ` / ${allowance} ג׳ מותר` : ""}
+              </span>
+            </div>
+            {active.warnings?.some((w) => w.includes("גרמים")) && (
+              <p className="text-xs mb-2" style={{ color: "#FBBF24" }}>⚠️ כמות גרמים לא ידועה — הערכה בלבד</p>
+            )}
+
+            {/* Basket rows — match% never beside price */}
+            <div className="space-y-2">
+              {active.bags.map((b) => (
+                <div key={b.batchId} className="rounded-xl p-3 border"
+                  style={{ background: C.bg, borderColor: C.line }}>
+                  <div className="flex items-center gap-3">
+                    {typeof b.matchPct === "number" && <MatchRing pct={b.matchPct} />}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold" style={{ color: C.ink }}>{b.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                          style={{ background: C.soft, color: C.accent }}>{b.grams} ג׳</span>
+                        {b.role && (
+                          <span className="text-xs px-2 py-0.5 rounded-full"
+                            style={{ background: "rgba(167,139,250,0.10)", color: "#C084FC" }}>{b.role}</span>
+                        )}
+                      </div>
+                      {b.why && <p className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.70)" }}>{b.why}</p>}
+                    </div>
+                  </div>
+                  {/* Economics line — separate row, never adjacent to the match % */}
+                  {b.presentation && (b.presentation.price != null || b.presentation.packaging) && (
+                    <div className="mt-2 pt-2 text-xs flex items-center gap-2"
+                      style={{ borderTop: `1px dashed ${C.line}`, color: "rgba(187,247,208,0.55)" }}>
+                      <span>💰 כלכלת הסל:</span>
+                      {b.presentation.packaging && <span>{PACK_LABEL[b.presentation.packaging] || b.presentation.packaging}</span>}
+                      {b.presentation.price != null && <span className="font-bold">₪{b.presentation.price}</span>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}
