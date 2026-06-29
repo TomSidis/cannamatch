@@ -145,6 +145,11 @@ check('normalize: empty',        normalize(''),                  '');
 check('normalize: undef',        normalize(undefined),           '');
 check('parse: homepage',         parseOgTitle('חנות אונליין T22/C4'), null);
 check('parse: סיבאנק',           parseOgTitle('חנות קנאביס סיבאנק T22/C4'), null);
+// חנות קנאביס BEFORE T/C → homepage; AFTER T/C → product page (pharmacy descriptor)
+check('parse: חנות קנאביס before T/C → reject', parseOgTitle('חנות קנאביס כלשהי'), null);
+const _pKim = parseOgTitle('תפרחת קים אם.ג"י - T22/C4 חנות קנאביס סופר פארם - איזי קנאביס');
+check('parse: product page with חנות קנאביס after T/C → accept', _pKim?.strain_name, 'קים אם.ג"י');
+check('parse: product page format', _pKim?.product_format, 'inflorescence');
 const _p3 = parseOgTitle('אבידקל מינון T3/C15 - Pharmacy X');
 check('parse: מינון→name',       _p3?.strain_name,    'אבידקל');
 check('parse: מינון→format',     _p3?.product_format, 'inflorescence');

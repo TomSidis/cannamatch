@@ -35,12 +35,7 @@ function decodeEntities(s) {
 }
 
 // ── Homepage rejection ─────────────────────────────────────────────────────────
-// Applied BEFORE T/C check — rejects even if T/C present in the title.
-const HOMEPAGE_MARKERS = [
-  /חנות.{0,8}אונליין/u,    // "חנות אונליין"
-  /חנות.{0,8}קנאביס/u,    // "חנות קנאביס X"
-  /סיבאנק/u,
-];
+// See step 1 in parseOgTitle for full logic.
 
 // ── Format detection ───────────────────────────────────────────────────────────
 // Prefixes: product type appears at start of cleaned title → identifies format, stripped from name.
@@ -61,8 +56,16 @@ export function parseOgTitle(rawOgTitle) {
   if (!rawOgTitle) return null;
   const raw = decodeEntities(rawOgTitle).trim();
 
-  // 1. Reject homepages — before T/C extraction
-  if (HOMEPAGE_MARKERS.some(re => re.test(raw))) return null;
+  // 1. Reject homepages — before T/C extraction.
+  //    חנות אונליין + סיבאנק: unconditional (homepage even if T/C present).
+  //    חנות קנאביס: position-aware — Easy Cannabis product pages use this phrase
+  //    AFTER the T/C marker as a pharmacy descriptor. Only reject if it appears
+  //    BEFORE T/C (or with no T/C at all), which is the actual homepage pattern.
+  const HOMEPAGE_HARD = [/חנות.{0,8}אונליין/u, /סיבאנק/u];
+  if (HOMEPAGE_HARD.some(re => re.test(raw))) return null;
+  const _tcIdx = raw.search(/T\d+\/C\d+/i);
+  const _hkIdx = raw.search(/חנות.{0,8}קנאביס/u);
+  if (_hkIdx !== -1 && (_tcIdx === -1 || _hkIdx < _tcIdx)) return null;
 
   // 2. Extract T/C
   const tcMatch = raw.match(/T(\d+)\/C(\d+)/i);
