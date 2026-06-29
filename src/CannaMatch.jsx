@@ -27,6 +27,12 @@ import { TERPENE_HUMAN, terp as terpHuman, buildDnaStrands, avoidedHumanLabels }
 import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
 import { resolveScreen as _resolveScreen } from "./lib/resolveScreen.ts";
 import { ocrFile } from "./lib/menuOcr.js";
+import { downscaleImage } from "./lib/imagePrep.js";
+import CameraCapture from "./components/CameraCapture.jsx";
+import {
+  createSession, addPage, retryPage, removePage, mergeSession,
+  saveSession, loadSession, clearSession, imageHash,
+} from "./lib/scanSession.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PEEK_WINDOW_ENABLED } from "./lib/categoryConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
@@ -3730,9 +3736,13 @@ function ManualStrainEntry({ ans, scored, onDecode, onError }) {
 }
 
 function MenuScan({ ans, scored, basket, addToBasket, user }) {
-  const [results, setResults] = useState(null);
+  // A scan is a SESSION of pages (Layer 4.2). Restore an in-progress scan on mount
+  // so backgrounding / a network blip mid-scan never loses decoded pages.
+  const [session, setSession] = useState(() => loadSession() || createSession());
+  const [manualResults, setManualResults] = useState(null);
   const [resultKey, setResultKey] = useState(0);
   const [error, setError] = useState(null);
+  const [dupNotice, setDupNotice] = useState(null); // { type:'exact'|'near', pageId? }
   const [dragOver, setDragOver] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
@@ -3741,50 +3751,67 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
   const camRef = useRef();
   const isTouch = isTouchDevice();
 
+  // Persist the session on every change — survives refresh.
+  useEffect(() => { saveSession(session); }, [session]);
+
+  // Image-path results come from the merged session; manual mode keeps its own.
+  const results = session.pages.length ? mergeSession(session) : manualResults;
+  const commit = () => setSession((s) => ({ ...s })); // re-render after in-place page mutation
+
   const handleDecodeResults = (res) => {
-    setResults(res.length ? res : []);
+    setManualResults(res.length ? res : []);
     setResultKey(k => k + 1);
     if (!res.length) setError("לא זוהו מוצרים — ודאו ששמות הזנים נכתבו נכון");
     else setError(null);
   };
 
-  // ── Photo / PDF → Tesseract OCR → decode locally ────────────────────────
-  const processFile = async (file) => {
+  const enqueueUnknowns = (items) => {
+    const unknowns = (items || []).filter((it) => it.unknown && it.name);
+    if (unknowns.length) {
+      api.submitPendingScan(unknowns.map((it) => ({
+        name: it.name, cat: it.cat, format: it.format, grower: it.grower, raw: it.origLine,
+      }))).catch(() => {});
+    }
+  };
+
+  // ── Photo (camera/upload) → downscale → Tesseract OCR → append a page ────
+  const addImagePage = async (file) => {
     if (!file) return;
-    setError(null); setResults(null); setResultKey(k => k + 1);
-    const isImg = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name);
-    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-    if (!isImg && !isPdf) {
-      setError("אפשר להעלות תמונה (JPG/PNG/WEBP) בלבד — PDF מגיע בקרוב");
-      return;
-    }
-    if (isPdf) {
-      setError("PDF: ייצאו כתמונה או הקלידו ידנית");
-      setInputMode("manual");
-      return;
-    }
+    setError(null); setDupNotice(null);
+    const isImg = (file.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name || "");
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+    if (isPdf) { setError("PDF: ייצאו כתמונה או הקלידו ידנית"); setInputMode("manual"); return; }
+    if (!isImg) { setError("אפשר להעלות תמונה (JPG/PNG/WEBP) בלבד"); return; }
+
     setScanning(true); setOcrPct(0);
     try {
-      const raw = await ocrFile(file, setOcrPct);
-      if (!raw || raw.trim().length < 5) {
-        setError("לא הצלחנו לקרוא את התמונה — ודאו שהטקסט ברור, או הקלידו ידנית");
-        setInputMode("manual");
-        return;
-      }
-      const res = decodeMenu(raw, ans, scored);
-      setResults(res.length ? res : []);
-      if (!res.length) setError("OCR הצליח אבל לא זיהינו שמות זנים — עברו לידני");
-      const unknowns = res.filter(r => r.unknown && r.name);
-      if (unknowns.length) api.submitPendingScan(unknowns.map(r => ({ name: r.name, cat: r.cat }))).catch(() => {});
+      const { dataUrl, blob } = await downscaleImage(file, 1600); // phone-perf downscale
+      const hash = imageHash(dataUrl);
+      const raw  = await ocrFile(blob, setOcrPct);
+      const r = addPage(session, { imageHash: hash, rawText: raw, ans, scored });
+      if (!r.ok && r.duplicate === "exact") { setDupNotice({ type: "exact" }); return; }
+      commit();
+      setResultKey((k) => k + 1);
+      if (r.duplicate === "near") setDupNotice({ type: "near", pageId: r.page.id });
+      if (r.page.status === "failed") setError("דף לא ברור — נסו שוב או צלמו אותו מחדש");
+      enqueueUnknowns(r.page.items);
     } catch (err) {
-      console.warn("OCR error:", err.message);
-      setError("שגיאת OCR — נסו תמונה ברורה יותר, או עברו לידני");
-      setInputMode("manual");
+      console.warn("scan page error:", err.message);
+      setError("שגיאת עיבוד — נסו תמונה ברורה יותר, או עברו לידני");
     } finally {
       setScanning(false);
       if (fileRef.current) fileRef.current.value = '';
       if (camRef.current)  camRef.current.value  = '';
     }
+  };
+
+  const onRemovePage = (pageId) => { removePage(session, pageId); commit(); setResultKey((k) => k + 1); };
+  const onRetryPage  = (pageId) => { retryPage(session, pageId, { ans, scored }); commit(); setResultKey((k) => k + 1); };
+  const onNewScan    = () => { clearSession(); setSession(createSession()); setManualResults(null); setError(null); setDupNotice(null); };
+
+  const PAGE_STATUS_LABEL = {
+    queued: "ממתין", decoding: "מפענח…",
+    decoded: "פוענח", failed: "לא ברור",
   };
 
   return (
@@ -3794,12 +3821,12 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault(); setDragOver(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) { setInputMode("file"); processFile(f); }
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length) { setInputMode("file"); files.forEach((f) => addImagePage(f)); }
         }}>
         <h3 className="font-bold mb-1" style={{ color: C.ink }}>פענוח תפריט 🌿</h3>
         <p className="text-xs mb-3" style={{ color: "rgba(187,247,208,0.65)" }}>
-          צלמו תפריט או הקלידו ידנית — הכל עובד ללא רשת.
+          צלמו דף אחר דף — כל צילום מתווסף לסריקה. הכל עובד ללא רשת.
         </p>
 
         {/* Mode tabs — 2 tabs only */}
@@ -3821,13 +3848,15 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
 
         {/* ── Photo / camera mode ─────────────────────────────── */}
         {inputMode === "file" && (
+          <>
           <div className="rounded-xl border-2 border-dashed p-4 mb-3 text-center"
             style={{ borderColor: dragOver ? C.accent : "rgba(74,222,128,0.30)", background: dragOver ? "rgba(74,222,128,0.08)" : C.soft }}>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden"
-              onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
+            {/* allow selecting multiple images at once — each appends a page */}
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={(e) => { Array.from(e.target.files || []).forEach((f) => addImagePage(f)); }} />
             {isTouch && <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />}
-            <div className="flex gap-2 justify-center mb-2">
+              onChange={(e) => e.target.files?.[0] && addImagePage(e.target.files[0])} />}
+            <div className="flex gap-2 justify-center mb-2 flex-wrap">
               <button onClick={() => fileRef.current?.click()} disabled={scanning}
                 className="font-bold text-sm px-4 py-2 rounded-xl disabled:opacity-50"
                 style={{ background: C.accent, color: "#061006" }}>
@@ -3840,6 +3869,10 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
                   📷 צלם
                 </button>
               )}
+              {/* getUserMedia live capture; falls back to the file-capture input on denial */}
+              <CameraCapture accent={C.accent}
+                onCapture={(blob) => addImagePage(new File([blob], `page-${Date.now()}.jpg`, { type: "image/jpeg" }))}
+                onFallback={() => (camRef.current || fileRef.current)?.click()} />
             </div>
             {scanning && (
               <div className="w-full rounded-full mt-2" style={{ background: "rgba(74,222,128,0.10)", height: 4 }}>
@@ -3847,9 +3880,55 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
               </div>
             )}
             <p className="text-xs mt-2" style={{ color: "rgba(187,247,208,0.45)" }}>
-              גררו תמונה לכאן · JPG / PNG / WEBP · OCR מקומי (ללא שרת)
+              גררו תמונות לכאן · דף אחר דף · OCR מקומי (ללא שרת)
             </p>
           </div>
+
+          {/* ── Duplicate notices ─────────────────────────────── */}
+          {dupNotice?.type === "exact" && (
+            <div className="mb-3 p-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}>
+              <p className="text-xs font-semibold" style={{ color: "#FBBF24" }}>📄 נראה שכבר צילמת את הדף הזה — לא הוספתי אותו שוב.</p>
+            </div>
+          )}
+          {dupNotice?.type === "near" && (
+            <div className="mb-3 p-2.5 rounded-xl flex items-center gap-2 flex-wrap"
+              style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}>
+              <p className="text-xs font-semibold flex-1" style={{ color: "#FBBF24" }}>📄 הדף נראה דומה מאוד לדף קודם. לשמור בכל זאת?</p>
+              <button onClick={() => setDupNotice(null)} className="text-xs px-2 py-1 rounded-lg font-bold" style={{ background: C.accent, color: "#061006" }}>שמור</button>
+              <button onClick={() => { onRemovePage(dupNotice.pageId); setDupNotice(null); }} className="text-xs px-2 py-1 rounded-lg font-bold border" style={{ borderColor: "#FCA5A5", color: "#FCA5A5" }}>הסר</button>
+            </div>
+          )}
+
+          {/* ── Pages strip (ordered, removable, retryable) ─────── */}
+          {session.pages.length > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold" style={{ color: C.ink }}>
+                  📄 {session.pages.length} דפים בסריקה
+                </span>
+                <button onClick={onNewScan} className="text-xs font-bold" style={{ color: "rgba(187,247,208,0.55)" }}>נקה סריקה</button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {session.pages.map((p, i) => (
+                  <div key={p.id} className="flex-shrink-0 rounded-xl p-2 text-center"
+                    style={{ minWidth: 92, background: C.soft,
+                      border: `1px solid ${p.status === "failed" ? "rgba(248,113,113,0.4)" : p.nearDuplicateOf ? "rgba(251,191,36,0.4)" : C.line}` }}>
+                    <div className="text-xs font-bold" style={{ color: C.ink }}>דף {i + 1}</div>
+                    <div className="text-xs" style={{ color: p.status === "failed" ? "#FCA5A5" : "rgba(187,247,208,0.6)" }}>
+                      {PAGE_STATUS_LABEL[p.status] || p.status}{p.status === "decoded" ? ` · ${p.items.length}` : ""}
+                    </div>
+                    <div className="flex gap-1 justify-center mt-1">
+                      {p.status === "failed" && (
+                        <button onClick={() => onRetryPage(p.id)} className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(74,222,128,0.15)", color: C.accent }}>נסה שוב</button>
+                      )}
+                      <button onClick={() => onRemovePage(p.id)} className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(248,113,113,0.12)", color: "#FCA5A5" }}>הסר</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* ── Manual entry with autocomplete ──────────────────── */}

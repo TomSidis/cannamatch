@@ -245,16 +245,22 @@ router.post("/pending-scan", async (req, res) => {
     (s || '').toLowerCase().replace(/[\s‏‎]+/g, ' ').replace(/['"'׳״.\-–—_]/g, '').trim();
 
   let added = 0;
-  for (const { name, cat } of names) {
+  for (const { name, cat, format, grower, raw } of names) {
     if (!name) continue;
     const normed = normName(name);
     if (!normed || normed.length < 3) continue;
+    // Detected format/grower + the raw OCR line travel in raw_context as JSON (no schema
+    // change). status defaults to 'pending' = needs_review — never auto-promoted to product_sku.
+    const context = JSON.stringify({
+      raw: raw || null, cat: cat || null,
+      format: format || null, grower: grower || null,
+    });
     try {
       const { rowCount } = await pool.query(
         `INSERT INTO pending_product (commercial_name, normalized_name, source_id, raw_context)
          VALUES ($1,$2,'user-scan',$3)
          ON CONFLICT (normalized_name) DO NOTHING`,
-        [name, normed, cat || null],
+        [name, normed, context],
       );
       added += rowCount;
     } catch (err) {
