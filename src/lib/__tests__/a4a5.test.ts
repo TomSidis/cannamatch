@@ -78,11 +78,12 @@ describe('A4 — MenuScan: no paste tab, camera touch-only', () => {
 // ── Phase A5 — keyboard support ───────────────────────────────────────────────
 describe('A5 — login form Enter support', () => {
   it('login form wrapped in <form onSubmit>', () => {
-    // The sendOtp phone/email login form
-    expect(main).toMatch(/form\s+onSubmit.*sendOtp|<form onSubmit.*sendOtp/);
+    // Layer 1: email+password login form (doLogin replaced the OTP sendOtp handler)
+    expect(main).toMatch(/<form onSubmit[\s\S]{0,60}doLogin/);
   });
   it('register form wrapped in <form onSubmit>', () => {
-    expect(main).toMatch(/form\s+onSubmit[\s\S]{0,60}hרשמה|form onSubmit[\s\S]{0,200}go\("verify"\)/);
+    // Layer 1: signup form (api.signup → welcome_room replaced the OTP go("verify") hop)
+    expect(main).toMatch(/<form onSubmit[\s\S]{0,260}api\.signup/);
   });
   it('OTP verify form wrapped in <form onSubmit>', () => {
     expect(main).toMatch(/form onSubmit.*verify\(\)|<form onSubmit.*e\.preventDefault.*verify/);
