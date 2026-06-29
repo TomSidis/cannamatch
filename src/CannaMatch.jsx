@@ -7009,7 +7009,8 @@ export default function CannaMatch() {
 
   // Terms check — runs when user logs in (user?.id changes).
   // 401 = expired/invalid token → purge session → back to welcome.
-  // Other error (network, 5xx) → fail open so app stays usable.
+  // Other error (network, 5xx) → FAIL CLOSED: block on the gate's error screen.
+  // A legal acceptance gate must never let an unverified user through on a fetch failure.
   useEffect(() => {
     if (!user) return;
     setTermsStatus(null);
@@ -7026,8 +7027,9 @@ export default function CannaMatch() {
           setScreen("welcome");
           // termsStatus stays null — gate is guarded by `user &&` so it won't block
         } else {
-          // Network / 5xx — fail open
-          setTermsStatus({ accepted: true, version: 0, text: null });
+          // Network / 5xx — fail closed: accepted:false + text:null renders the
+          // TermsGate reload-prompt; the user cannot reach onboarding until status loads.
+          setTermsStatus({ accepted: false, version: null, text: null });
         }
       });
     return () => { cancelled = true; };
