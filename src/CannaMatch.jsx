@@ -5540,7 +5540,7 @@ function Login({ go, setUser, setVerifyNextScreen }) {
       const enrichedUser = { id: result.user.id, email: u, avatar: "🌿" };
       localStorage.setItem("cm_user", JSON.stringify(enrichedUser));
       setUser(enrichedUser);
-      go("welcome_room");
+      go(resolveScreen()); // returning user → app; new → onboarding (F0 guard decides)
     } catch (e) {
       setErr(e.message || "כניסה נכשלה — נסה שוב");
     } finally { setLoading(false); }
@@ -5743,7 +5743,7 @@ function Register({ go, setUser }) {
     localStorage.setItem("cm_session_token", `social_${provider}_${Date.now()}`);
     localStorage.setItem("cm_user", JSON.stringify(u));
     setUser(u);
-    go("welcome_room");
+    go(resolveScreen());
   };
   return (
     <AuthCard title="הרשמה" sub="דקה אחת ואתם בפנים" onBack={() => go("welcome")}>
@@ -5758,7 +5758,7 @@ function Register({ go, setUser }) {
           const u = { id: result.user.id, name: n, email: e, avatar:"🌿" };
           localStorage.setItem("cm_user", JSON.stringify(u));
           setUser(u);
-          go("welcome_room");
+          go(resolveScreen());
         } catch (ex) {
           setErr(ex.message || "הרשמה נכשלה — נסה שוב");
         } finally { setLoading(false); }
@@ -5849,6 +5849,27 @@ function WelcomeRoom({ go, user, hasProfile }) {
         </motion.p>
       </motion.div>
 
+      {/* ── Tom's ספיץ' intro — shown after onboarding + DNA, last screen before the app ── */}
+      <motion.div
+        initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }}
+        transition={{ delay:0.30, type:"spring", damping:32, stiffness:170 }}
+        style={{
+          background:"rgba(8,18,12,0.52)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+          borderRadius:18, padding:"16px 18px", border:"1px solid rgba(74,222,128,0.16)", textAlign:"right",
+        }}>
+        {[
+          "שלום, אני תום, מטופל כבר לא מעט שנים.",
+          "אני מכיר מקרוב את התסכול, את התפריטים האינסופיים, את הניסיון להבין מה באמת עובד ואת הדאגה התמידית שלא ייגמר מה שעוזר.",
+          "עד היום אני עומד מול הרוקח ושואל מה לקחת, כי האמת שפשוט הלכתי לאיבוד בין כל השמות והחברות, אז בניתי את המקום שתמיד רציתי שיהיה לי.",
+          "מקום שלוקח את כל הבלגן ומתרגם אותו לשפה אחת ברורה ומנסה לדייק את התאמת הקנייה לפי מה שמתאים לך באמת, לא לפי שם על אריזה, וזה עובד הכי טוב ביחד.",
+          "כל דיווח שלך מחדד את ההתאמה של מישהו אחר, וכל דיווח שלו מחדד את שלך. ככה לאט לאט מפסיקים לנחש ומתחילים לדעת.",
+          "אני יכול להגיד שלי זה עובד ואני מקווה שגם לכם זה יעבוד.",
+        ].map((para, i) => (
+          <p key={i} style={{ fontSize:13, fontWeight:500, color:"rgba(245,234,200,0.88)", lineHeight:1.65,
+            margin: i < 5 ? "0 0 9px" : 0 }}>{para}</p>
+        ))}
+      </motion.div>
+
       {/* ── THE CORE PEER DISCLAIMER — large, warm, readable for age 21-80 ── */}
       <motion.div
         initial={{ opacity:0, y:18, scale:0.97 }}
@@ -5913,7 +5934,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
         transition={{ delay:0.66, type:"spring", damping:32, stiffness:180 }}
         whileHover={{ scale:1.025, boxShadow:"0 0 36px rgba(74,222,128,0.50), 0 6px 20px rgba(0,0,0,0.40)" }}
         whileTap={{ scale:0.97 }}
-        onClick={() => { localStorage.setItem("cm_welcome_seen", "1"); go(hasProfile ? "app" : "onboarding"); }}
+        onClick={() => { localStorage.setItem("cm_welcome_seen", "1"); go("app"); }}
         style={{
           width:"100%", padding:"18px", borderRadius:20, border:"none", cursor:"pointer",
           background:"linear-gradient(135deg,#4ADE80 0%,#22c55e 100%)",
@@ -7290,8 +7311,8 @@ export default function CannaMatch() {
     { id: "profile",   label: T.tab.profile },
   ];
   const NAV_TABS = [
-    { id: "menu",      label: "🔍 סריקת תפריט" },
-    { id: "dna",       label: "🧬 ה-DNA שלי" },
+    { id: "menu", icon: "🔍", label: "סריקת תפריט" },
+    { id: "dna",  icon: "🧬", label: "ה-DNA שלי" },
     // HIDDEN FOR MVP — re-enable later (screens + tab handlers below stay intact):
     // { id: "home",      label: T.nav.home },
     // { id: "community", label: T.nav.community },
@@ -7301,7 +7322,7 @@ export default function CannaMatch() {
     // { id: "knowledge", label: T.nav.knowledge },
     // { id: "cooking",   label: T.nav.cooking },
   ];
-  const isAuth = ["welcome", "login", "register", "verify", "welcome_room", "license"].includes(screen);
+  const isAuth = ["intro", "welcome", "login", "register", "verify", "welcome_room", "license"].includes(screen);
 
   const PopupToast = popup ? (
     <div className="fixed top-4 left-1/2 z-[100] w-[90vw] max-w-sm rounded-2xl p-3 flex items-center gap-3 shadow-xl"
@@ -7326,6 +7347,57 @@ export default function CannaMatch() {
       <AuthLayout>
         {PopupToast}
         <AnimatePresence mode="wait">
+          {/* ── INTRO — logo + 4 squares, shown once before login ── */}
+          {screen === "intro" && (
+            <motion.div key="intro" {...FMV} style={{ display:"flex", flexDirection:"column", gap:0 }}>
+              <div style={{ textAlign:"center", marginBottom:24, marginTop:12 }}>
+                <motion.div animate={{ y:[0,-6,0] }} transition={{ duration:5.5, repeat:Infinity, ease:"easeInOut" }}
+                  style={{ fontSize:46, display:"inline-block", marginBottom:8, lineHeight:1, filter:"drop-shadow(0 0 18px rgba(74,222,128,0.55))" }}>🌿</motion.div>
+                <h1 style={{ fontSize:46, fontWeight:900, color:"#4ADE80", margin:0, letterSpacing:"-0.04em", lineHeight:1,
+                  textShadow:"0 0 32px rgba(74,222,128,0.60), 0 2px 10px rgba(0,0,0,0.70)", fontFamily:"'Heebo',sans-serif" }}>קנאמאצ׳</h1>
+                <p style={{ fontSize:13, color:"rgba(134,239,172,0.6)", margin:"8px 0 0", fontWeight:500, letterSpacing:"0.04em" }}>
+                  המלווה האישי שלך לקנאביס רפואי
+                </p>
+              </div>
+
+              <div className="auth-cards-grid">
+                {[
+                  { icon:"🎯", title:"התאמה אישית", text:"מיטוב הקנייה החודשית שלך" },
+                  { icon:"📋", title:"סריקת תפריט", text:"צלם תפריט, קבל רשימה מותאמת לך" },
+                  { icon:"📚", title:"ידע ומחקרים", text:"נתונים אקדמיים ומחקרים פתוחים" },
+                  { icon:"🫂", title:"פווידר",        text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
+                ].map((f, i) => (
+                  <motion.div key={i}
+                    initial={{ opacity:0, scale:0.90 }} animate={{ opacity:1, scale:1 }}
+                    transition={{ delay:0.12 + i*0.06, type:"spring", damping:28, stiffness:220 }}
+                    style={{
+                      padding:"18px 12px", borderRadius:18, display:"flex", flexDirection:"column",
+                      alignItems:"center", justifyContent:"flex-start", textAlign:"center",
+                      background:"rgba(4,14,8,0.50)", border:"1.5px solid rgba(74,222,128,0.30)",
+                      backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+                    }}>
+                    <span style={{ fontSize:30, display:"block", marginBottom:8 }}>{f.icon}</span>
+                    <div style={{ fontSize:14, fontWeight:800, color:"#FFFFFF", marginBottom:5, lineHeight:1.2 }}>{f.title}</div>
+                    <div style={{ fontSize:11, color:"rgba(187,247,208,0.82)", lineHeight:1.5 }}>{f.text}</div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div style={{ marginTop:22 }}>
+                <motion.button onClick={() => { localStorage.setItem("cm_intro_seen", "1"); setScreen("welcome"); }}
+                  whileTap={{ scale:0.97 }}
+                  style={{
+                    width:"100%", padding:"18px 16px", borderRadius:18, border:"none",
+                    background:"linear-gradient(135deg,#4ADE80 0%,#16a34a 100%)", color:"#03200e",
+                    fontSize:18, fontWeight:900, cursor:"pointer", minHeight:60, fontFamily:"'Heebo',sans-serif",
+                    boxShadow:"0 0 28px rgba(74,222,128,0.45)",
+                  }}>
+                  בואו נתחיל →
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+
           {screen === "welcome" && (
             <motion.div key="welcome" {...FMV} style={{ display:"flex", flexDirection:"column", gap:0 }}>
 
@@ -7350,66 +7422,6 @@ export default function CannaMatch() {
                   fontWeight:500, letterSpacing:"0.05em" }}>
                   התאמה אישית לתפריט הקנאביס שלך
                 </p>
-              </div>
-
-              {/* ── Mobile-only: heading + intro (desktop: left hero panel) ── */}
-              <div className="auth-mobile-hero" style={{ marginBottom:18 }}>
-                <h2 style={{
-                  fontSize:26, fontWeight:900, color:"#4ADE80",
-                  letterSpacing:"-0.03em", lineHeight:1.1,
-                  margin:"0 0 12px", textAlign:"right",
-                  textShadow:"0 0 24px rgba(74,222,128,0.45)",
-                }}>ברוכים הבאים</h2>
-                <div style={{
-                  background:"rgba(8,18,12,0.52)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-                  borderRadius:16, padding:"14px 18px",
-                  border:"1px solid rgba(74,222,128,0.14)",
-                }}>
-                  {[
-                    "שלום, אני תום, מטופל כבר לא מעט שנים.",
-                    "אני מכיר מקרוב את התסכול, את התפריטים האינסופיים, את הניסיון להבין מה באמת עובד ואת הדאגה התמידית שלא ייגמר מה שעוזר.",
-                    "עד היום אני עומד מול הרוקח ושואל מה לקחת, כי האמת שפשוט הלכתי לאיבוד בין כל השמות והחברות, אז בניתי את המקום שתמיד רציתי שיהיה לי.",
-                    "מקום שלוקח את כל הבלגן ומתרגם אותו לשפה אחת ברורה ומנסה לדייק את התאמת הקנייה לפי מה שמתאים לך באמת, לא לפי שם על אריזה, וזה עובד הכי טוב ביחד.",
-                    "כל דיווח שלך מחדד את ההתאמה של מישהו אחר, וכל דיווח שלו מחדד את שלך. ככה לאט לאט מפסיקים לנחש ומתחילים לדעת.",
-                    "אני יכול להגיד שלי זה עובד ואני מקווה שגם לכם זה יעבוד.",
-                  ].map((para, i) => (
-                    <p key={i} style={{
-                      fontSize:13, fontWeight:500,
-                      color:"rgba(245,234,200,0.88)",
-                      lineHeight:1.65, textAlign:"right",
-                      margin: i < 5 ? "0 0 9px" : "0",
-                    }}>{para}</p>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Capabilities grid ── */}
-              <div className="auth-cards-grid">
-                {[
-                  { icon:"🎯", title:"התאמה אישית",  text:"מיטוב הקנייה החודשית שלך" },
-                  { icon:"📋", title:"סריקת תפריט",  text:"צלם תפריט, קבל רשימה מותאמת לך" },
-                  { icon:"📚", title:"ידע ומחקרים",  text:"נתונים אקדמיים ומחקרים פתוחים" },
-                  { icon:"🫂", title:"פווידר",         text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
-                ].map((f, i) => (
-                  <motion.div key={i}
-                    initial={{opacity:0, scale:0.90}} animate={{opacity:1, scale:1}}
-                    transition={{delay:0.18 + i*0.05, type:"spring", damping:28, stiffness:220}}
-                    style={{
-                      padding:"16px 12px", borderRadius:18,
-                      display:"flex", flexDirection:"column",
-                      alignItems:"center", justifyContent:"flex-start", textAlign:"center",
-                      background:"rgba(4,14,8,0.50)",
-                      border:"1.5px solid rgba(74,222,128,0.30)",
-                      backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-                      gap:0,
-                    }}>
-                    <span style={{ fontSize:28, display:"block", marginBottom:8 }}>{f.icon}</span>
-                    <div style={{ fontSize:14, fontWeight:800, color:"#FFFFFF",
-                      textShadow:"0 1px 6px rgba(0,0,0,0.70)", marginBottom:5, lineHeight:1.2 }}>{f.title}</div>
-                    <div style={{ fontSize:11, color:"rgba(187,247,208,0.82)",
-                      textShadow:"0 1px 4px rgba(0,0,0,0.60)", lineHeight:1.5 }}>{f.text}</div>
-                  </motion.div>
-                ))}
               </div>
 
               {/* ── Dual CTA buttons ── */}
@@ -7569,9 +7581,9 @@ export default function CannaMatch() {
                   localStorage.setItem("cm_license", "1");
                 }
                 localStorage.setItem("cm_onboarding_done", "1");
-                setScreen("app");
+                setScreen("welcome_room"); // ספיץ' (Tom's intro) is the last step before the app
               }}
-              onSkip={() => { localStorage.setItem("cm_onboarding_done", "1"); setScreen("app"); }}
+              onSkip={() => { localStorage.setItem("cm_onboarding_done", "1"); setScreen("welcome_room"); }}
             />
             </div>
           </div>
@@ -7580,51 +7592,8 @@ export default function CannaMatch() {
 
       {screen === "app" && (
         <JourneyProvider screen={screen} licenseVerified={licenseVerified} checked={checked}>
-        <div className="relative flex" dir="rtl" style={{ background:"#04100a", height:"100dvh", overflow:"hidden" }}>
-          {/* ── Right sidebar nav — desktop only ── */}
-          <nav className="hidden lg:flex flex-col w-64 shrink-0 sticky top-0 h-screen overflow-y-auto border-l z-10"
-            style={{
-              background:"rgba(4,14,8,0.68)",
-              borderColor:"rgba(74,222,128,0.18)",
-              backdropFilter:"blur(28px)",
-            }}>
-            <div className="p-5 flex flex-col h-full">
-              <div style={{
-                fontWeight:900, fontSize:20, marginBottom:24, textAlign:"center",
-                color:"#4ADE80",
-                filter:"drop-shadow(0 0 10px rgba(74,222,128,0.35))",
-              }}>🌿 קנאמאצ׳</div>
-              {NAV_TABS.map((t) => {
-                const isActive = tab === t.id;
-                return (
-                  <motion.button key={t.id} onClick={() => setTab(t.id)}
-                    whileHover={{ scale: 1.02, background:"rgba(74,222,128,0.08)" }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full text-right px-4 py-3 rounded-2xl text-sm font-bold mb-1.5"
-                    style={{
-                      background: isActive ? "rgba(74,222,128,0.10)" : "transparent",
-                      color: isActive ? "#4ADE80" : "rgba(220,255,230,0.80)",
-                      borderRight: isActive ? "2px solid #4ADE80" : "2px solid transparent",
-                      boxShadow: isActive ? "0 0 12px rgba(74,222,128,0.12)" : "none",
-                      transition: "all 0.2s",
-                    }}>{t.label}</motion.button>
-                );
-              })}
-              <div className="mt-auto pt-4 border-t" style={{ borderColor:"rgba(74,222,128,0.08)" }}>
-                <button onClick={() => setScreen("onboarding")}
-                  style={{
-                    width:"100%", textAlign:"right", padding:"10px 12px",
-                    borderRadius:14, fontSize:12, fontWeight:700,
-                    color:"#4ADE80", background:"rgba(74,222,128,0.07)",
-                    border:"1px solid rgba(74,222,128,0.15)", cursor:"pointer",
-                  }}>
-                  ✏️ עריכת פרופיל
-                </button>
-              </div>
-            </div>
-          </nav>
-
-          {/* ── Main content column — animates in via loginStage ── */}
+        {/* App shell: single full-screen column + bottom tab bar (no sidebar, no desktop chrome). */}
+        <div className="flex flex-col" dir="rtl" style={{ background:"#04100a", height:"100dvh", overflow:"hidden" }}>
           <StageWrapper className="flex-1 min-w-0 min-h-0 flex flex-col relative z-10">
             <header className="px-5 pt-4 pb-3 flex items-center justify-between border-b"
               style={{
@@ -7653,30 +7622,8 @@ export default function CannaMatch() {
               ) : <div />}
             </header>
 
-            {/* ── Mobile horizontal tab nav ── */}
-            <nav className="lg:hidden px-3 py-2 flex gap-1 overflow-x-auto border-b"
-              style={{
-                scrollbarWidth:"none",
-                borderColor:"rgba(74,222,128,0.14)",
-                background:"rgba(4,14,8,0.60)",
-                backdropFilter:"blur(18px)",
-              }}>
-              {NAV_TABS.map((t) => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className="flex-shrink-0 whitespace-nowrap"
-                  style={{
-                    padding:"7px 12px", borderRadius:12, fontSize:11, fontWeight:700,
-                    transition:"all 0.18s",
-                    background: tab === t.id ? "rgba(74,222,128,0.12)" : "transparent",
-                    color: tab === t.id ? "#4ADE80" : "rgba(220,255,230,0.80)",
-                    border: tab === t.id ? "1px solid rgba(74,222,128,0.25)" : "1px solid transparent",
-                    boxShadow: tab === t.id ? "0 0 10px rgba(74,222,128,0.12)" : "none",
-                  }}>{t.label}</button>
-              ))}
-            </nav>
-
             <main className="flex-1 min-h-0 overflow-y-auto">
-              <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+              <div style={{ maxWidth: 480, margin: "0 auto", width: "100%" }}>
               {/* ── License expiry alert banner ── */}
               {licenseAlert === "expired" && (
                 <div className="mx-4 mt-3 rounded-2xl p-3 flex items-center gap-3"
@@ -7778,11 +7725,29 @@ export default function CannaMatch() {
               )}
               </div>
             </main>
-            <footer style={{ textAlign:"center", padding:"12px 0 20px" }}>
-              <p style={{ fontSize:10, color:"rgba(187,247,208,0.50)", lineHeight:1.6, fontWeight:500 }}>
-                המידע להתאמת העדפות בלבד ואינו ייעוץ רפואי · התייעצו עם הרופא/ה המטפל/ת
-              </p>
-            </footer>
+
+            {/* ── Bottom tab bar — mobile app convention, RTL, two tabs only ── */}
+            <nav style={{
+              display:"flex", flexShrink:0,
+              borderTop:"1px solid rgba(74,222,128,0.16)",
+              background:"rgba(4,14,8,0.94)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+            }}>
+              {NAV_TABS.map((t) => {
+                const active = tab === t.id;
+                return (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    style={{
+                      flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+                      padding:"9px 4px 13px", background:"transparent", border:"none", cursor:"pointer",
+                      color: active ? "#4ADE80" : "rgba(220,255,230,0.55)", minHeight:58,
+                      fontFamily:"'Heebo',sans-serif", fontSize:11, fontWeight:800,
+                    }}>
+                    <span style={{ fontSize:22, filter: active ? "drop-shadow(0 0 8px rgba(74,222,128,0.5))" : "none" }}>{t.icon}</span>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </nav>
           </StageWrapper>
 
           <NudgeSystem
