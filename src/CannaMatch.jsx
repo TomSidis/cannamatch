@@ -5376,36 +5376,38 @@ function Login({ go, setUser, setVerifyNextScreen }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const sendOtp = async () => {
-    if (!u) return;
+  const doLogin = async () => {
+    if (!u || !p) return;
     setLoading(true); setErr("");
     try {
-      await api.sendOtp(u);
-      setUser({ email: u, avatar: "🌿" });
-      setVerifyNextScreen("welcome_room");
-      go("verify");
+      const result = await api.login(u, p);
+      localStorage.setItem("cm_session_token", result.token);
+      const enrichedUser = { id: result.user.id, email: u, avatar: "🌿" };
+      localStorage.setItem("cm_user", JSON.stringify(enrichedUser));
+      setUser(enrichedUser);
+      go("welcome_room");
     } catch (e) {
-      setErr(e.message || "שגיאה בשליחת קוד — נסה שוב");
+      setErr(e.message || "כניסה נכשלה — נסה שוב");
     } finally { setLoading(false); }
   };
 
   return (
     <AuthCard title={T.auth.loginTitle} sub={T.auth.loginSub} onBack={() => go("welcome")}>
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
-      <form onSubmit={e => { e.preventDefault(); sendOtp(); }}>
+      <form onSubmit={e => { e.preventDefault(); doLogin(); }}>
         <Field label={T.auth.usernameLabel} value={u} onChange={setU} placeholder={T.auth.emailPlaceholder} />
         <Field label={T.auth.passwordLabel} type="password" value={p} onChange={setP} placeholder="••••••••" />
         {err && <p style={{ color:"#F87171", fontSize:13, textAlign:"center", marginBottom:8 }}>{err}</p>}
-        <button type="submit" disabled={!u || loading}
+        <button type="submit" disabled={!u || !p || loading}
           style={{
-            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: (!u || loading) ? "not-allowed" : "pointer",
-            background: (!u || loading) ? "rgba(74,222,128,0.18)" : "linear-gradient(135deg,#4ADE80,#22c55e)",
-            color: (!u || loading) ? "rgba(187,247,208,0.35)" : "#04120a",
+            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: (!u || !p || loading) ? "not-allowed" : "pointer",
+            background: (!u || !p || loading) ? "rgba(74,222,128,0.18)" : "linear-gradient(135deg,#4ADE80,#22c55e)",
+            color: (!u || !p || loading) ? "rgba(187,247,208,0.35)" : "#04120a",
             fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
             transition:"background .2s, color .2s",
             letterSpacing:"-0.01em", minHeight:50,
           }}>
-          {loading ? "שולח קוד..." : T.auth.loginBtn || "כניסה"}
+          {loading ? "מתחבר..." : T.auth.loginBtn || "כניסה"}
         </button>
       </form>
       <button onClick={() => go("register")}
@@ -5573,6 +5575,7 @@ function SocialButtons({ onSocial }) {
 
 function Register({ go, setUser }) {
   const [n, setN] = useState(""); const [e, setE] = useState(""); const [p, setP] = useState("");
+  const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
   const validEmail = /\S+@\S+\.\S+/.test(e);
   const checks = [
     { ok: n.trim().length >= 2, label: "שם (2 תווים לפחות)" },
@@ -5592,10 +5595,18 @@ function Register({ go, setUser }) {
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
       <form onSubmit={async ev => {
         ev.preventDefault();
-        if (!allOk) return;
-        setUser({ name: n, email: e, avatar:"🌿" });
-        try { await api.sendOtp(e); } catch {}
-        go("verify");
+        if (!allOk || loading) return;
+        setLoading(true); setErr("");
+        try {
+          const result = await api.signup(e, p);
+          localStorage.setItem("cm_session_token", result.token);
+          const u = { id: result.user.id, name: n, email: e, avatar:"🌿" };
+          localStorage.setItem("cm_user", JSON.stringify(u));
+          setUser(u);
+          go("welcome_room");
+        } catch (ex) {
+          setErr(ex.message || "הרשמה נכשלה — נסה שוב");
+        } finally { setLoading(false); }
       }}>
         <Field label="שם מלא" value={n} onChange={setN} placeholder="ישראל ישראלי" />
         <Field label="מייל" type="email" value={e} onChange={setE} placeholder="israel@example.com" />
@@ -5608,14 +5619,15 @@ function Register({ go, setUser }) {
             </div>
           ))}
         </div>
-        <button type="submit" disabled={!allOk}
+        {err && <p style={{ color:"#F87171", fontSize:13, textAlign:"center", marginBottom:8 }}>{err}</p>}
+        <button type="submit" disabled={!allOk || loading}
           style={{
-            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: allOk ? "pointer" : "not-allowed",
-            background: allOk ? "linear-gradient(135deg,#4ADE80,#22c55e)" : "rgba(74,222,128,0.18)",
-            color: allOk ? "#04120a" : "rgba(187,247,208,0.35)",
+            width:"100%", padding:"15px", borderRadius:16, border:"none", cursor: (allOk && !loading) ? "pointer" : "not-allowed",
+            background: (allOk && !loading) ? "linear-gradient(135deg,#4ADE80,#22c55e)" : "rgba(74,222,128,0.18)",
+            color: (allOk && !loading) ? "#04120a" : "rgba(187,247,208,0.35)",
             fontSize:17, fontWeight:900, marginBottom:10, fontFamily:"'Heebo',sans-serif",
             transition:"background .2s, color .2s", letterSpacing:"-0.01em", minHeight:50,
-          }}>המשך לאימות מייל</button>
+          }}>{loading ? "נרשם..." : "הרשמה והמשך"}</button>
       </form>
       <button onClick={() => go("login")}
         style={{

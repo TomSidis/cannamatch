@@ -317,4 +317,80 @@ router.post("/admin-login", async (req, res) => {
   }
 });
 
+// POST /api/auth/signup
+// Email + password registration for regular users. Stores a bcrypt hash, never plaintext.
+// On success returns a 30d session token — the F0 guard routes onward from there.
+router.post("/signup", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  const normalized = String(email ?? "").toLowerCase().trim();
+
+  if (!/\S+@\S+\.\S+/.test(normalized)) {
+    return res.status(400).json({ error: { message: "כתובת המייל אינה תקינה." } });
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({ error: { message: "הסיסמה חייבת להכיל לפחות 8 תווים." } });
+  }
+
+  try {
+    const { rows: existing } = await pool.query(`SELECT id FROM users WHERE email = $1`, [normalized]);
+    if (existing.length) {
+      return res.status(409).json({ error: { message: "כתובת המייל כבר רשומה — נסו להתחבר." } });
+    }
+
+    const password_hash = await bcrypt.hash(password, 12);
+    const { rows: [created] } = await pool.query(
+      `INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, role`,
+      [normalized, password_hash],
+    );
+
+    return res.json({
+      token: issueToken(created.id, created.role),
+      user:  { id: created.id, email: normalized, role: created.role },
+    });
+  } catch (err) {
+    // 23505 = unique_violation — lost a race against a concurrent signup with the same email.
+    if (err.code === "23505") {
+      return res.status(409).json({ error: { message: "כתובת המייל כבר רשומה — נסו להתחבר." } });
+    }
+    console.error("signup error:", err.message);
+    return res.status(500).json({ error: { message: "שגיאת שרת בהרשמה." } });
+  }
+});
+
+// POST /api/auth/login
+// Email + password login. Distinct Hebrew errors for "email not found" vs "wrong password"
+// are required by product spec (field-onboarding clarity outweighs enumeration risk here).
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  const normalized = String(email ?? "").toLowerCase().trim();
+
+  if (!normalized || typeof password !== "string" || !password) {
+    return res.status(400).json({ error: { message: "חסרים מייל או סיסמה." } });
+  }
+
+  try {
+    const { rows: [user] } = await pool.query(
+      `SELECT id, role, password_hash FROM users WHERE email = $1`,
+      [normalized],
+    );
+
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: { message: "כתובת המייל אינה רשומה במערכת." } });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: { message: "סיסמה שגויה." } });
+    }
+
+    return res.json({
+      token: issueToken(user.id, user.role),
+      user:  { id: user.id, email: normalized, role: user.role },
+    });
+  } catch (err) {
+    console.error("login error:", err.message);
+    return res.status(500).json({ error: { message: "שגיאת שרת בכניסה." } });
+  }
+});
+
 export default router;

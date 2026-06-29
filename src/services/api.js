@@ -24,7 +24,12 @@ async function apiFetch(path, opts = {}) {
 }
 
 export const api = {
-  // אימות
+  // אימות — מייל + סיסמה
+  signup: (email, password) =>
+    apiFetch(`/api/auth/signup`, { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: (email, password) =>
+    apiFetch(`/api/auth/login`, { method: "POST", body: JSON.stringify({ email, password }) }),
+  // OTP — נשמר ל-flows קיימים שאינם מסך הכניסה הראשי
   sendOtp: (contact) => apiFetch(`/api/auth/send-otp`, { method: "POST", body: JSON.stringify({ contact }) }),
   verifyOtp: (contact, code) =>
     apiFetch(`/api/auth/verify-otp`, { method: "POST", body: JSON.stringify({ contact, code }) }),
