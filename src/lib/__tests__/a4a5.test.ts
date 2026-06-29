@@ -69,9 +69,9 @@ describe('A4 — MenuScan: no paste tab, camera touch-only', () => {
     expect(touchIdx).toBeGreaterThan(-1);
     expect(camIdx).toBeGreaterThan(touchIdx);
   });
-  it('ManualStrainEntry uses STRAINS for local autocomplete', () => {
-    // ManualStrainEntry filters STRAINS — local catalog, no API call
-    expect(main).toMatch(/STRAINS\.filter.*ManualStrainEntry|function ManualStrainEntry[\s\S]{0,400}STRAINS/);
+  it('ManualStrainEntry autocomplete reads the live catalog (STRAINS = offline fallback)', () => {
+    // Now live-catalog first: getCatalogStrains(q, cats); STRAINS only as the offline fallback.
+    expect(main).toMatch(/getCatalogStrains\(s, ans\.cats/);
   });
 });
 

@@ -3492,12 +3492,24 @@ function ManualStrainEntry({ ans, scored, onDecode, onError }) {
   const [pasteText, setPasteText] = useState("");
   const inputRef = useRef();
 
-  const suggestions = q.trim().length >= 2
-    ? STRAINS.filter(s =>
-        s.name.toLowerCase().includes(q.toLowerCase()) ||
-        (s.genetics || "").toLowerCase().includes(q.toLowerCase())
-      ).slice(0, 6)
-    : [];
+  // Live-catalog suggestions (product_sku active), filtered by the user's licensed categories.
+  // Falls back to the static seed offline. name + grower so duplicate names (וודינג קייק) disambiguate.
+  const [suggestions, setSuggestions] = useState([]);
+  const seedSugg = (s) => STRAINS.filter(x =>
+      x.name.toLowerCase().includes(s.toLowerCase()) || (x.genetics || "").toLowerCase().includes(s.toLowerCase())
+    ).slice(0, 6).map(x => ({ id: x.id, name: x.name, category: x.cat, genetics: x.genetics }));
+  useEffect(() => {
+    const s = q.trim();
+    if (s.length < 2) { setSuggestions([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { items } = await api.getCatalogStrains(s, ans.cats || []);
+        if (!cancelled) setSuggestions(items?.length ? items : seedSugg(s));
+      } catch { if (!cancelled) setSuggestions(seedSugg(s)); }
+    }, 220);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [q, (ans.cats || []).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addEntry = (name) => {
     const n = name.trim();
@@ -3561,7 +3573,7 @@ function ManualStrainEntry({ ans, scored, onDecode, onError }) {
                   if (e.key === "Escape") { setShowSugg(false); inputRef.current?.focus(); }
                 }}>
                 <span style={{ fontWeight: 700 }}>{s.name}</span>
-                {s.genetics && <span style={{ fontSize: 11, color: "rgba(187,247,208,0.50)", marginRight: 6 }}>{s.genetics}</span>}
+                {(s.grower || s.genetics) && <span style={{ fontSize: 11, color: "rgba(187,247,208,0.50)", marginRight: 6 }}>🏭 {s.grower || s.genetics}{s.category ? ` · ${s.category}` : ""}</span>}
               </button>
             ))}
             {q.trim().length >= 2 && (
@@ -7102,6 +7114,15 @@ export default function CannaMatch() {
     setTermsStatus(null);
   };
 
+  // Full reset — clears every F0 flag + session, then reloads so resolveScreen re-walks the
+  // whole flow from intro → login → onboarding → DNA → ספיץ' → menu. For testing + redo-onboarding.
+  const handleReset = () => {
+    if (!window.confirm("להתחיל מחדש? הפעולה תמחק את הפרופיל והכניסה ותחזיר אותך למסך הפתיחה.")) return;
+    ["cm_intro_seen", "cm_session_token", "cm_user", "cm_welcome_seen", "cm_onboarding_done",
+     "cm_profile_v2", "cm_license"].forEach(k => localStorage.removeItem(k));
+    window.location.reload();
+  };
+
   /* ── Handle report submission: compute diff, update ratings, fire API ── */
   const handleReportSubmit = useCallback((rating, effects) => {
     if (!reportStrain) return;
@@ -7491,16 +7512,26 @@ export default function CannaMatch() {
                 }}>
                 ✏️ עדכן
               </button>
-              {user ? (
-                <button onClick={handleLogout}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={handleReset}
                   style={{
                     fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:10, cursor:"pointer",
-                    color:"#F87171", background:"rgba(248,113,113,0.08)",
-                    border:"1px solid rgba(248,113,113,0.18)",
+                    color:"#FBBF24", background:"rgba(251,191,36,0.08)",
+                    border:"1px solid rgba(251,191,36,0.20)",
                   }}>
-                  יציאה
+                  ↻ התחל מחדש
                 </button>
-              ) : <div />}
+                {user && (
+                  <button onClick={handleLogout}
+                    style={{
+                      fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:10, cursor:"pointer",
+                      color:"#F87171", background:"rgba(248,113,113,0.08)",
+                      border:"1px solid rgba(248,113,113,0.18)",
+                    }}>
+                    יציאה
+                  </button>
+                )}
+              </div>
             </header>
 
             <main className="flex-1 min-h-0 overflow-y-auto">
