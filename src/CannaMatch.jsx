@@ -33,6 +33,7 @@ import {
   createSession, addPage, retryPage, removePage, mergeSession,
   saveSession, loadSession, clearSession, imageHash,
 } from "./lib/scanSession.js";
+import { rankMenu, SOFT_LINE } from "./lib/menuRanking.js";
 import { STRAINS, TERPENES, REASONS, CATEGORIES, CAT_GROUPS, FORMS } from "./data/strainsConfig.js";
 import { PEEK_WINDOW_ENABLED } from "./lib/categoryConfig.js";
 import { PHARMACIES } from "./data/pharmacies.js";
@@ -4007,94 +4008,92 @@ function MenuScan({ ans, scored, basket, addToBasket, user }) {
       )}
 
       {/* ── Results list ──────────────────────────────────────── */}
-      {results && results.length > 0 && (
-        <div key={resultKey} className="space-y-2">
-          <p className="text-sm font-semibold" style={{ color: C.ink }}>
-            {results.length} מוצרים · ממוינים לפי התאמה לפרופיל שלך
-          </p>
-          {results.map((r, i) => (
-            <div key={i} className="rounded-2xl p-3 border flex items-center gap-3"
-              style={{
-                background: C.card,
-                borderColor: r.match >= 85 ? C.accent : r.unknown ? "rgba(255,165,64,0.25)" : C.line,
-                opacity: r.inLicense ? 1 : 0.5,
-              }}>
-              {/* Match ring or unknown badge */}
-              {r.match !== null ? (
-                <MatchRing pct={r.match} />
-              ) : (
-                <div className="text-center flex-shrink-0" style={{ width: 48 }}>
-                  <div className="text-xl">❔</div>
-                  <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>חדש</div>
-                </div>
+      {results && results.length > 0 && (() => {
+        // Main route: rank ALL strains high→low. Soft 70% line is visual only — nothing hidden.
+        const ranked  = rankMenu(results, { experience: ans.experience, reasons: ans.reasons });
+        const high    = ranked.filter((r) => r.matchPct !== null && r.matchPct >= SOFT_LINE);
+        const partial = ranked.filter((r) => !(r.matchPct !== null && r.matchPct >= SOFT_LINE));
+
+        const Row = (r) => (
+          <div key={r.id} className="rounded-2xl p-3 border flex items-center gap-3"
+            style={{
+              background: C.card,
+              borderColor: r.matchPct >= 85 ? C.accent : r.unknown ? "rgba(255,165,64,0.25)" : C.line,
+              opacity: r.inLicense ? 1 : 0.5,
+            }}>
+            {/* Match ring or "new" badge — NEVER a price here */}
+            {r.matchPct !== null ? (
+              <MatchRing pct={r.matchPct} />
+            ) : (
+              <div className="text-center flex-shrink-0" style={{ width: 48 }}>
+                <div className="text-xl">❔</div>
+                <div className="text-xs" style={{ color: "rgba(187,247,208,0.45)" }}>חדש</div>
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold" style={{ color: C.ink }}>{r.name}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded"
+                  style={{ background: r.isOil ? "rgba(167,139,250,0.10)" : "rgba(74,222,128,0.09)", color: r.isOil ? "#C084FC" : "#4ADE80" }}>
+                  {r.isOil ? "💧 שמן" : "🌿 תפרחת"}
+                </span>
+                {r.genetics && r.genetics !== "—" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: "rgba(167,139,250,0.10)", color: "#C084FC" }}>🌿 {r.genetics}</span>
+                )}
+                {r.cat && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: C.soft, color: C.accent }}>{r.cat}</span>
+                )}
+              </div>
+
+              {/* Short why — chemovar + dominant terpenes + anxiolytic reason when it applied */}
+              <p className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.70)" }}>{r.why}</p>
+
+              {/* Cold-start: community empty → awaiting text, never a fabricated number */}
+              {r.community && (
+                <p className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.45)" }}>🌱 {r.community}</p>
               )}
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold" style={{ color: C.ink }}>{r.name}</span>
-                  {r.fuzzyMatch && (
-                    <span className="text-xs px-1.5 py-0.5 rounded"
-                      style={{ background: "rgba(251,191,36,0.10)", color: "#FBBF24" }}
-                      title={`זוהה מתוך: "${r.origLine}"`}>✏️ תוקן</span>
-                  )}
-                  <span className="text-xs px-1.5 py-0.5 rounded"
-                    style={{ background: r.isOil ? "rgba(167,139,250,0.10)" : "rgba(74,222,128,0.09)", color: r.isOil ? "#C084FC" : "#4ADE80" }}>
-                    {r.isOil ? "💧 שמן" : "🌿 תפרחת"}
-                  </span>
-                  {r.genetics && r.genetics !== "—" && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: "rgba(167,139,250,0.10)", color: "#C084FC" }}>🌿 {r.genetics}</span>
-                  )}
-                  {r.cat && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: C.soft, color: C.accent }}>{r.cat}</span>
-                  )}
-                </div>
-
-                {/* Unknown product message */}
-                {r.unknown && (
-                  <p className="text-xs mt-0.5 font-semibold" style={{ color: "#FFA040" }}>
-                    את זה אני עוד לא מכיר. תנסה ותדווח 🌱
-                  </p>
-                )}
-
-                {/* Alt genetic suggestion for unknown */}
-                {r.altGenetic && (
-                  <p className="text-xs mt-0.5" style={{ color: C.accent }}>
-                    💡 {r.altGenetic.name} ({r.altGenetic.genetics}) — אותה קטגוריה, {r.altGenetic.match}% התאמה
-                  </p>
-                )}
-
-                <p className="text-xs mt-0.5" style={{ color: "rgba(187,247,208,0.55)" }}>
-                  {!r.inLicense
-                    ? "מחוץ לקטגוריות הרישיון שלכם"
-                    : r.unknown
-                    ? "זן לא מוכר — נסה ודווח ביומן"
-                    : r.match === null
-                    ? "זן שלא ניסיתם — אם תנסו, דרגו ביומן ונלמד אותו"
-                    : r.match >= 85
-                    ? "התאמה מצוינת לפרופיל שלכם 💚"
-                    : r.match >= 72
-                    ? "התאמה טובה"
-                    : "פחות מתאים למה שעבד לכם בעבר"}
-                </p>
-              </div>
-
-              <div className="text-center flex-shrink-0">
-                {r.price && <div className="font-bold text-sm mb-1" style={{ color: C.ink }}>₪{r.price}</div>}
-                {r.known && r.inLicense && (
-                  <button onClick={() => addToBasket(r.known.id)}
-                    disabled={basket.includes(r.known.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-bold text-white disabled:opacity-40"
-                    style={{ background: C.accent, color: "#061006" }}>
-                    {basket.includes(r.known.id) ? "בתכנון ✓" : "+ לתכנון"}
-                  </button>
-                )}
-              </div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* Action column — add to plan only; NO price beside the match % */}
+            <div className="text-center flex-shrink-0">
+              {r.known && r.inLicense && (
+                <button onClick={() => addToBasket(r.known.id)}
+                  disabled={basket.includes(r.known.id)}
+                  className="text-xs px-3 py-1.5 rounded-lg font-bold text-white disabled:opacity-40"
+                  style={{ background: C.accent, color: "#061006" }}>
+                  {basket.includes(r.known.id) ? "בתכנון ✓" : "+ לתכנון"}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+        return (
+          <div key={resultKey} className="space-y-2">
+            <p className="text-sm font-semibold" style={{ color: C.ink }}>
+              {ranked.length} מוצרים · ממוינים לפי התאמה לפרופיל שלך
+            </p>
+
+            {high.map(Row)}
+
+            {/* Soft 70% line — visual only, nothing hidden below it */}
+            {partial.length > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex-1 h-px" style={{ background: C.line }} />
+                <span className="text-xs font-bold" style={{ color: "rgba(187,247,208,0.50)" }}>
+                  התאמה חלקית · מתחת ל-{SOFT_LINE}%
+                </span>
+                <div className="flex-1 h-px" style={{ background: C.line }} />
+              </div>
+            )}
+
+            {partial.map(Row)}
+          </div>
+        );
+      })()}
     </div>
   );
 }
