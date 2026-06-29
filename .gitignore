@@ -53,3 +53,6 @@ download
 download (*)
 *[!\x00-\x7F]*.md
 
+# Windows reserved device name — created accidentally by redirected output
+nul
+
