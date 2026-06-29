@@ -437,6 +437,35 @@ async function fetchFromDB(pool) {
   return rows.map(r => ({ ...r, source: 'db' }));
 }
 
+// ── DB upsert — writes pharmacy rows so the DB becomes the persistent store ───
+async function upsertToDb(pool, rows) {
+  if (!pool || !rows.length) return;
+  for (const p of rows) {
+    try {
+      await pool.query(
+        `INSERT INTO pharmacies (name, city, delivery, address, phone,
+            website_url, maps_url, hours_weekdays, hours_friday, hours_saturday)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (name) DO UPDATE SET
+           city            = EXCLUDED.city,
+           address         = EXCLUDED.address,
+           phone           = EXCLUDED.phone,
+           hours_weekdays  = EXCLUDED.hours_weekdays,
+           hours_friday    = EXCLUDED.hours_friday,
+           hours_saturday  = EXCLUDED.hours_saturday`,
+        [
+          p.name, p.city || null, p.delivery || false, p.address || null,
+          p.phone || null, p.website_url || null, p.maps_url || null,
+          p.hours_weekdays || null, p.hours_friday || null, p.hours_saturday || null,
+        ],
+      );
+    } catch (err) {
+      // If unique constraint missing (pre-migration DB), skip silently
+      if (err.code !== '23505' && err.code !== '42P10') console.warn('pharmacySync upsert:', err.message);
+    }
+  }
+}
+
 // ── Main sync ─────────────────────────────────────────────────────────────────
 export async function syncPharmacies(pool) {
   let raw    = [];
@@ -444,7 +473,11 @@ export async function syncPharmacies(pool) {
 
   try {
     const moh = await fetchFromMOH();
-    if (moh.length > 0) { raw = moh; source = 'moh'; }
+    if (moh.length > 0) {
+      raw = moh; source = 'moh';
+      // Persist MOH data to DB so future startups don't need MOH to be reachable
+      await upsertToDb(pool, moh).catch(e => console.warn('pharmacySync: DB upsert failed —', e.message));
+    }
   } catch (err) {
     console.info('pharmacySync: MOH skipped —', err.message);
   }
@@ -461,6 +494,8 @@ export async function syncPharmacies(pool) {
   if (!raw.length) {
     raw    = COMPREHENSIVE_FALLBACK;
     source = 'fallback';
+    // Seed fallback into DB on first run so the DB is never empty
+    await upsertToDb(pool, COMPREHENSIVE_FALLBACK).catch(() => {});
   }
 
   const data = raw.map(p => ({

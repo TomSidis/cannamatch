@@ -116,6 +116,13 @@ router.post("/treatment", verifySession, async (req, res) => {
     effects           = [],
     side_effects      = [],
     side_effects_other,
+    // B1 — pre/post severity + session metadata
+    severity_before,
+    severity_after,
+    indication,
+    time_of_day,
+    product_sku_id,
+    batch_id,
   } = req.body;
 
   if (!strain_id) {
@@ -155,6 +162,21 @@ router.post("/treatment", verifySession, async (req, res) => {
     ? grow_batch_id.replace(/[^A-Za-z0-9\-_]/g, "").slice(0, 60).trim() || null
     : null;
 
+  // B1 — validate + sanitize new fields
+  const cleanSeverityBefore = Number.isInteger(severity_before) && severity_before >= 0 && severity_before <= 10
+    ? severity_before : null;
+  const cleanSeverityAfter  = Number.isInteger(severity_after)  && severity_after  >= 0 && severity_after  <= 10
+    ? severity_after  : null;
+  const VALID_TOD = new Set(['morning', 'afternoon', 'evening', 'night']);
+  const cleanIndication  = typeof indication  === "string" ? indication.replace(/[<>"'`]/g, "").slice(0, 60).trim()  || null : null;
+  const cleanTimeOfDay   = VALID_TOD.has(time_of_day)     ? time_of_day   : null;
+  const cleanProductSkuId = typeof product_sku_id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(product_sku_id)
+    ? product_sku_id : null;
+  const cleanBatchIdB1   = typeof batch_id === "string"
+    ? batch_id.replace(/[^A-Za-z0-9\-_]/g, "").slice(0, 60).trim() || null
+    : null;
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -162,8 +184,10 @@ router.post("/treatment", verifySession, async (req, res) => {
     const { rows: [entry] } = await client.query(
       `INSERT INTO treatment_journal
          (user_id, strain_id, grow_batch_id, rating, photo_url, notes,
-          effects, side_effects, side_effects_other)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          effects, side_effects, side_effects_other,
+          severity_before, severity_after, indication, time_of_day,
+          product_sku_id, batch_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING id, created_at`,
       [
         req.userId,
@@ -175,6 +199,12 @@ router.post("/treatment", verifySession, async (req, res) => {
         cleanEffects.length      ? cleanEffects      : null,
         cleanSideEffects.length  ? cleanSideEffects  : null,
         cleanSideOther,
+        cleanSeverityBefore,
+        cleanSeverityAfter,
+        cleanIndication,
+        cleanTimeOfDay,
+        cleanProductSkuId,
+        cleanBatchIdB1,
       ],
     );
 
@@ -228,7 +258,10 @@ router.get("/treatment", verifySession, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT j.id, j.strain_id, s.name AS strain_name,
               j.grow_batch_id, j.rating, j.photo_url, j.notes,
-              j.effects, j.side_effects, j.side_effects_other, j.created_at,
+              j.effects, j.side_effects, j.side_effects_other,
+              j.severity_before, j.severity_after, j.delta,
+              j.indication, j.time_of_day, j.product_sku_id, j.batch_id,
+              j.created_at,
               r.id AS review_id
        FROM treatment_journal j
        LEFT JOIN strains s ON s.id = j.strain_id

@@ -27,9 +27,10 @@ import basketRouter     from "./routes/basket.js";
 import feedRouter       from "./routes/feed.js";
 import impactRouter     from "./routes/impact.js";
 import termsRouter      from "./routes/terms.js";
-import { runDailySync }      from "./jobs/dailySync.js";
-import { runBatchIngestJob } from "./jobs/batchIngestJob.js";
-import { bootstrapAdmin }    from "./lib/adminBootstrap.js";
+import { runDailySync }           from "./jobs/dailySync.js";
+import { runBatchIngestJob }      from "./jobs/batchIngestJob.js";
+import { runStrainDetectionJob }  from "./jobs/strainDetectionJob.js";
+import { bootstrapAdmin }         from "./lib/adminBootstrap.js";
 
 dotenv.config();
 
@@ -177,15 +178,17 @@ import('./db.js').then(async ({ pool }) => {
   // No-op if env vars are not set (production where admin already exists).
   await bootstrapAdmin(pool);
 
-  cron.schedule('0 9 * * *', () => runBatchIngestJob(_pool), { timezone: 'Asia/Jerusalem' });
-  cron.schedule('0 10 * * *', () => runDailySync(_pool),      { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 7 * * *', () => runStrainDetectionJob(_pool), { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 9 * * *', () => runBatchIngestJob(_pool),     { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 10 * * *', () => runDailySync(_pool),          { timezone: 'Asia/Jerusalem' });
   console.log('🕘 COA batch ingestion scheduled for 09:00 (Asia/Jerusalem)');
   console.log('🕙 Pharmacy sync scheduled for 10:00 (Asia/Jerusalem)');
 }).catch((err) => {
   // DB not configured — cron still works when pool is null; both jobs guard it
   console.warn('[startup] DB not available — admin bootstrap skipped:', err.message);
-  cron.schedule('0 9 * * *', () => runBatchIngestJob(null), { timezone: 'Asia/Jerusalem' });
-  cron.schedule('0 10 * * *', () => runDailySync(null),     { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 7 * * *', () => runStrainDetectionJob(null), { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 9 * * *', () => runBatchIngestJob(null),     { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 10 * * *', () => runDailySync(null),          { timezone: 'Asia/Jerusalem' });
   console.log('🕘 COA batch ingestion scheduled (no DB)');
 });
 

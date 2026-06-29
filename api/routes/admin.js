@@ -1,8 +1,10 @@
 import { Router }  from "express";
 import multer      from "multer";
-import { requireRole }   from "../middleware/requireRole.js";
-import { parseCOAFile }  from "../lib/coa/parseCOA.js";
+import { requireRole }          from "../middleware/requireRole.js";
+import { parseCOAFile }         from "../lib/coa/parseCOA.js";
 import { ingestBatch, runFullIngestion } from "../lib/batchIngestor.js";
+import { runStrainDetectionJob } from "../jobs/strainDetectionJob.js";
+import { runDailySync }          from "../jobs/dailySync.js";
 
 const router = Router();
 
@@ -131,6 +133,32 @@ router.get("/ingest-report", async (_req, res) => {
     );
 
     res.json({ latestRun: latestRun ?? null, manufacturers });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// ── POST /api/admin/detect-strains-now ───────────────────────────────────────
+// Manual trigger for the 07:00 commercial strain scraper (test without waiting).
+router.post("/detect-strains-now", async (_req, res) => {
+  let pool = null;
+  try { ({ pool } = await import("../db.js")); } catch { /* no DB */ }
+  try {
+    const result = await runStrainDetectionJob(pool);
+    res.json(result ?? { ok: true });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// ── POST /api/admin/sync-pharmacies-now ──────────────────────────────────────
+// Manual trigger for the 10:00 pharmacy sync.
+router.post("/sync-pharmacies-now", async (_req, res) => {
+  let pool = null;
+  try { ({ pool } = await import("../db.js")); } catch { /* no DB */ }
+  try {
+    await runDailySync(pool);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }

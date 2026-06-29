@@ -234,4 +234,64 @@ router.get("/community-stats", async (req, res) => {
 });
 
 
+// ── POST /api/pending-scan — user-scan triggered ingestion (Task 1a) ─────────
+// Names that passed isPlausibleProductName in the decoder land here for admin review.
+// Same dedup logic as the daily scheduler; never auto-promotes — always pending.
+router.post("/pending-scan", async (req, res) => {
+  const { names = [] } = req.body;
+  if (!Array.isArray(names) || names.length === 0) return res.json({ added: 0 });
+
+  const normName = (s) =>
+    (s || '').toLowerCase().replace(/[\s‏‎]+/g, ' ').replace(/['"'׳״.\-–—_]/g, '').trim();
+
+  let added = 0;
+  for (const { name, cat } of names) {
+    if (!name) continue;
+    const normed = normName(name);
+    if (!normed || normed.length < 3) continue;
+    try {
+      const { rowCount } = await pool.query(
+        `INSERT INTO pending_product (commercial_name, normalized_name, source_id, raw_context)
+         VALUES ($1,$2,'user-scan',$3)
+         ON CONFLICT (normalized_name) DO NOTHING`,
+        [name, normed, cat || null],
+      );
+      added += rowCount;
+    } catch (err) {
+      if (err.code !== '42P01') console.warn('[pending-scan]', err.message);
+    }
+  }
+  return res.json({ added });
+});
+
+// ── GET /api/new-on-market — recently detected commercial names ────────────────
+// Returns latest product_sku entries (auto-approved) + pending count for admin badge.
+// Gracefully returns empty array if migration 015 hasn't run yet.
+router.get("/new-on-market", async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         p.id, p.commercial_name, p.genetics_id, p.match_confidence,
+         p.match_method, p.grower, p.marketer, p.brand, p.category,
+         p.terpene_rank, p.first_seen_at, p.source_id,
+         g.display_name AS genetics_display,
+         s.display_name AS source_display
+       FROM product_sku p
+       LEFT JOIN genetics_node g ON g.id = p.genetics_id
+       LEFT JOIN sku_source    s ON s.id = p.source_id
+       WHERE p.status = 'active'
+       ORDER BY p.first_seen_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    // Table doesn't exist yet (migration pending) — return empty
+    if (err.code === '42P01') return res.json({ items: [] });
+    console.error('new-on-market error:', err.message);
+    res.json({ items: [] });
+  }
+});
+
 export default router;
