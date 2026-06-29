@@ -108,6 +108,38 @@ function applyNewUserRoute(need: UserNeed, batch: Batch, base: number): number {
   return clamp(base + Math.tanh(raw) * NEW_USER_MAX_NUDGE, 0, 1);
 }
 
+// ── DAY-PART TERPENE WEIGHTING (Layer 5 refinement) ───────────────────────────
+// Weights dominant_terpenes (RANK based, no %, no indica/sativa) by the PATIENT's stated
+// time of need — a stronger steer than the Layer-3 myrcene gate, but still bounded so a
+// strong indication fit leads. Composes with the new-user route + like/dislike signals.
+//   NIGHT (or all-day incl. night): up-weight sedating myrcene (primary) + linalool.
+//   DAY: up-weight uplifting limonene (primary) + caryophyllene's daytime profile; down-weight myrcene.
+//   BOTH (day & night): balanced — no direction amplified (returns base unchanged).
+const DAYPART_MAX_NUDGE = 0.06;
+
+export function applyDayPartWeight(times: TimeOfDay[], batch: Batch, base: number): number {
+  const hasNight = times.some(t => t === 'evening' || t === 'night');
+  const hasDay   = times.some(t => t === 'morning' || t === 'noon' || t === 'afternoon');
+  if (hasNight === hasDay) return base; // both, or neither → no amplification
+
+  const ranked = batchDominantTerpenes(batch);
+  if (ranked.length === 0) return base;
+  const isDom = (t: Terpene) => ranked[0] === t;
+  const has   = (t: Terpene) => ranked.includes(t);
+
+  let raw = 0;
+  if (hasNight) {
+    if (has('myrcene'))  raw += isDom('myrcene')  ? 1.0 : 0.6; // primary sedating
+    if (has('linalool')) raw += isDom('linalool') ? 0.7 : 0.4;
+  } else { // day
+    if (has('limonene'))      raw += isDom('limonene') ? 1.0 : 0.6; // primary uplifting
+    if (has('caryophyllene')) raw += 0.4;                           // daytime profile
+    if (has('myrcene'))       raw -= isDom('myrcene') ? 0.8 : 0.5;  // sedating wrong for day
+  }
+
+  return clamp(base + Math.tanh(raw) * DAYPART_MAX_NUDGE, 0, 1);
+}
+
 // ── DISLIKE DEMOTION (Layer 3) ────────────────────────────────────────────────
 // Symmetric to the liked single-pick boost: a strain chemically similar to the disliked
 // pick is demoted, proportional to cosine similarity, capped at ±DISLIKE_MAX_NUDGE and
@@ -175,7 +207,9 @@ export function scoreSingle(
   // NEW-USER ROUTE: bounded anxiolytic / lower-THC tie-breaker layered ON TOP of the
   // indication-fit score above. Capped at ±NEW_USER_MAX_NUDGE so a fit gap larger than
   // 2× the cap can never be reordered — indication fit always leads (spec §Layer 3).
-  const routedScore = need.newUserRoute ? applyNewUserRoute(need, batch, finalScore) : finalScore;
+  // Day-part terpene weighting — applies to everyone (times always set); bounded so fit leads.
+  const dayPartScore = applyDayPartWeight(need.times, batch, finalScore);
+  const routedScore  = need.newUserRoute ? applyNewUserRoute(need, batch, dayPartScore) : dayPartScore;
   // Disliked-strain demotion — bounded, after fit + route. Absent → unchanged (no regression).
   const dislikeScore = need.dislikedProfile ? applyDislikeDemotion(need.dislikedProfile, batch, routedScore) : routedScore;
   const matchPct     = Math.round(clamp(dislikeScore * 100, 0, 100));
