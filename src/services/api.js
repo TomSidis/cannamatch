@@ -64,6 +64,9 @@ export const api = {
       body: JSON.stringify({ image_base64, media_type }) }),
   fetchMenuUrl: (url) => apiFetch(`/api/fetch-menu`, { method: "POST", body: JSON.stringify({ url }) }),
 
+  // קטלוג חי לבורר האונבורדינג — product_sku active בלבד (לא pending)
+  getCatalogStrains: (q = "") => apiFetch(`/api/catalog/strains?q=${encodeURIComponent(q)}`),
+
   // חדש בשוק
   getNewOnMarket: (limit = 30) => apiFetch(`/api/new-on-market?limit=${limit}`),
   // Task 1a — user-scan triggered ingestion

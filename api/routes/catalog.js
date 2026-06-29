@@ -270,6 +270,35 @@ router.post("/pending-scan", async (req, res) => {
   return res.json({ added });
 });
 
+// ── GET /api/catalog/strains — live catalog for the onboarding picker ──────────
+// APPROVED live catalog only (product_sku, status='active'). NEVER pending_product.
+// Read-only; debounced search by commercial_name. Returns the real names patients see.
+router.get("/catalog/strains", async (req, res) => {
+  const q     = (req.query.q || "").trim();
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+  try {
+    const params = [];
+    let where = "WHERE p.status = 'active'";
+    if (q) { params.push(`%${q}%`); where += ` AND p.commercial_name ILIKE $${params.length}`; }
+    params.push(limit);
+    const { rows } = await pool.query(
+      `SELECT p.id, p.commercial_name AS name, p.category, p.grower,
+              g.display_name AS genetics
+       FROM product_sku p
+       LEFT JOIN genetics_node g ON g.id = p.genetics_id
+       ${where}
+       ORDER BY p.commercial_name
+       LIMIT $${params.length}`,
+      params,
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    if (err.code === '42P01') return res.json({ items: [] }); // table not migrated yet
+    console.error('catalog/strains error:', err.message);
+    res.json({ items: [] });
+  }
+});
+
 // ── GET /api/new-on-market — recently detected commercial names ────────────────
 // Returns latest product_sku entries (auto-approved) + pending count for admin badge.
 // Gracefully returns empty array if migration 015 hasn't run yet.

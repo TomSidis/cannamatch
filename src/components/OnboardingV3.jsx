@@ -13,11 +13,12 @@
 //
 //  Mobile-first RTL Hebrew. Persists to useOnboardingStore.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '../hooks/useOnboardingStore.js';
 import { Stage0_License } from './OnboardingWizard.jsx';
 import { STRAINS } from '../data/strainsConfig.js';
+import { api } from '../services/api.js';
 import {
   READY_MICROCOPY, EXPERIENCE_OPTIONS, INDICATION_OPTIONS, DAYPART_OPTIONS,
   dayPartToTimes, experienceToTolerance, screen2Complete, screen3Mode, pastStrainComplete,
@@ -136,14 +137,34 @@ function ScreenMedical({ experience, setExperience, indications, toggleIndicatio
 }
 
 // ── Screen 3a — past strains (experienced / little) ──────────────────────────
+// Seed fallback used only when the live-catalog API is unavailable (offline).
+function seedFallback(s) {
+  const n = s.toLowerCase();
+  return STRAINS.filter(x => x.name.toLowerCase().includes(n)).slice(0, 8)
+    .map(x => ({ id: x.id, name: x.name, category: x.cat }));
+}
+
 function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete }) {
   const [q, setQ] = useState('');
-  const results = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return [];
-    return STRAINS.filter(x => x.name.toLowerCase().includes(s)).slice(0, 8);
+  const [results, setResults] = useState([]);
+
+  // Debounced search against the LIVE catalog (product_sku active); seed fallback offline.
+  useEffect(() => {
+    const s = q.trim();
+    if (!s) { setResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { items } = await api.getCatalogStrains(s);
+        if (!cancelled) setResults(items?.length ? items : seedFallback(s));
+      } catch {
+        if (!cancelled) setResults(seedFallback(s));
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [q]);
-  const nameOf = (id) => STRAINS.find(x => x.id === id)?.name || '';
+
+  const sameId  = (a, s) => a && a.id === s.id;
   const canDone = pastStrainComplete({ liked, disliked });
 
   return (
@@ -155,11 +176,11 @@ function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete 
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <div style={{ flex: 1, padding: '9px 12px', borderRadius: 12, background: 'rgba(74,222,128,0.08)', border: `1.5px solid ${T.accent}44` }}>
             <div style={{ fontSize: 10, color: T.accent, fontWeight: 800 }}>👍 אהבתי</div>
-            <div style={{ fontSize: 12, color: liked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{liked ? nameOf(liked) : '—'}</div>
+            <div style={{ fontSize: 12, color: liked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{liked ? liked.name : '—'}</div>
           </div>
           <div style={{ flex: 1, padding: '9px 12px', borderRadius: 12, background: 'rgba(255,107,107,0.07)', border: `1.5px solid ${T.danger}44` }}>
             <div style={{ fontSize: 10, color: T.danger, fontWeight: 800 }}>👎 פחות</div>
-            <div style={{ fontSize: 12, color: disliked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{disliked ? nameOf(disliked) : '—'}</div>
+            <div style={{ fontSize: 12, color: disliked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{disliked ? disliked.name : '—'}</div>
           </div>
         </div>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="חפש/י זן לפי שם..."
@@ -179,17 +200,17 @@ function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete 
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-              <div style={{ fontSize: 10, color: T.muted }}>{s.cat}</div>
+              <div style={{ fontSize: 10, color: T.muted }}>{s.category || s.cat}{s.genetics ? ` · ${s.genetics}` : ''}</div>
             </div>
-            <button onClick={() => setLiked(liked === s.id ? null : s.id)} style={{
+            <button onClick={() => setLiked(sameId(liked, s) ? null : { id: s.id, name: s.name, cat: s.category || s.cat })} style={{
               padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: liked === s.id ? T.accent : 'rgba(74,222,128,0.18)',
-              color: liked === s.id ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
+              background: sameId(liked, s) ? T.accent : 'rgba(74,222,128,0.18)',
+              color: sameId(liked, s) ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
             }}>👍</button>
-            <button onClick={() => setDisliked(disliked === s.id ? null : s.id)} style={{
+            <button onClick={() => setDisliked(sameId(disliked, s) ? null : { id: s.id, name: s.name, cat: s.category || s.cat })} style={{
               padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: disliked === s.id ? T.danger : 'rgba(255,107,107,0.18)',
-              color: disliked === s.id ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
+              background: sameId(disliked, s) ? T.danger : 'rgba(255,107,107,0.18)',
+              color: sameId(disliked, s) ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
             }}>👎</button>
           </div>
         ))}
@@ -247,8 +268,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
     setIndications(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const finish = () => {
-    const likedName    = STRAINS.find(s => s.id === liked)?.name;
-    const dislikedName = STRAINS.find(s => s.id === disliked)?.name;
+    const likedName    = liked?.name;
+    const dislikedName = disliked?.name;
     const times = dayPartToTimes(dayPart);
     const cats = payload.licenseCategories || [];
     const grams = payload.gramsByCategory || {};
@@ -257,7 +278,7 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
     // Persist to the store (Layer 3 §5).
     updatePayload({
       experience, medicalConditions: indications, usageTiming: times,
-      lovedStrains: liked ? [liked] : [], hatedStrains: disliked ? [disliked] : [],
+      lovedStrains: liked ? [liked.id] : [], hatedStrains: disliked ? [disliked.id] : [],
       thcTolerance: tolerance,
     });
 
@@ -266,8 +287,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
       reasons:          indications,
       timing:           times,                       // ansToNeed reads `timing` → need.times
       experience,                                    // flips newUserRoute in the engine
-      helped:           liked ? [liked] : [],
-      notHelped:        disliked ? [disliked] : [],
+      helped:           liked ? [liked.id] : [],
+      notHelped:        disliked ? [disliked.id] : [],
       likedStrainNames:    likedName ? [likedName] : [],       // B3 single-pick nudge
       dislikedStrainNames: dislikedName ? [dislikedName] : [], // bounded dislike demotion
       thcTolerance:     tolerance,
