@@ -10,10 +10,32 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  READY_MICROCOPY,
+  READY_MICROCOPY, EXPERIENCE_OPTIONS, INDICATION_OPTIONS,
   dayPartToTimes, experienceToTolerance,
-  screen2Complete, screen3Mode, pastStrainComplete, deriveProfileBatch,
+  screen2Complete, screen3Mode, pastStrainComplete, deriveProfileBatch, indicationReasons,
 } from '../onboardingV3Logic.js';
+
+describe('experience options (#2 wording)', () => {
+  it('labels are exactly ותיק / יש ניסיון / חדש', () => {
+    expect(EXPERIENCE_OPTIONS.map((o) => o.label)).toEqual(['ותיק', 'יש ניסיון', 'חדש']);
+  });
+  it('only חדש (first) → guidance; ותיק + יש ניסיון → past-strain', () => {
+    expect(screen3Mode('first')).toBe('guidance');
+    expect(screen3Mode('experienced')).toBe('past_strain'); // ותיק
+    expect(screen3Mode('little')).toBe('past_strain');       // יש ניסיון
+  });
+});
+
+describe('indications full set (#3)', () => {
+  it('exposes the full list (≥18) and maps each to engine reason slugs', () => {
+    expect(INDICATION_OPTIONS.length).toBeGreaterThanOrEqual(18);
+    for (const o of INDICATION_OPTIONS) expect(o.reasons.length).toBeGreaterThan(0);
+  });
+  it('indicationReasons flattens + dedups selected → engine slugs', () => {
+    expect(indicationReasons(['fibro', 'ms']).sort()).toEqual(['pain', 'sleep']); // both map pain+sleep, deduped
+    expect(indicationReasons(['sleep', 'anxiety'])).toEqual(['sleep', 'anxiety']);
+  });
+});
 
 describe('screen 2 gate — indication mandatory for everyone', () => {
   it('blocks when no indication, even with experience chosen', () => {
