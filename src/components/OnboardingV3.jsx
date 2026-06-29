@@ -144,7 +144,19 @@ function seedFallback(s) {
     .map(x => ({ id: x.id, name: x.name, category: x.cat }));
 }
 
-function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete }) {
+function RemovableChip({ label, color, onRemove }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 14,
+      fontSize: 12, fontWeight: 700, background: `${color}1f`, color, border: `1px solid ${color}55`,
+    }}>
+      {label}
+      <button onClick={onRemove} aria-label="הסר" style={{ background: 'none', border: 'none', color, cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>✕</button>
+    </span>
+  );
+}
+
+function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLiked, removeDisliked, onComplete }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
 
@@ -164,25 +176,25 @@ function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete 
     return () => { cancelled = true; clearTimeout(t); };
   }, [q]);
 
-  const sameId  = (a, s) => a && a.id === s.id;
-  const canDone = pastStrainComplete({ liked, disliked });
+  const inLiked    = (s) => liked.some(x => x.id === s.id);
+  const inDisliked = (s) => disliked.some(x => x.id === s.id);
+  const canDone    = pastStrainComplete({ liked, disliked });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '4px 20px 10px' }}>
         <p style={{ fontSize: 12, color: T.muted, margin: '0 0 12px', lineHeight: 1.6 }}>
-          בחר/י זן אחד שאהבת ואחד שפחות — שתי בחירות מספיקות לנו כדי להבין את הכיוון.
+          סמן/י כמה שתרצה/י — ככל שיותר, ההתאמה מדויקת יותר. בחר/י לפחות אחד שאהבת ואחד שפחות.
         </p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <div style={{ flex: 1, padding: '9px 12px', borderRadius: 12, background: 'rgba(74,222,128,0.08)', border: `1.5px solid ${T.accent}44` }}>
-            <div style={{ fontSize: 10, color: T.accent, fontWeight: 800 }}>👍 אהבתי</div>
-            <div style={{ fontSize: 12, color: liked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{liked ? liked.name : '—'}</div>
+
+        {/* Selected chips — removable */}
+        {(liked.length > 0 || disliked.length > 0) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {liked.map(x => <RemovableChip key={x.id} label={`👍 ${x.name}`} color={T.accent} onRemove={() => removeLiked(x.id)} />)}
+            {disliked.map(x => <RemovableChip key={x.id} label={`👎 ${x.name}`} color={T.danger} onRemove={() => removeDisliked(x.id)} />)}
           </div>
-          <div style={{ flex: 1, padding: '9px 12px', borderRadius: 12, background: 'rgba(255,107,107,0.07)', border: `1.5px solid ${T.danger}44` }}>
-            <div style={{ fontSize: 10, color: T.danger, fontWeight: 800 }}>👎 פחות</div>
-            <div style={{ fontSize: 12, color: disliked ? T.text : T.muted, fontWeight: 700, marginTop: 2 }}>{disliked ? disliked.name : '—'}</div>
-          </div>
-        </div>
+        )}
+
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="חפש/י זן לפי שם..."
           style={{
             width: '100%', boxSizing: 'border-box', padding: '11px 14px', borderRadius: 12,
@@ -202,15 +214,15 @@ function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete 
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
               <div style={{ fontSize: 10, color: T.muted }}>{s.category || s.cat}{s.genetics ? ` · ${s.genetics}` : ''}</div>
             </div>
-            <button onClick={() => setLiked(sameId(liked, s) ? null : { id: s.id, name: s.name, cat: s.category || s.cat })} style={{
+            <button onClick={() => pickLiked(s)} style={{
               padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: sameId(liked, s) ? T.accent : 'rgba(74,222,128,0.18)',
-              color: sameId(liked, s) ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
+              background: inLiked(s) ? T.accent : 'rgba(74,222,128,0.18)',
+              color: inLiked(s) ? '#04120a' : T.accent, border: `1.5px solid ${T.accent}`,
             }}>👍</button>
-            <button onClick={() => setDisliked(sameId(disliked, s) ? null : { id: s.id, name: s.name, cat: s.category || s.cat })} style={{
+            <button onClick={() => pickDisliked(s)} style={{
               padding: '5px 11px', borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: 'pointer',
-              background: sameId(disliked, s) ? T.danger : 'rgba(255,107,107,0.18)',
-              color: sameId(disliked, s) ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
+              background: inDisliked(s) ? T.danger : 'rgba(255,107,107,0.18)',
+              color: inDisliked(s) ? '#fff' : T.danger, border: `1.5px solid ${T.danger}`,
             }}>👎</button>
           </div>
         ))}
@@ -221,7 +233,7 @@ function ScreenPastStrains({ liked, disliked, setLiked, setDisliked, onComplete 
 
       <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <PrimaryBtn onClick={onComplete} disabled={!canDone}>
-          {canDone ? 'סיימתי — בנה/י לי פרופיל 🌿' : 'בחר/י זן שאהבת ואחד שפחות'}
+          {canDone ? `סיימתי — ${liked.length}👍 ${disliked.length}👎` : 'בחר/י לפחות אחד שאהבת ואחד שפחות'}
         </PrimaryBtn>
       </div>
     </div>
@@ -261,24 +273,38 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
   const [experience, setExperience] = useState(payload.experience || null);
   const [indications, setIndications] = useState(payload.medicalConditions || []);
   const [dayPart, setDayPart]       = useState(null);
-  const [liked, setLiked]           = useState(null);
-  const [disliked, setDisliked]     = useState(null);
+  // Multi-select, unlimited: arrays of { id, name, cat }. More picks = stronger signal.
+  const [liked, setLiked]           = useState([]);
+  const [disliked, setDisliked]     = useState([]);
 
   const toggleIndication = (id) =>
     setIndications(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
+  const slim = (s) => ({ id: s.id, name: s.name, cat: s.category || s.cat });
+  // A strain can be liked OR disliked, never both — picking one side removes it from the other.
+  const pickLiked = (s) => {
+    setDisliked(d => d.filter(x => x.id !== s.id));
+    setLiked(l => l.some(x => x.id === s.id) ? l.filter(x => x.id !== s.id) : [...l, slim(s)]);
+  };
+  const pickDisliked = (s) => {
+    setLiked(l => l.filter(x => x.id !== s.id));
+    setDisliked(d => d.some(x => x.id === s.id) ? d.filter(x => x.id !== s.id) : [...d, slim(s)]);
+  };
+  const removeLiked    = (id) => setLiked(l => l.filter(x => x.id !== id));
+  const removeDisliked = (id) => setDisliked(d => d.filter(x => x.id !== id));
+
   const finish = () => {
-    const likedName    = liked?.name;
-    const dislikedName = disliked?.name;
     const times = dayPartToTimes(dayPart);
     const cats = payload.licenseCategories || [];
     const grams = payload.gramsByCategory || {};
     const tolerance = experienceToTolerance(experience);
+    const likedIds    = liked.map(x => x.id);
+    const dislikedIds = disliked.map(x => x.id);
 
     // Persist to the store (Layer 3 §5).
     updatePayload({
       experience, medicalConditions: indications, usageTiming: times,
-      lovedStrains: liked ? [liked.id] : [], hatedStrains: disliked ? [disliked.id] : [],
+      lovedStrains: likedIds, hatedStrains: dislikedIds,
       thcTolerance: tolerance,
     });
 
@@ -287,10 +313,10 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
       reasons:          indications,
       timing:           times,                       // ansToNeed reads `timing` → need.times
       experience,                                    // flips newUserRoute in the engine
-      helped:           liked ? [liked.id] : [],
-      notHelped:        disliked ? [disliked.id] : [],
-      likedStrainNames:    likedName ? [likedName] : [],       // B3 single-pick nudge
-      dislikedStrainNames: dislikedName ? [dislikedName] : [], // bounded dislike demotion
+      helped:           likedIds,
+      notHelped:        dislikedIds,
+      likedStrainNames:    liked.map(x => x.name),    // ALL liked → engine boost
+      dislikedStrainNames: disliked.map(x => x.name), // ALL disliked → engine demotion
       thcTolerance:     tolerance,
       gramsByCategory:  grams,
       licenseVerified:  !!payload.licenseVerified,
@@ -345,7 +371,9 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
 
           {step === 2 && (
             screen3Mode(experience) === 'past_strain'
-              ? <ScreenPastStrains liked={liked} disliked={disliked} setLiked={setLiked} setDisliked={setDisliked} onComplete={finish} />
+              ? <ScreenPastStrains liked={liked} disliked={disliked}
+                  pickLiked={pickLiked} pickDisliked={pickDisliked}
+                  removeLiked={removeLiked} removeDisliked={removeDisliked} onComplete={finish} />
               : <ScreenGuidance onComplete={finish} />
           )}
         </motion.div>

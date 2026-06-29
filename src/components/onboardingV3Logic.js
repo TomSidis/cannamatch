@@ -51,7 +51,9 @@ export function screen3Mode(experience) {
   return experience === 'first' ? 'guidance' : 'past_strain';
 }
 
-// Past-strain screen requires BOTH a liked and a disliked pick.
+// Past-strain screen requires at least one liked AND one disliked pick.
+// Multi-select: liked/disliked are arrays (≥1 each). Strings/objects also accepted (single).
 export function pastStrainComplete({ liked, disliked }) {
-  return Boolean(liked) && Boolean(disliked);
+  const ok = (v) => (Array.isArray(v) ? v.length > 0 : Boolean(v));
+  return ok(liked) && ok(disliked);
 }

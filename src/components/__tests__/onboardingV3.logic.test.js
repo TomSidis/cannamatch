@@ -52,6 +52,15 @@ describe('past-strain screen requires BOTH picks', () => {
   it('both → complete', () => {
     expect(pastStrainComplete({ liked: 's1', disliked: 's2' })).toBe(true);
   });
+
+  // Multi-select arrays (unlimited)
+  it('empty arrays → not complete', () => {
+    expect(pastStrainComplete({ liked: [], disliked: [] })).toBe(false);
+    expect(pastStrainComplete({ liked: [{ id: 'a' }], disliked: [] })).toBe(false);
+  });
+  it('arrays with ≥1 each (any count) → complete', () => {
+    expect(pastStrainComplete({ liked: [{ id: 'a' }, { id: 'b' }], disliked: [{ id: 'c' }] })).toBe(true);
+  });
 });
 
 describe('day-part → engine timing', () => {
