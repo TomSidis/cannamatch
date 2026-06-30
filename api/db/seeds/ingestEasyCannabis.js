@@ -32,8 +32,23 @@ import { promisify } from 'util';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path          from 'path';
-import { pool }      from '../../db.js';
+import pg            from 'pg';
+import dotenv        from 'dotenv';
+dotenv.config();
 import { normalize, parseOgTitle, canonicalKey } from '../../lib/catalogParser.js';
+
+// Scraper-local pool: keepAlive prevents long-run TCP drops; longer connectionTimeout
+// gives headroom when all workers briefly contest for a connection.
+const pool = new pg.Pool({
+  connectionString:         process.env.DATABASE_URL || 'postgresql://cannamatch:cannamatch@localhost:5432/cannamatch',
+  max:                      20,
+  idleTimeoutMillis:        60_000,
+  connectionTimeoutMillis:  15_000,
+  keepAlive:                true,
+  keepAliveInitialDelayMillis: 10_000,
+  allowExitOnIdle:          true,
+});
+pool.on('error', (err) => console.error('[pool] unexpected error:', err.message));
 
 const gunzip   = promisify(zlib.gunzip);
 const UA       = 'CannaMatch-CatalogBot/1.0 (medical-cannabis patient tool; contact: admin@cannamatch.co.il)';
@@ -52,7 +67,7 @@ const TODAY           = new Date().toISOString().slice(0, 10);
 const LIMIT_ARG       = args['limit'];
 const LIMIT           = (LIMIT_ARG === undefined || LIMIT_ARG === '0') ? Infinity : parseInt(LIMIT_ARG, 10);
 // --concurrency=N workers fetch in parallel (each sleeps DELAY between requests)
-const CONCURRENCY     = parseInt(args['concurrency'] || '10', 10);
+const CONCURRENCY     = parseInt(args['concurrency'] || '8', 10);
 // --delay=ms per-worker floor (default 1000ms for full runs; set higher for polite sampling)
 const MIN_DELAY_FLOOR = parseInt(args['delay'] || '1000', 10);
 const RUN_ID          = args['run-id'] || (LIMIT === Infinity ? `easy-full-${TODAY}` : `easy-${LIMIT}-${TODAY}`);
@@ -409,11 +424,16 @@ async function crawlWorker() {
       // Resume path: re-parse from stored og:title — no HTTP fetch
       const cp = checkpoint.get(loc);
       if (cp.fetch_status === 'parsed' && cp.raw_og_title) {
-        const outcome = await processAndInsert(cp.raw_og_title);
-        if (outcome === 'inserted')         nInserted++;
-        else if (outcome === 'conflict')    nConflict++;
-        else if (outcome === 'skipped_sku') nSkippedSku++;
-        else                                nJunk++;
+        try {
+          const outcome = await processAndInsert(cp.raw_og_title);
+          if (outcome === 'inserted')         nInserted++;
+          else if (outcome === 'conflict')    nConflict++;
+          else if (outcome === 'skipped_sku') nSkippedSku++;
+          else                                nJunk++;
+        } catch (e) {
+          console.warn(`\n[db] resume-insert error: ${e.message.slice(0, 60)}`);
+          nError++;
+        }
       } else {
         nJunk++;
       }
@@ -433,18 +453,24 @@ async function crawlWorker() {
       if (!/HTTP 5\d\d/.test(e.message))
         console.warn(`\n[fetch] WARN: ${e.message.slice(0, 80)}`);
       nError++;
-      await saveCheckpoint(loc, 'error', null, lastmod);
+      try { await saveCheckpoint(loc, 'error', null, lastmod); } catch {}
       await sleep(DELAY);
       continue;
     }
 
-    const outcome = await processAndInsert(rawOgTitle);
-    if (outcome === 'inserted')         { nInserted++;    fetchStatus = 'parsed';  }
-    else if (outcome === 'conflict')    { nConflict++;    fetchStatus = 'parsed';  }
-    else if (outcome === 'skipped_sku') { nSkippedSku++;  fetchStatus = 'skipped'; }
-    else                                { nJunk++;                                 }
+    try {
+      const outcome = await processAndInsert(rawOgTitle);
+      if (outcome === 'inserted')         { nInserted++;    fetchStatus = 'parsed';  }
+      else if (outcome === 'conflict')    { nConflict++;    fetchStatus = 'parsed';  }
+      else if (outcome === 'skipped_sku') { nSkippedSku++;  fetchStatus = 'skipped'; }
+      else                                { nJunk++;                                 }
+    } catch (e) {
+      console.warn(`\n[db] insert error: ${e.message.slice(0, 60)}`);
+      nError++;
+      fetchStatus = 'error';
+    }
 
-    await saveCheckpoint(loc, fetchStatus, rawOgTitle || null, lastmod);
+    try { await saveCheckpoint(loc, fetchStatus, rawOgTitle || null, lastmod); } catch {}
     await sleep(DELAY);
   }
 }
