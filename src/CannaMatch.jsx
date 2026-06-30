@@ -5763,64 +5763,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
         ))}
       </motion.div>
 
-      {/* ── THE CORE PEER DISCLAIMER — large, warm, readable for age 21-80 ── */}
-      <motion.div
-        initial={{ opacity:0, y:18, scale:0.97 }}
-        animate={{ opacity:1, y:0, scale:1 }}
-        transition={{ delay:0.38, type:"spring", damping:32, stiffness:160 }}
-        style={{
-          background:"rgba(3,10,6,0.52)",
-          backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
-          border:"1.5px solid rgba(74,222,128,0.42)",
-          borderRadius:24,
-          padding:"28px 26px",
-          boxShadow:"0 8px 48px rgba(0,0,0,0.32), inset 0 1px 0 rgba(74,222,128,0.12)",
-          textAlign:"right",
-        }}>
-        {/* Zemach icon in quote */}
-        <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:16 }}>
-          <span style={{ fontSize:32, flexShrink:0, filter:"drop-shadow(0 0 12px rgba(74,222,128,0.40))" }}>🤝</span>
-          <p style={{
-            fontSize:18, fontWeight:700, color:"#F0FDF4",
-            lineHeight:1.75, margin:0,
-            textShadow:"0 1px 4px rgba(0,0,0,0.40)",
-          }}>
-            המידע שמוצג אינו ייעוץ רפואי ואינו מחליף רופא.
-            קנאמאצ׳ סורקת תפריטי בתי מרקחת ומוצאת עבורך את ההתאמה האידיאלית לקנייה החודשית — על בסיס נתונים פתוחים, מחקר אקדמי וניסיון קהילת המטופלים.
-          </p>
-        </div>
-        {/* Attribution */}
-        <div style={{
-          display:"flex", alignItems:"center", gap:8,
-          paddingTop:14,
-          borderTop:"1px solid rgba(74,222,128,0.14)",
-        }}>
-          <span style={{ fontSize:20 }}>🌿</span>
-          <span style={{ fontSize:13, fontWeight:700, color:"rgba(134,239,172,0.75)" }}>
-            קנאמאצ׳ · פווידר סגור לבעלי רישיון רפואי בתוקף
-          </span>
-        </div>
-      </motion.div>
-
-      {/* ── Accessibility disclaimer box ── */}
-      <motion.div
-        initial={{ opacity:0, y:12 }}
-        animate={{ opacity:1, y:0 }}
-        transition={{ delay:0.52, type:"spring", damping:32, stiffness:180 }}
-        style={{
-          background:"rgba(74,222,128,0.06)",
-          border:"1px solid rgba(74,222,128,0.20)",
-          borderRadius:16,
-          padding:"14px 18px",
-          textAlign:"right",
-        }}>
-        <p style={{ fontSize:13, fontWeight:600, color:"rgba(187,247,208,0.85)", lineHeight:1.7, margin:0 }}>
-          📋 המידע מבוסס על נתונים פתוחים, ספרות מחקרית ודיווחי מטופלים מהפווידר.
-          תמיד יש להתייעץ עם הרופא/ה המטפל/ת לפני כל שינוי בטיפול.
-        </p>
-      </motion.div>
-
-      {/* ── CTA ── */}
+      {/* ── CTA — neutral continue into the menu scan (disclaimer lives on the intro) ── */}
       <motion.button
         initial={{ opacity:0, y:14 }}
         animate={{ opacity:1, y:0 }}
@@ -5835,12 +5778,8 @@ function WelcomeRoom({ go, user, hasProfile }) {
           boxShadow:"0 0 22px rgba(74,222,128,0.32), 0 4px 16px rgba(0,0,0,0.35)",
           letterSpacing:"-0.01em", fontFamily:"'Heebo',sans-serif",
         }}>
-        קחו אותי לסריקת תפריט
+        לסריקת התפריט
       </motion.button>
-
-      <p style={{ fontSize:12, textAlign:"center", color:"rgba(187,247,208,0.80)", lineHeight:1.65, fontWeight:600 }}>
-        מיועד לבעלי רישיון קנאביס רפואי בתוקף בלבד · גיל 18+ · לא למכירה
-      </p>
     </div>
   );
 }
