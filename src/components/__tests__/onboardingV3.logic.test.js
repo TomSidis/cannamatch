@@ -109,6 +109,21 @@ describe('experience → tolerance', () => {
   });
 });
 
+describe('A1 — radar populates from indications (not 2 collapsed axes)', () => {
+  it('3+ varied indications → more than 2 non-zero radar axes', () => {
+    const b = deriveProfileBatch(indicationReasons(['sleep', 'focus', 'gi']), 'first');
+    expect(b.terpenes.filter(t => t.pct > 0).length).toBeGreaterThan(2);
+  });
+  it('even clustered pain indications → more than 2 axes', () => {
+    const b = deriveProfileBatch(indicationReasons(['pain', 'neuro', 'fibro']), 'first');
+    expect(b.terpenes.length).toBeGreaterThan(2);
+  });
+  it('mood and epilepsy contribute real terps (no single-terpene fallback)', () => {
+    expect(deriveProfileBatch(indicationReasons(['mood']), 'first').terpenes.length).toBeGreaterThan(1);
+    expect(deriveProfileBatch(indicationReasons(['epilepsy']), 'first').terpenes.length).toBeGreaterThan(1);
+  });
+});
+
 describe('deriveProfileBatch — DNA reveal profile from answers', () => {
   it('terpenes come from the chosen indications, ratio from experience', () => {
     const b = deriveProfileBatch(['anxiety'], 'first');           // anxiety → linalool, limonene
