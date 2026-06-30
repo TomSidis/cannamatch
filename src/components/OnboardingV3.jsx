@@ -200,7 +200,7 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '4px 20px 10px' }}>
         <p style={{ fontSize: 12, color: T.muted, margin: '0 0 12px', lineHeight: 1.6 }}>
-          סמנו כמה שתרצו, ככל שיותר ההתאמה מדויקת יותר. בחרו לפחות אחד שאהבתם ואחד שפחות.
+          סמנו זנים שאהבתם 👍 ושפחות אהבתם 👎. גם שניים מספיקים, וזה עוזר לנו לדייק לכם את ההמלצות.
         </p>
 
         {/* Selected chips — removable */}
@@ -291,7 +291,7 @@ function ScreenGuidance({ onComplete }) {
       <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
         בנינו לך כיוון התחלתי לפי ההתוויה שבחרת. נדייק אותו ככל שתדווח/י איך הלך.
       </p>
-      <PrimaryBtn onClick={onComplete}>קח אותי לזנים 🌿</PrimaryBtn>
+      <PrimaryBtn onClick={onComplete}>המשך</PrimaryBtn>
     </div>
   );
 }
@@ -334,7 +334,7 @@ function ScreenDnaReveal({ batch, onComplete }) {
       <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', lineHeight: 1.7, margin: 0 }}>
         טביעת האצבע הטרפנית שלך — נבנתה מהתשובות שלך. פרופיל דומה → התנהגות דומה.
       </p>
-      <PrimaryBtn onClick={onComplete}>קח אותי לזנים 🌿</PrimaryBtn>
+      <PrimaryBtn onClick={onComplete}>המשך</PrimaryBtn>
     </div>
   );
 }
