@@ -337,7 +337,7 @@ router.post("/signup", async (req, res) => {
       return res.status(409).json({ error: { message: "כתובת המייל כבר רשומה — נסו להתחבר." } });
     }
 
-    const password_hash = await bcrypt.hash(password, 12);
+    const password_hash = await bcrypt.hash(password, 10); // cost 10 (OWASP min); cost 12 made pure-JS bcryptjs ~1.6s/login
     const { rows: [created] } = await pool.query(
       `INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, role`,
       [normalized, password_hash],
@@ -360,7 +360,7 @@ router.post("/signup", async (req, res) => {
 // Precomputed bcrypt hash of a throwaway string. When the email is not found we still run
 // bcrypt.compare against this so response timing does not reveal whether an email exists.
 // The user list is cannabis patients — email-existence must not be probeable.
-const DUMMY_HASH = bcrypt.hashSync("cannamatch-login-timing-dummy", 12);
+const DUMMY_HASH = bcrypt.hashSync("cannamatch-login-timing-dummy", 10); // match signup cost for timing parity
 
 // POST /api/auth/login
 // Email + password login. "email not found" and "wrong password" return the IDENTICAL
