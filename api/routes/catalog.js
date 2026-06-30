@@ -280,7 +280,7 @@ router.get("/catalog/strains", async (req, res) => {
   try {
     const params = [];
     let where = "WHERE p.status = 'active'";
-    if (q)           { params.push(`%${q}%`); where += ` AND p.commercial_name ILIKE $${params.length}`; }
+    if (q)           { params.push(`%${q}%`); where += ` AND (p.commercial_name ILIKE $${params.length} OR p.grower ILIKE $${params.length})`; } // search name OR grower
     if (cats.length) { params.push(cats);     where += ` AND p.category = ANY($${params.length})`; } // filter to licensed categories
     params.push(limit);
     const { rows } = await pool.query(

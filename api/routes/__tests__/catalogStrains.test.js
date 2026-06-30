@@ -39,6 +39,7 @@ describe("GET /api/catalog/strains", () => {
     expect(sql).toMatch(/status = 'active'/);
     expect(sql).not.toMatch(/pending_product/);
     expect(sql).toMatch(/ILIKE/);               // search applied
+    expect(sql).toMatch(/commercial_name ILIKE[\s\S]*OR[\s\S]*grower ILIKE/); // name OR grower
     expect(params).toContain("%אור%");
   });
 
