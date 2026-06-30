@@ -20,6 +20,17 @@
  */
 export type Screen = "intro" | "welcome_room" | "onboarding" | "app";
 
+// C6 terms gate decision — a HARD gate that fires after auth and before onboarding.
+// Pure + testable. The render must block (show TermsGate) whenever this is true: a logged-in
+// user whose terms status loaded and is not accepted. (termsStatus === null = still loading,
+// handled separately by a loading screen.) Logged out → no gate.
+export function needsTerms(
+  user: unknown,
+  termsStatus: { accepted?: boolean } | null,
+): boolean {
+  return !!user && !!termsStatus && !termsStatus.accepted;
+}
+
 export function resolveScreen(
   store: { get(k: string): string | null },
   onCorrupt?: () => void,

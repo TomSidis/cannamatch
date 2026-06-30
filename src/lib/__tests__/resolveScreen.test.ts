@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveScreen } from '../resolveScreen';
+import { resolveScreen, needsTerms } from '../resolveScreen';
 
 function store(data: Record<string, string>) {
   return { get: (k: string) => data[k] ?? null };
@@ -58,6 +58,25 @@ describe('resolveScreen — returning user (refresh)', () => {
     const s = store({ ...LOGGED, cm_onboarding_done: '1', cm_welcome_seen: '1' });
     expect(resolveScreen(s)).toBe('app');
     expect(resolveScreen(s)).toBe('app');
+  });
+});
+
+// A2 — terms gate is a hard gate after auth, before onboarding.
+describe('needsTerms — fresh user must pass terms before onboarding', () => {
+  it('logged-in + not accepted → gate (true), even when routing would be onboarding', () => {
+    expect(needsTerms({ id: 'u' }, { accepted: false })).toBe(true);
+    // routing says onboarding, but the gate blocks it first:
+    expect(resolveScreen(store(LOGGED))).toBe('onboarding');
+    expect(needsTerms({ id: 'u' }, { accepted: false })).toBe(true);
+  });
+  it('accepted → no gate', () => {
+    expect(needsTerms({ id: 'u' }, { accepted: true })).toBe(false);
+  });
+  it('logged out → no gate', () => {
+    expect(needsTerms(null, { accepted: false })).toBe(false);
+  });
+  it('status still loading (null) → not a gate (loading screen handles it)', () => {
+    expect(needsTerms({ id: 'u' }, null)).toBe(false);
   });
 });
 

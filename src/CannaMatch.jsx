@@ -28,7 +28,7 @@ import { friendWhy, killSwitchSummary, computeMapDiff, nextExperimentStrain } fr
 import { useReportTiming } from "./hooks/useReportTiming.js";
 import { TERPENE_HUMAN, terp as terpHuman, buildDnaStrands, avoidedHumanLabels } from "./lib/terpeneToHuman.js";
 import { decodeMenu, fuseFind, parseLine } from "./lib/menuDecoder.js";
-import { resolveScreen as _resolveScreen } from "./lib/resolveScreen.ts";
+import { resolveScreen as _resolveScreen, needsTerms } from "./lib/resolveScreen.ts";
 import { ocrFile } from "./lib/menuOcr.js";
 import { downscaleImage } from "./lib/imagePrep.js";
 import CameraCapture from "./components/CameraCapture.jsx";
@@ -7369,7 +7369,7 @@ export default function CannaMatch() {
     );
   }
 
-  if (user && termsStatus && !termsStatus.accepted) {
+  if (needsTerms(user, termsStatus)) {
     return (
       <TermsGate
         text={termsStatus.text}
