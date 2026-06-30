@@ -80,37 +80,38 @@ function Chip({ label, emoji, selected, onClick }) {
 // ── Screen 2 — medical ──────────────────────────────────────────────────────
 function ScreenMedical({ experience, setExperience, indications, toggleIndication, dayPart, setDayPart, onNext }) {
   const canNext = screen2Complete({ experience, indications });
+  // Fits the viewport: experience + day-part + button stay fixed; only the indication grid
+  // scrolls (bounded) if it overflows. No page-level scroll.
   return (
-    <div style={{ padding: '4px 20px 20px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '4px 16px 12px', gap: 12, minHeight: 0 }}>
+      {/* experience — compact 3-across */}
       <section>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '0 0 10px' }}>ניסית קנאביס רפואי בעבר?</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: T.text, margin: '0 0 8px' }}>ניסיתם קנאביס רפואי בעבר?</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {EXPERIENCE_OPTIONS.map(o => {
             const on = experience === o.id;
             return (
-              <motion.button key={o.id} whileTap={{ scale: 0.98 }} onClick={() => setExperience(o.id)}
+              <motion.button key={o.id} whileTap={{ scale: 0.96 }} onClick={() => setExperience(o.id)}
                 style={{
-                  padding: '13px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'right', fontFamily: T.font,
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  background: on ? 'rgba(74,222,128,0.10)' : 'rgba(255,255,255,0.04)',
+                  padding: '10px 4px', borderRadius: 12, cursor: 'pointer', fontFamily: T.font,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 64,
+                  background: on ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.04)',
+                  color: on ? T.accent : T.text,
                   border: `1.5px solid ${on ? T.accent + '66' : 'rgba(255,255,255,0.08)'}`,
                 }}>
-                <span style={{ fontSize: 22 }}>{o.emoji}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: on ? T.accent : T.text }}>{o.label}</div>
-                  <div style={{ fontSize: 11, color: T.muted }}>{o.sub}</div>
-                </div>
-                {on && <span style={{ color: T.accent }}>✓</span>}
+                <span style={{ fontSize: 20 }}>{o.emoji}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 800 }}>{o.label}</span>
+                <span style={{ fontSize: 9, color: T.muted }}>{o.sub}</span>
               </motion.button>
             );
           })}
         </div>
       </section>
 
-      <section>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '0 0 4px' }}>במה מטפלים? <span style={{ color: T.danger, fontSize: 12 }}>*חובה</span></h3>
-        <p style={{ fontSize: 11, color: T.muted, margin: '0 0 10px' }}>בחר/י לפחות אחד</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {/* indications — the scrollable region (bounded), so the button below never clips */}
+      <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 70 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: T.text, margin: '0 0 6px' }}>במה מטפלים? <span style={{ color: T.danger, fontSize: 12 }}>חובה</span></h3>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 7, alignContent: 'flex-start' }}>
           {INDICATION_OPTIONS.map(o => (
             <Chip key={o.id} label={o.label} emoji={o.emoji}
               selected={indications.includes(o.id)} onClick={() => toggleIndication(o.id)} />
@@ -118,34 +119,30 @@ function ScreenMedical({ experience, setExperience, indications, toggleIndicatio
         </div>
       </section>
 
+      {/* day-part + continue — pinned, always visible */}
       <section>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '0 0 10px' }}>מתי ההקלה הכי נחוצה?</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: T.text, margin: '0 0 8px' }}>מתי ההקלה הכי נחוצה?</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {DAYPART_OPTIONS.map(o => {
             const on = dayPart === o.id;
             return (
               <motion.button key={o.id} whileTap={{ scale: 0.96 }} onClick={() => setDayPart(o.id)}
                 style={{
-                  padding: '14px 6px', borderRadius: 14, cursor: 'pointer', fontFamily: T.font,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 72,
+                  padding: '10px 6px', borderRadius: 12, cursor: 'pointer', fontFamily: T.font,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minHeight: 56,
                   background: on ? 'rgba(74,222,128,0.14)' : 'rgba(255,255,255,0.04)',
                   color: on ? T.accent : T.muted,
                   border: `1.5px solid ${on ? T.accent + '66' : 'rgba(255,255,255,0.08)'}`,
-                  transition: 'all .15s',
                 }}>
-                <span style={{ fontSize: 22 }}>{o.emoji}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{o.label}</span>
+                <span style={{ fontSize: 19 }}>{o.emoji}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{o.label}</span>
               </motion.button>
             );
           })}
         </div>
       </section>
 
-      <p style={{ fontSize: 12, color: T.muted, lineHeight: 1.6, textAlign: 'center', margin: 0 }}>
-        {READY_MICROCOPY}
-      </p>
-
-      <PrimaryBtn onClick={onNext} disabled={!canNext}>המשך →</PrimaryBtn>
+      <PrimaryBtn onClick={onNext} disabled={!canNext}>המשך</PrimaryBtn>
     </div>
   );
 }
@@ -203,7 +200,7 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '4px 20px 10px' }}>
         <p style={{ fontSize: 12, color: T.muted, margin: '0 0 12px', lineHeight: 1.6 }}>
-          סמן/י כמה שתרצה/י — ככל שיותר, ההתאמה מדויקת יותר. בחר/י לפחות אחד שאהבת ואחד שפחות.
+          סמנו כמה שתרצו, ככל שיותר ההתאמה מדויקת יותר. בחרו לפחות אחד שאהבתם ואחד שפחות.
         </p>
 
         {/* Selected chips — removable */}
@@ -214,7 +211,7 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
           </div>
         )}
 
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="חפש/י זן לפי שם..."
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם זן או מגדל..."
           style={{
             width: '100%', boxSizing: 'border-box', padding: '11px 14px', borderRadius: 12,
             background: 'rgba(255,255,255,0.05)', border: `1.5px solid ${T.border}`,
@@ -232,7 +229,7 @@ function ScreenPastStrains({ liked, disliked, pickLiked, pickDisliked, removeLik
         {loading && (
           <p style={{ fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 20 }}>טוען…</p>
         )}
-        {results.map(s => {
+        {results.slice(0, 12).map(s => {  /* capped — no endless scroll; search narrows the rest */
           const grower = s.grower || s.genetics;
           const onL = inLiked(s), onD = inDisliked(s);
           return (
@@ -415,7 +412,8 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
 
   return (
     <div dir="rtl" style={{
-      minHeight: '100%', background: T.bg, color: T.text, fontFamily: T.font,
+      height: '100dvh', maxHeight: '100dvh', overflow: 'hidden',
+      background: T.bg, color: T.text, fontFamily: T.font,
       display: 'flex', flexDirection: 'column', maxWidth: 480, marginInline: 'auto',
     }}>
       <div style={{ padding: '16px 20px 0' }}>
@@ -435,7 +433,7 @@ export default function OnboardingV3({ user, onComplete, onSkip }) {
           style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {step === 0 && (
-            <div style={{ padding: '4px 20px 20px' }}>
+            <div style={{ padding: '4px 20px 20px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <h2 style={{ fontSize: 20, fontWeight: 900, color: T.text, margin: '0 0 14px' }}>רישיון רפואי 🪪</h2>
               <Stage0_License payload={payload} errors={errors} updatePayload={updatePayload}
                 onSkip={() => { updatePayload({ licenseVerified: false, licenseCategories: [] }); goMedical(); }} />
