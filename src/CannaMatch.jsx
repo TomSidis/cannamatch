@@ -5835,7 +5835,7 @@ function WelcomeRoom({ go, user, hasProfile }) {
           boxShadow:"0 0 22px rgba(74,222,128,0.32), 0 4px 16px rgba(0,0,0,0.35)",
           letterSpacing:"-0.01em", fontFamily:"'Heebo',sans-serif",
         }}>
-        {hasProfile ? "הבנתי — כנס לחשבון שלי ←" : "הבנתי — בוא נבנה את הפרופיל שלי ←"}
+        קחו אותי לסריקת תפריט
       </motion.button>
 
       <p style={{ fontSize:12, textAlign:"center", color:"rgba(187,247,208,0.80)", lineHeight:1.65, fontWeight:600 }}>
