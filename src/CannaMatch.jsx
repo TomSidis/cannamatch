@@ -5440,7 +5440,7 @@ function Login({ go, setUser, setVerifyNextScreen }) {
   };
 
   return (
-    <AuthCard title={T.auth.loginTitle} sub={T.auth.loginSub} onBack={() => go("welcome")}>
+    <AuthCard title={T.auth.loginTitle} sub={T.auth.loginSub} onBack={() => go("intro")}>
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
       <form onSubmit={e => { e.preventDefault(); doLogin(); }}>
         <Field label={T.auth.usernameLabel} value={u} onChange={setU} placeholder={T.auth.emailPlaceholder} />
@@ -5639,7 +5639,7 @@ function Register({ go, setUser }) {
     go(resolveScreen());
   };
   return (
-    <AuthCard title="הרשמה" sub="דקה אחת ואתם בפנים" onBack={() => go("welcome")}>
+    <AuthCard title="הרשמה" sub="דקה אחת ואתם בפנים" onBack={() => go("intro")}>
       {/* ponytail: social OAuth not wired — hidden until backend callback routes exist */}
       <form onSubmit={async ev => {
         ev.preventDefault();
@@ -7093,7 +7093,7 @@ export default function CannaMatch() {
           ["cm_session_token", "cm_user", "cm_welcome_seen", "cm_onboarding_done"]
             .forEach(k => localStorage.removeItem(k));
           setUser(null);
-          setScreen("welcome");
+          setScreen("intro");
           // termsStatus stays null — gate is guarded by `user &&` so it won't block
         } else {
           // Network / 5xx — fail closed: accepted:false + text:null renders the
@@ -7110,7 +7110,7 @@ export default function CannaMatch() {
       localStorage.removeItem(k)
     );
     setUser(null);
-    setScreen("welcome");
+    setScreen("intro");
     setTermsStatus(null);
   };
 
@@ -7264,105 +7264,51 @@ export default function CannaMatch() {
 
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 {[
-                  { icon:"📋", title:"סריקת תפריט", text:"צלם תפריט, קבל רשימה מותאמת לך" },
-                  { icon:"🎯", title:"התאמה אישית", text:"מיטוב הקנייה החודשית שלך" },
-                  { icon:"🫂", title:"קהילה",        text:"דיווחים אמיתיים, מדורגים לפי אמינות" },
-                  { icon:"📚", title:"ידע ומחקר",   text:"נתונים אקדמיים ומחקרים פתוחים" },
+                  { icon:"📋", title:"סריקת תפריט", text:"צלמו תפריט, קבלו רשימה מותאמת לכם" },
+                  { icon:"🧬", title:"ה-DNA שלי",   text:"הפרופיל הכימי האישי שלכם" },
+                  { icon:"🎯", title:"מיטוב הקנייה", text:"התאמת הסל לרישיון ולתקציב שלכם" },
+                  { icon:"🌿", title:"קרובי משפחה",  text:"זנים מאותה משפחה גנטית, ומה שעזר לאנשים שדומים לכם" },
                 ].map((f, i) => (
                   <motion.div key={i}
                     initial={{ opacity:0, scale:0.90 }} animate={{ opacity:1, scale:1 }}
-                    transition={{ delay:0.12 + i*0.06, type:"spring", damping:28, stiffness:220 }}
+                    transition={{ delay:0.10 + i*0.06, type:"spring", damping:28, stiffness:220 }}
                     style={{
-                      padding:"18px 12px", borderRadius:18, display:"flex", flexDirection:"column",
+                      padding:"14px 11px", borderRadius:16, display:"flex", flexDirection:"column",
                       alignItems:"center", justifyContent:"flex-start", textAlign:"center",
                       background:"rgba(4,14,8,0.50)", border:"1.5px solid rgba(74,222,128,0.30)",
                       backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
                     }}>
-                    <span style={{ fontSize:30, display:"block", marginBottom:8 }}>{f.icon}</span>
-                    <div style={{ fontSize:14, fontWeight:800, color:"#FFFFFF", marginBottom:5, lineHeight:1.2 }}>{f.title}</div>
-                    <div style={{ fontSize:11, color:"rgba(187,247,208,0.82)", lineHeight:1.5 }}>{f.text}</div>
+                    <span style={{ fontSize:26, display:"block", marginBottom:6 }}>{f.icon}</span>
+                    <div style={{ fontSize:13.5, fontWeight:800, color:"#FFFFFF", marginBottom:4, lineHeight:1.2 }}>{f.title}</div>
+                    <div style={{ fontSize:11, color:"rgba(187,247,208,0.82)", lineHeight:1.45 }}>{f.text}</div>
                   </motion.div>
                 ))}
               </div>
 
-              <div style={{ marginTop:22 }}>
-                <motion.button onClick={() => { localStorage.setItem("cm_intro_seen", "1"); setScreen("welcome"); }}
-                  whileTap={{ scale:0.97 }}
+              {/* Auth merged into the intro — both actions here, no separate screen */}
+              <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:18 }}>
+                <motion.button onClick={() => setScreen("register")} whileTap={{ scale:0.97 }}
                   style={{
-                    width:"100%", padding:"18px 16px", borderRadius:18, border:"none",
+                    width:"100%", padding:"17px 16px", borderRadius:18, border:"none",
                     background:"linear-gradient(135deg,#4ADE80 0%,#16a34a 100%)", color:"#03200e",
-                    fontSize:18, fontWeight:900, cursor:"pointer", minHeight:60, fontFamily:"'Heebo',sans-serif",
+                    fontSize:18, fontWeight:900, cursor:"pointer", minHeight:58, fontFamily:"'Heebo',sans-serif",
                     boxShadow:"0 0 28px rgba(74,222,128,0.45)",
                   }}>
-                  בואו נתחיל →
+                  🌱 הרשמה, התחילו עכשיו
                 </motion.button>
-              </div>
-            </motion.div>
-          )}
-
-          {screen === "welcome" && (
-            <motion.div key="welcome" {...FMV} style={{ display:"flex", flexDirection:"column", gap:0 }}>
-
-              {/* ── Brand logo ── */}
-              <div style={{ textAlign:"center", marginBottom:20 }}>
-                <motion.div
-                  animate={{ y:[0,-6,0] }}
-                  transition={{ duration:5.5, repeat:Infinity, ease:"easeInOut" }}
-                  style={{ fontSize:40, display:"inline-block", marginBottom:8, lineHeight:1,
-                    filter:"drop-shadow(0 0 18px rgba(74,222,128,0.55))" }}>
-                  🌿
-                </motion.div>
-                <h1 style={{
-                  fontSize:42, fontWeight:900, color:"#4ADE80",
-                  margin:"0 auto", letterSpacing:"-0.04em", lineHeight:1,
-                  textShadow:"0 0 32px rgba(74,222,128,0.60), 0 2px 10px rgba(0,0,0,0.70)",
-                  fontFamily:"'Heebo',sans-serif",
-                }}>
-                  קנאמאצ׳
-                </h1>
-                <p style={{ fontSize:12, color:"rgba(134,239,172,0.55)", margin:"6px 0 0",
-                  fontWeight:500, letterSpacing:"0.05em" }}>
-                  התאמה אישית לתפריט הקנאביס שלך
-                </p>
-              </div>
-
-              {/* ── Dual CTA buttons ── */}
-              <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:14 }}>
-                <motion.button
-                  onClick={() => setScreen("register")}
-                  whileHover={{ scale:1.03, boxShadow:"0 0 48px rgba(74,222,128,0.70), 0 8px 28px rgba(0,0,0,0.50)" }}
-                  whileTap={{ scale:0.97 }}
+                <motion.button onClick={() => setScreen("login")} whileTap={{ scale:0.97 }}
                   style={{
-                    width:"100%", padding:"22px 16px", borderRadius:20, border:"none",
-                    background:"linear-gradient(135deg,#4ADE80 0%,#16a34a 100%)",
-                    color:"#03200e", fontSize:21, fontWeight:900,
-                    cursor:"pointer", letterSpacing:"-0.01em",
-                    boxShadow:"0 0 32px rgba(74,222,128,0.50), 0 6px 22px rgba(0,0,0,0.45)",
-                    fontFamily:"'Heebo',sans-serif", minHeight:68,
-                    textShadow:"0 1px 4px rgba(0,0,0,0.20)",
+                    width:"100%", padding:"14px", borderRadius:16, cursor:"pointer",
+                    background:"rgba(74,222,128,0.08)", border:"2px solid rgba(74,222,128,0.6)",
+                    color:"#6EE7A0", fontSize:15, fontWeight:800, fontFamily:"'Heebo',sans-serif", minHeight:50,
                   }}>
-                  🌱 הרשמה — התחל/י עכשיו
-                </motion.button>
-                <motion.button
-                  onClick={() => setScreen("login")}
-                  whileHover={{ scale:1.025, boxShadow:"0 0 28px rgba(74,222,128,0.35), 0 4px 16px rgba(0,0,0,0.35)", background:"rgba(74,222,128,0.14)" }}
-                  whileTap={{ scale:0.97 }}
-                  style={{
-                    width:"100%", padding:"15px", borderRadius:18, cursor:"pointer",
-                    background:"rgba(74,222,128,0.08)",
-                    border:"2px solid rgba(74,222,128,0.65)",
-                    color:"#6EE7A0", fontSize:16, fontWeight:800,
-                    fontFamily:"'Heebo',sans-serif", letterSpacing:"-0.01em", minHeight:52,
-                    transition:"background 0.2s",
-                  }}>
-                  התחברות — יש לי חשבון
+                  התחברות, יש לי חשבון
                 </motion.button>
               </div>
 
-              <p style={{ fontSize:12, textAlign:"center", color:"rgba(187,247,208,0.55)", lineHeight:1.65, fontWeight:500, margin:"0 0 4px" }}>
-                המידע באתר אינו ייעוץ רפואי ואינו תחליף לרופא. הוא מבוסס על נתונים פתוחים וספרות אקדמית מהימנה, ונועד לסייע בהתמצאות בלבד. כל החלטה על הטיפול היא באחריותך ובהתייעצות עם הרופא המטפל.
+              <p style={{ fontSize:11, textAlign:"center", color:"rgba(187,247,208,0.5)", lineHeight:1.6, fontWeight:500, margin:"12px 0 0" }}>
+                המידע אינו ייעוץ רפואי ואינו תחליף לרופא. הוא מבוסס על נתונים פתוחים וספרות אקדמית, ונועד לסייע בהתמצאות בלבד. כל החלטה על הטיפול באחריותכם ובהתייעצות עם הרופא המטפל.
               </p>
-
             </motion.div>
           )}
           {screen === "login" && (
