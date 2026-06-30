@@ -1,4 +1,4 @@
-import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis, TimeOfDay } from './types.ts';
+import type { Batch, UserNeed, ScoredProduct, ReportAggregate, BatchReportMap, Terpene, Provenance, EffectAxis, TimeOfDay, EffectVector } from './types.ts';
 import { EFFECT_AXIS_KEYS } from './types.ts';
 import { cosine, buildPriorVector, buildProductVector, chemotypeFromBatch, buildNeedVector } from './vectorMath.ts';
 import { TERPENE_EFFECTS, CHEMOTYPE_MARKERS, CLUSTERS, CLUSTER_EFFECT_FLAG } from '../data/terpeneScience.ts';
@@ -61,6 +61,97 @@ function computeClusterBonus(batch: Batch, need: UserNeed): number {
   return best;
 }
 
+// ── NEW-USER ROUTE (Layer 3) ──────────────────────────────────────────────────
+// A bounded modifier applied AFTER the indication-fit blend. It nudges between close
+// matches and demotes the anxiogenic, but never floats a poor indication-match above a
+// strong one: the nudge is capped at ±NEW_USER_MAX_NUDGE, so any pair whose base-fit gap
+// exceeds 2× the cap keeps its order. Indication fit leads.
+// ponytail: cap is the one knob to tune if the layer feels too weak/strong in the field.
+const NEW_USER_MAX_NUDGE = 0.05;
+
+// Dominant terpenes, highest first. Measured/declared → sorted by pct; inferred → chemotype
+// markers (rank only, no pct). Empty when neither is available.
+function batchDominantTerpenes(batch: Batch): Terpene[] {
+  if (batch.terpenes.length > 0) {
+    return [...batch.terpenes].sort((a, b) => b.pct - a.pct).map(r => r.terpene);
+  }
+  return CHEMOTYPE_MARKERS[chemotypeFromBatch(batch)] ?? [];
+}
+
+function applyNewUserRoute(need: UserNeed, batch: Batch, base: number): number {
+  const ranked = batchDominantTerpenes(batch);
+  const rankOf = (t: Terpene) => ranked.indexOf(t);
+  const has    = (t: Terpene) => ranked.includes(t);
+
+  let raw = 0;
+
+  // Anxiolytic preference — linalool strongest (GABA pathway), limonene best human evidence.
+  if (has('linalool'))      raw += rankOf('linalool') === 0 ? 1.0 : 0.6;
+  if (has('limonene'))      raw += rankOf('limonene') === 0 ? 0.8 : 0.5;
+  if (has('caryophyllene')) raw += 0.3; // secondary credit (CB2)
+
+  // Myrcene counts ONLY for night / all-day (sedating) — never boosts a day-only patient.
+  const coversNight = need.times.some(t => t === 'evening' || t === 'night');
+  if (has('myrcene') && coversNight) raw += 0.4;
+
+  // Penalize terpinolene (evidence: neutral-to-anxiogenic); harder when it is dominant.
+  if (rankOf('terpinolene') === 0)   raw -= 1.0;
+  else if (has('terpinolene'))       raw -= 0.4;
+
+  // Prefer lower-THC / milder categories — high THC + no tolerance is the classic anxiety path.
+  const chem = chemotypeFromBatch(batch);
+  if (chem === 'cbdDominant')   raw += 0.6;
+  else if (chem === 'balanced') raw += 0.3;
+  else                          raw -= 0.5; // thcDominant
+
+  // Squash unbounded raw into (-1, 1), then scale to the bounded nudge.
+  return clamp(base + Math.tanh(raw) * NEW_USER_MAX_NUDGE, 0, 1);
+}
+
+// ── DAY-PART TERPENE WEIGHTING (Layer 5 refinement) ───────────────────────────
+// Weights dominant_terpenes (RANK based, no %, no indica/sativa) by the PATIENT's stated
+// time of need — a stronger steer than the Layer-3 myrcene gate, but still bounded so a
+// strong indication fit leads. Composes with the new-user route + like/dislike signals.
+//   NIGHT (or all-day incl. night): up-weight sedating myrcene (primary) + linalool.
+//   DAY: up-weight uplifting limonene (primary) + caryophyllene's daytime profile; down-weight myrcene.
+//   BOTH (day & night): balanced — no direction amplified (returns base unchanged).
+const DAYPART_MAX_NUDGE = 0.06;
+
+export function applyDayPartWeight(times: TimeOfDay[], batch: Batch, base: number): number {
+  const hasNight = times.some(t => t === 'evening' || t === 'night');
+  const hasDay   = times.some(t => t === 'morning' || t === 'noon' || t === 'afternoon');
+  if (hasNight === hasDay) return base; // both, or neither → no amplification
+
+  const ranked = batchDominantTerpenes(batch);
+  if (ranked.length === 0) return base;
+  const isDom = (t: Terpene) => ranked[0] === t;
+  const has   = (t: Terpene) => ranked.includes(t);
+
+  let raw = 0;
+  if (hasNight) {
+    if (has('myrcene'))  raw += isDom('myrcene')  ? 1.0 : 0.6; // primary sedating
+    if (has('linalool')) raw += isDom('linalool') ? 0.7 : 0.4;
+  } else { // day
+    if (has('limonene'))      raw += isDom('limonene') ? 1.0 : 0.6; // primary uplifting
+    if (has('caryophyllene')) raw += 0.4;                           // daytime profile
+    if (has('myrcene'))       raw -= isDom('myrcene') ? 0.8 : 0.5;  // sedating wrong for day
+  }
+
+  return clamp(base + Math.tanh(raw) * DAYPART_MAX_NUDGE, 0, 1);
+}
+
+// ── DISLIKE DEMOTION (Layer 3) ────────────────────────────────────────────────
+// Symmetric to the liked single-pick boost: a strain chemically similar to the disliked
+// pick is demoted, proportional to cosine similarity, capped at ±DISLIKE_MAX_NUDGE and
+// tanh-squashed. A strong indication-fit strain can't be pushed below a low-fit one by
+// dislike alone (gap > 2× cap is preserved), and the floor is 0 — never a hard exclude.
+const DISLIKE_MAX_NUDGE = 0.05;
+
+function applyDislikeDemotion(dislikedProfile: EffectVector, batch: Batch, base: number): number {
+  const sim = cosine(buildProductVector(batch).vec, dislikedProfile); // ∈ [0,1]; 0 when dissimilar
+  return clamp(base - Math.tanh(sim * 2) * DISLIKE_MAX_NUDGE, 0, 1);
+}
+
 // ── §4.2 Three-layer blend ────────────────────────────────────────────────────
 export function scoreSingle(
   need: UserNeed,
@@ -112,7 +203,16 @@ export function scoreSingle(
   // Research = zero scoring weight by design — no research term in this formula.
   const blendScore  = denominator > 0 ? numerator / denominator : prior;
   const finalScore  = clamp(reports.n > 0 ? Math.max(blendScore, community) : blendScore, 0, 1);
-  const matchPct    = Math.round(clamp(finalScore * 100, 0, 100));
+
+  // NEW-USER ROUTE: bounded anxiolytic / lower-THC tie-breaker layered ON TOP of the
+  // indication-fit score above. Capped at ±NEW_USER_MAX_NUDGE so a fit gap larger than
+  // 2× the cap can never be reordered — indication fit always leads (spec §Layer 3).
+  // Day-part terpene weighting — applies to everyone (times always set); bounded so fit leads.
+  const dayPartScore = applyDayPartWeight(need.times, batch, finalScore);
+  const routedScore  = need.newUserRoute ? applyNewUserRoute(need, batch, dayPartScore) : dayPartScore;
+  // Disliked-strain demotion — bounded, after fit + route. Absent → unchanged (no regression).
+  const dislikeScore = need.dislikedProfile ? applyDislikeDemotion(need.dislikedProfile, batch, routedScore) : routedScore;
+  const matchPct     = Math.round(clamp(dislikeScore * 100, 0, 100));
 
   // §4.3 Confidence — prior+measured components modulated by literature evidence quality.
   // Community component is intentionally NOT modulated: real reports override evidence level.

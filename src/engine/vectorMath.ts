@@ -80,6 +80,12 @@ export function buildNeedVector(ans: {
   // B3: tried-strain picks. Each is a strain name resolved via genetics.
   // Contributes at SINGLE_PICK_WEIGHT (0.3) — weak signal, not an anchor.
   form?: string[];
+  // Layer 3: cannabis experience. 'first'/'little' = non-veteran → new-user route ON.
+  // 'experienced' = veteran (≥1yr) → route only when anxiety is a stated indication.
+  experience?: 'first' | 'little' | 'experienced';
+  // Layer 3: disliked strain picks (names). Derived into a dislikedProfile vector for
+  // bounded demotion of chemically-similar strains. Mirror of `form` (liked picks).
+  disliked?: string[];
 }): UserNeed {
   const conditions = (ans.reasons ?? []).filter(Boolean);
   const acc = zeroVec();
@@ -109,6 +115,30 @@ export function buildNeedVector(ans: {
   // Normalize to [0..1]
   const effect = normalizeVec(acc);
 
+  // Disliked picks → demotion profile. Derived the same way as the liked single-pick
+  // (resolveGenetics → derivePhenoPrior), but kept as a SEPARATE vector so it demotes
+  // similar strains in the scorer rather than distorting the need vector. null when none.
+  let dislikedProfile: EffectVector | null = null;
+  if (ans.disliked?.length) {
+    const dacc = zeroVec();
+    let any = false;
+    for (const name of ans.disliked) {
+      const node = resolveGenetics(name);
+      if (!node) continue;
+      const prior = derivePhenoPrior(node.id);
+      if (prior.conf > 0) { addVec(dacc, prior.vec); any = true; }
+    }
+    if (any) dislikedProfile = normalizeVec(dacc);
+  }
+
+  // New-user route gate. Non-veterans (first/little) always get it; a veteran gets it
+  // only when anxiety is their stated indication. Unknown experience → off (conservative:
+  // never silently re-route a returning user). Existing callers omit experience → off.
+  const exp = ans.experience;
+  const newUserRoute = exp
+    ? (exp !== 'experienced' || conditions.includes('anxiety'))
+    : false;
+
   return {
     effect,
     times,
@@ -116,6 +146,8 @@ export function buildNeedVector(ans: {
     killSwitches:      ans.killSwitches ?? [],
     licenseCategories: ans.licenseCategories ?? ans.cats ?? [],
     gramsByCategory:   ans.gramsByCategory ?? {},
+    newUserRoute,
+    dislikedProfile,
   };
 }
 

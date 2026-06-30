@@ -32,13 +32,27 @@ import { promisify } from 'util';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path          from 'path';
-import { pool }      from '../../db.js';
+import pg            from 'pg';
+import dotenv        from 'dotenv';
+dotenv.config();
 import { normalize, parseOgTitle, canonicalKey } from '../../lib/catalogParser.js';
+
+// Scraper-local pool: keepAlive prevents long-run TCP drops; longer connectionTimeout
+// gives headroom when all workers briefly contest for a connection.
+const pool = new pg.Pool({
+  connectionString:         process.env.DATABASE_URL || 'postgresql://cannamatch:cannamatch@localhost:5432/cannamatch',
+  max:                      20,
+  idleTimeoutMillis:        60_000,
+  connectionTimeoutMillis:  15_000,
+  keepAlive:                true,
+  keepAliveInitialDelayMillis: 10_000,
+  allowExitOnIdle:          true,
+});
+pool.on('error', (err) => console.error('[pool] unexpected error:', err.message));
 
 const gunzip   = promisify(zlib.gunzip);
 const UA       = 'CannaMatch-CatalogBot/1.0 (medical-cannabis patient tool; contact: admin@cannamatch.co.il)';
 const SITE     = 'https://easycannabis.co.il';
-const MIN_DELAY = 3000;  // ms — floor, may be raised by robots.txt
 const FUZZY_THRESH = 2;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -48,10 +62,16 @@ const args = Object.fromEntries(
     .filter(a => a.startsWith('--'))
     .map(a => { const [k, ...v] = a.slice(2).split('='); return [k, v.join('=') || true]; })
 );
-const TODAY  = new Date().toISOString().slice(0, 10);
-const LIMIT  = parseInt(args['limit'] || '2000', 10);
-const RUN_ID = args['run-id'] || `easy-${LIMIT}-${TODAY}`;
-const RESET  = !!args['reset'];
+const TODAY           = new Date().toISOString().slice(0, 10);
+// --limit=0 or omitting --limit → scrape ALL URLs in sitemap
+const LIMIT_ARG       = args['limit'];
+const LIMIT           = (LIMIT_ARG === undefined || LIMIT_ARG === '0') ? Infinity : parseInt(LIMIT_ARG, 10);
+// --concurrency=N workers fetch in parallel (each sleeps DELAY between requests)
+const CONCURRENCY     = parseInt(args['concurrency'] || '8', 10);
+// --delay=ms per-worker floor (default 1000ms for full runs; set higher for polite sampling)
+const MIN_DELAY_FLOOR = parseInt(args['delay'] || '1000', 10);
+const RUN_ID          = args['run-id'] || (LIMIT === Infinity ? `easy-full-${TODAY}` : `easy-${LIMIT}-${TODAY}`);
+const RESET           = !!args['reset'];
 
 // ── Levenshtein (inline — no deps) ────────────────────────────────────────────
 function levenshtein(a, b) {
@@ -209,8 +229,8 @@ console.log('[tests] All passed.\n');
 // 1. ROBOTS.TXT CRAWL-DELAY
 // ═══════════════════════════════════════════════════════════════════════════════
 const robotsDelay = await getCrawlDelayMs(SITE);
-const DELAY = Math.max(MIN_DELAY, robotsDelay);
-console.log(`[robots] crawl-delay for *: ${robotsDelay ? (robotsDelay/1000)+'s' : 'not specified'} → using ${DELAY/1000}s\n`);
+const DELAY = Math.max(MIN_DELAY_FLOOR, robotsDelay);
+console.log(`[robots] crawl-delay for *: ${robotsDelay ? (robotsDelay/1000)+'s' : 'not specified'} → floor ${MIN_DELAY_FLOOR/1000}s → using ${DELAY/1000}s (×${CONCURRENCY} workers)\n`);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. PRECONDITIONS
@@ -299,10 +319,12 @@ for (let i = 0; i < gzUrls.length; i++) {
   if (i < gzUrls.length - 1) await sleep(400);
 }
 allEntries.sort((a, b) => b.lastmod.localeCompare(a.lastmod));
-const targetUrls = allEntries.slice(0, LIMIT);
-console.log(`\n[sitemap] ${allEntries.length} total → top ${targetUrls.length} by lastmod.`);
+const targetUrls = isFinite(LIMIT) ? allEntries.slice(0, LIMIT) : allEntries;
+const estHours   = (targetUrls.length * DELAY / CONCURRENCY / 3_600_000).toFixed(1);
+console.log(`\n[sitemap] ${allEntries.length} total → ${isFinite(LIMIT) ? `top ${LIMIT}` : 'ALL'} = ${targetUrls.length} URLs.`);
 if (targetUrls.length > 0)
-  console.log(`[sitemap] range: ${targetUrls[0].lastmod.slice(0,16)} → ${targetUrls[targetUrls.length-1].lastmod.slice(0,16)}\n`);
+  console.log(`[sitemap] range: ${targetUrls[0].lastmod.slice(0,16)} → ${targetUrls[targetUrls.length-1].lastmod.slice(0,16)}`);
+console.log(`[run] run_id=${RUN_ID}  concurrency=${CONCURRENCY}  delay=${DELAY}ms  est≈${estHours}h\n`);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 6. STREAM: FETCH → PARSE → INSERT → CHECKPOINT
@@ -380,60 +402,86 @@ async function processAndInsert(rawOgTitle) {
   return 'conflict';
 }
 
-// ── Main stream loop ──────────────────────────────────────────────────────────
+// ── Main stream — concurrent worker pool ─────────────────────────────────────
+// JS is single-threaded: idx++ and Set.add() are safe from concurrent workers.
+// Multiple fetch() calls run truly concurrently (await yields event loop).
 let nFetched = 0, nResumed = 0, nInserted = 0, nConflict = 0, nSkippedSku = 0, nJunk = 0, nError = 0;
+let globalIdx = 0;
+const total = targetUrls.length;
 
-for (let i = 0; i < targetUrls.length; i++) {
-  const { loc, lastmod } = targetUrls[i];
+const ticker = setInterval(() => {
+  const pct = total > 0 ? ((globalIdx / total) * 100).toFixed(1) : '0.0';
+  process.stdout.write(`\r[stream] ${globalIdx}/${total} (${pct}%)  w=${CONCURRENCY} ins=${nInserted} conflict=${nConflict} err=${nError}   `);
+}, 3000);
 
-  if (checkpoint.has(loc)) {
-    // Resume path: re-parse from stored og:title — no HTTP fetch
-    const cp = checkpoint.get(loc);
-    if (cp.fetch_status === 'parsed' && cp.raw_og_title) {
-      const outcome = await processAndInsert(cp.raw_og_title);
-      if (outcome === 'inserted')     nInserted++;
-      else if (outcome === 'conflict') nConflict++;
-      else if (outcome === 'skipped_sku') nSkippedSku++;
-      else nJunk++;
-    } else {
-      nJunk++;
+async function crawlWorker() {
+  while (true) {
+    const i = globalIdx++;
+    if (i >= total) break;
+    const { loc, lastmod } = targetUrls[i];
+
+    if (checkpoint.has(loc)) {
+      // Resume path: re-parse from stored og:title — no HTTP fetch
+      const cp = checkpoint.get(loc);
+      if (cp.fetch_status === 'parsed' && cp.raw_og_title) {
+        try {
+          const outcome = await processAndInsert(cp.raw_og_title);
+          if (outcome === 'inserted')         nInserted++;
+          else if (outcome === 'conflict')    nConflict++;
+          else if (outcome === 'skipped_sku') nSkippedSku++;
+          else                                nJunk++;
+        } catch (e) {
+          console.warn(`\n[db] resume-insert error: ${e.message.slice(0, 60)}`);
+          nError++;
+        }
+      } else {
+        nJunk++;
+      }
+      nResumed++;
+      continue;
     }
-    nResumed++;
-    process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
-    continue;
+
+    // Fetch path
+    let rawOgTitle = null, fetchStatus = 'error';
+    try {
+      const html = await fetchText(loc, DELAY);
+      rawOgTitle = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1]
+                ?? html.match(/content="([^"]+)"\s+property="og:title"/i)?.[1] ?? '';
+      nFetched++;
+      fetchStatus = 'skipped';
+    } catch (e) {
+      if (!/HTTP 5\d\d/.test(e.message))
+        console.warn(`\n[fetch] WARN: ${e.message.slice(0, 80)}`);
+      nError++;
+      try { await saveCheckpoint(loc, 'error', null, lastmod); } catch {}
+      await sleep(DELAY);
+      continue;
+    }
+
+    try {
+      const outcome = await processAndInsert(rawOgTitle);
+      if (outcome === 'inserted')         { nInserted++;    fetchStatus = 'parsed';  }
+      else if (outcome === 'conflict')    { nConflict++;    fetchStatus = 'parsed';  }
+      else if (outcome === 'skipped_sku') { nSkippedSku++;  fetchStatus = 'skipped'; }
+      else                                { nJunk++;                                 }
+    } catch (e) {
+      console.warn(`\n[db] insert error: ${e.message.slice(0, 60)}`);
+      nError++;
+      fetchStatus = 'error';
+    }
+
+    try { await saveCheckpoint(loc, fetchStatus, rawOgTitle || null, lastmod); } catch {}
+    await sleep(DELAY);
   }
-
-  // Fetch path
-  let rawOgTitle = null, fetchStatus = 'error';
-  try {
-    const html = await fetchText(loc, DELAY);
-    rawOgTitle = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1]
-              ?? html.match(/content="([^"]+)"\s+property="og:title"/i)?.[1] ?? '';
-    nFetched++;
-    fetchStatus = 'skipped';
-  } catch (e) {
-    if (!/HTTP 5\d\d/.test(e.message)) // suppress noisy 5xx server errors
-      console.warn(`\n[fetch] WARN: ${e.message.slice(0, 80)}`);
-    nError++;
-    await saveCheckpoint(loc, 'error', null, lastmod);
-    process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
-    if (i < targetUrls.length - 1) await sleep(DELAY);
-    continue;
-  }
-
-  const outcome = await processAndInsert(rawOgTitle);
-  if (outcome === 'inserted')       { nInserted++;    fetchStatus = 'parsed';   }
-  else if (outcome === 'conflict')  { nConflict++;    fetchStatus = 'parsed';   }
-  else if (outcome === 'skipped_sku') { nSkippedSku++; fetchStatus = 'skipped'; }
-  else                              { nJunk++;                                  }
-
-  await saveCheckpoint(loc, fetchStatus, rawOgTitle || null, lastmod);
-  process.stdout.write(`\r[stream] ${i+1}/${targetUrls.length}  resume=${nResumed} ins=${nInserted} err=${nError}`);
-  if (i < targetUrls.length - 1) await sleep(DELAY);
 }
-console.log('\n');
 
-await pool.query(`UPDATE sku_source SET last_scraped=now(), last_error=NULL WHERE id='easy-cannabis'`);
+await Promise.all(Array.from({ length: CONCURRENCY }, crawlWorker));
+clearInterval(ticker);
+console.log(`\n[stream] DONE  fetched=${nFetched} resumed=${nResumed} ins=${nInserted} conflict=${nConflict} skipped_sku=${nSkippedSku} junk=${nJunk} err=${nError}\n`);
+
+try {
+  await pool.query(`UPDATE sku_source SET last_scraped=now(), last_error=NULL WHERE id='easy-cannabis'`);
+} catch {}
 await pool.query(`UPDATE scrape_runs SET status='done', updated_at=now() WHERE run_id=$1`, [RUN_ID]);
 
 // ═══════════════════════════════════════════════════════════════════════════════

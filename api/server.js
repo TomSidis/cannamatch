@@ -12,6 +12,10 @@ import cors       from "cors";
 import dotenv     from "dotenv";
 import cron       from "node-cron";
 import rateLimit  from "express-rate-limit";
+import path       from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 import authRouter       from "./routes/auth.js";
 import adminRouter      from "./routes/admin.js";
@@ -166,6 +170,16 @@ app.use("/api",         impactRouter);
 
 // terms.js defines /terms/status, /terms/accept     → /api/terms/*
 app.use("/api",         termsRouter);
+
+// ── Production: serve the built SPA from dist (single origin: frontend + API) ──
+// One HTTPS URL serves both the React app and /api — so the client's relative /api
+// calls and getUserMedia (camera) stay same-origin, no cross-origin CORS needed.
+if (process.env.NODE_ENV === "production") {
+  const distDir = path.resolve(__dirname, "../dist");
+  app.use(express.static(distDir));
+  // SPA fallback for client-side routes — the (?!/api) guard never shadows the API.
+  app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+}
 
 // ── Daily 09:00 sync job (Asia/Jerusalem) ─────────────────────────────────────
 // Refreshes pharmacy list from MOH + Google Places hours if GOOGLE_PLACES_KEY is set.

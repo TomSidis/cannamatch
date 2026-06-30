@@ -61,6 +61,11 @@ export function ansToNeed(ans: {
   gramsByCategory?: Record<string, number>;
   timing?:        string[];
   terpWeights?:   Record<string, number>;
+  // Layer 3: experience drives the new-user route; likedStrainNames feed the B3 single-pick nudge;
+  // dislikedStrainNames feed the bounded dislike demotion.
+  experience?:           'first' | 'little' | 'experienced';
+  likedStrainNames?:     string[];
+  dislikedStrainNames?:  string[];
   [k: string]: unknown;
 }) {
   return buildNeedVector({
@@ -69,6 +74,9 @@ export function ansToNeed(ans: {
     killSwitches:    (ans.killSwitches ?? []) as Terpene[],
     gramsByCategory: ans.gramsByCategory,
     timing:          ans.timing ?? [],
+    experience:      ans.experience,
+    form:            ans.likedStrainNames ?? [],
+    disliked:        ans.dislikedStrainNames ?? [],
   });
 }
 

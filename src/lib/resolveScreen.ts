@@ -5,48 +5,64 @@
  * tests can pass a plain object without mocking localStorage.
  *
  * Routing order (immutable — never patch with one-off flags):
- *   1. No valid token / user   → "welcome"       (login / register)
- *   2. Logged in, no welcome   → "welcome_room"  (ברוכים הבאים)
- *   3. Welcome seen, no done   → "onboarding"
- *   4. Onboarding done (flag OR existing profile data) → "app"
+ *   1. Logged out             → "intro"         (merged: logo + 4 squares + הרשמה/התחברות)
+ *   2. Onboarding not done     → "onboarding"    (3-screen V3, DNA reveal is its last screen)
+ *   3. Welcome ("ספיץ'") unseen → "welcome_room" (Tom's intro, AFTER onboarding+DNA)
+ *   4. → "app"                 (menu scan)
+ *
+ * Terms gate (C6) is a render-level hard gate that fires after auth, before onboarding,
+ * independent of this function. Steps persist via cm_session_token+cm_user,
+ * cm_onboarding_done, cm_welcome_seen so refresh doesn't reset.
  *
  * @param store   — storage accessor ({ get(k): string|null })
  * @param onCorrupt — optional callback fired when stored JSON is corrupt;
  *                    the caller should clear the corrupt keys from real storage
  */
-export type Screen = "welcome" | "welcome_room" | "onboarding" | "app";
+export type Screen = "intro" | "welcome_room" | "onboarding" | "app";
+
+// C6 terms gate decision — a HARD gate that fires after auth and before onboarding.
+// Pure + testable. The render must block (show TermsGate) whenever this is true: a logged-in
+// user whose terms status loaded and is not accepted. (termsStatus === null = still loading,
+// handled separately by a loading screen.) Logged out → no gate.
+export function needsTerms(
+  user: unknown,
+  termsStatus: { accepted?: boolean } | null,
+): boolean {
+  return !!user && !!termsStatus && !termsStatus.accepted;
+}
 
 export function resolveScreen(
   store: { get(k: string): string | null },
   onCorrupt?: () => void,
 ): Screen {
   try {
+    // 1. Logged out → the merged intro+auth landing.
     const token = store.get("cm_session_token");
     const raw   = store.get("cm_user");
-    if (!token || !raw) return "welcome";
+    if (!token || !raw) return "intro";
     JSON.parse(raw); // throws if corrupt → caught below
 
-    // Onboarding done via explicit flag?
-    if (store.get("cm_onboarding_done")) return "app";
+    // 2. Onboarding done via explicit flag OR pre-existing profile data?
+    let onboardingDone = !!store.get("cm_onboarding_done");
+    if (!onboardingDone) {
+      try {
+        const p = JSON.parse(store.get("cm_profile_v2") || "{}");
+        onboardingDone =
+          (p?.ans?.reasons?.length ?? 0) > 0 ||
+          (p?.ans?.form?.length    ?? 0) > 0 ||
+          (p?.ans?.helped?.length  ?? 0) > 0;
+      } catch { /* malformed profile — treat as not done */ }
+    }
+    if (!onboardingDone) return "onboarding";
 
-    // Onboarding done via pre-existing profile data?
-    try {
-      const p = JSON.parse(store.get("cm_profile_v2") || "{}");
-      if (
-        (p?.ans?.reasons?.length ?? 0) > 0 ||
-        (p?.ans?.form?.length    ?? 0) > 0 ||
-        (p?.ans?.helped?.length  ?? 0) > 0
-      ) return "app";
-    } catch { /* malformed profile — ignore, continue routing */ }
+    // 3. ספיץ' welcome — AFTER onboarding + DNA reveal, last screen before the app.
+    if (!store.get("cm_welcome_seen")) return "welcome_room";
 
-    // Welcome screen seen but onboarding not yet done
-    if (store.get("cm_welcome_seen")) return "onboarding";
-
-    // Logged in but hasn't seen the welcome screen yet
-    return "welcome_room";
+    // 4. Into the app (menu scan).
+    return "app";
   } catch {
     // Corrupt cm_user JSON
     onCorrupt?.();
-    return "welcome";
+    return "intro";
   }
 }

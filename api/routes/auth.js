@@ -317,4 +317,84 @@ router.post("/admin-login", async (req, res) => {
   }
 });
 
+// POST /api/auth/signup
+// Email + password registration for regular users. Stores a bcrypt hash, never plaintext.
+// On success returns a 30d session token — the F0 guard routes onward from there.
+router.post("/signup", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  const normalized = String(email ?? "").toLowerCase().trim();
+
+  if (!/\S+@\S+\.\S+/.test(normalized)) {
+    return res.status(400).json({ error: { message: "כתובת המייל אינה תקינה." } });
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({ error: { message: "הסיסמה חייבת להכיל לפחות 8 תווים." } });
+  }
+
+  try {
+    const { rows: existing } = await pool.query(`SELECT id FROM users WHERE email = $1`, [normalized]);
+    if (existing.length) {
+      return res.status(409).json({ error: { message: "כתובת המייל כבר רשומה — נסו להתחבר." } });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10); // cost 10 (OWASP min); cost 12 made pure-JS bcryptjs ~1.6s/login
+    const { rows: [created] } = await pool.query(
+      `INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, role`,
+      [normalized, password_hash],
+    );
+
+    return res.json({
+      token: issueToken(created.id, created.role),
+      user:  { id: created.id, email: normalized, role: created.role },
+    });
+  } catch (err) {
+    // 23505 = unique_violation — lost a race against a concurrent signup with the same email.
+    if (err.code === "23505") {
+      return res.status(409).json({ error: { message: "כתובת המייל כבר רשומה — נסו להתחבר." } });
+    }
+    console.error("signup error:", err.message);
+    return res.status(500).json({ error: { message: "שגיאת שרת בהרשמה." } });
+  }
+});
+
+// Precomputed bcrypt hash of a throwaway string. When the email is not found we still run
+// bcrypt.compare against this so response timing does not reveal whether an email exists.
+// The user list is cannabis patients — email-existence must not be probeable.
+const DUMMY_HASH = bcrypt.hashSync("cannamatch-login-timing-dummy", 10); // match signup cost for timing parity
+
+// POST /api/auth/login
+// Email + password login. "email not found" and "wrong password" return the IDENTICAL
+// message and status (401) — deliberate anti-enumeration: an attacker cannot tell which
+// emails are registered. Timing is equalized via DUMMY_HASH above.
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  const normalized = String(email ?? "").toLowerCase().trim();
+
+  if (!normalized || typeof password !== "string" || !password) {
+    return res.status(400).json({ error: { message: "חסרים מייל או סיסמה." } });
+  }
+
+  try {
+    const { rows: [user] } = await pool.query(
+      `SELECT id, role, password_hash FROM users WHERE email = $1`,
+      [normalized],
+    );
+
+    // Always run a compare (real hash or dummy) so the no-such-email and wrong-password
+    // paths take the same time and return the same response.
+    const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+    if (!user || !user.password_hash || !valid) {
+      return res.status(401).json({ error: { message: "אימייל או סיסמה שגויים" } });
+    }
+
+    return res.json({
+      token: issueToken(user.id, user.role),
+      user:  { id: user.id, email: normalized, role: user.role },
+    });
+  } catch (err) {
+    console.error("login error:", err.message);
+    return res.status(500).json({ error: { message: "שגיאת שרת בכניסה." } });
+  }
+});
+
 export default router;

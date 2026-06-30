@@ -245,16 +245,22 @@ router.post("/pending-scan", async (req, res) => {
     (s || '').toLowerCase().replace(/[\s‏‎]+/g, ' ').replace(/['"'׳״.\-–—_]/g, '').trim();
 
   let added = 0;
-  for (const { name, cat } of names) {
+  for (const { name, cat, format, grower, raw } of names) {
     if (!name) continue;
     const normed = normName(name);
     if (!normed || normed.length < 3) continue;
+    // Detected format/grower + the raw OCR line travel in raw_context as JSON (no schema
+    // change). status defaults to 'pending' = needs_review — never auto-promoted to product_sku.
+    const context = JSON.stringify({
+      raw: raw || null, cat: cat || null,
+      format: format || null, grower: grower || null,
+    });
     try {
       const { rowCount } = await pool.query(
         `INSERT INTO pending_product (commercial_name, normalized_name, source_id, raw_context)
          VALUES ($1,$2,'user-scan',$3)
          ON CONFLICT (normalized_name) DO NOTHING`,
-        [name, normed, cat || null],
+        [name, normed, context],
       );
       added += rowCount;
     } catch (err) {
@@ -262,6 +268,37 @@ router.post("/pending-scan", async (req, res) => {
     }
   }
   return res.json({ added });
+});
+
+// ── GET /api/catalog/strains — live catalog for the onboarding picker ──────────
+// APPROVED live catalog only (product_sku, status='active'). NEVER pending_product.
+// Read-only; debounced search by commercial_name. Returns the real names patients see.
+router.get("/catalog/strains", async (req, res) => {
+  const q     = (req.query.q || "").trim();
+  const cats  = (req.query.cats || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+  try {
+    const params = [];
+    let where = "WHERE p.status = 'active'";
+    if (q)           { params.push(`%${q}%`); where += ` AND (p.commercial_name ILIKE $${params.length} OR p.grower ILIKE $${params.length})`; } // search name OR grower
+    if (cats.length) { params.push(cats);     where += ` AND p.category = ANY($${params.length})`; } // filter to licensed categories
+    params.push(limit);
+    const { rows } = await pool.query(
+      `SELECT p.id, p.commercial_name AS name, p.category, p.grower,
+              g.display_name AS genetics
+       FROM product_sku p
+       LEFT JOIN genetics_node g ON g.id = p.genetics_id
+       ${where}
+       ORDER BY p.commercial_name
+       LIMIT $${params.length}`,
+      params,
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    if (err.code === '42P01') return res.json({ items: [] }); // table not migrated yet
+    console.error('catalog/strains error:', err.message);
+    res.json({ items: [] });
+  }
 });
 
 // ── GET /api/new-on-market — recently detected commercial names ────────────────

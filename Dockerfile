@@ -20,6 +20,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=deps    --chown=cannamatch:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=cannamatch:nodejs /app/dist         ./dist
 COPY --from=builder --chown=cannamatch:nodejs /app/api          ./api
+# src/engine + src/lib + src/data are imported at runtime by api/server.js (scorer,
+# basketPlanner, legacyBridge, basketRoutes, categoryConfig, …) — all required in the image.
+COPY --from=builder --chown=cannamatch:nodejs /app/src/engine   ./src/engine
 COPY --from=builder --chown=cannamatch:nodejs /app/src/lib      ./src/lib
 COPY --from=builder --chown=cannamatch:nodejs /app/src/data     ./src/data
 COPY --chown=cannamatch:nodejs package.json ./

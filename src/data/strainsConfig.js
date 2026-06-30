@@ -21,15 +21,21 @@ export const TERPENES = {
 };
 
 // ── Indication-to-terpene mapping (drives scoring + UI) ───────
+// Indication → dominant terpenes (ordered: primary first). Display layer only (radar /
+// buildProfile / deriveProfileBatch); engine scoring uses CONDITION_LEANS, not this.
+// 3 terps each + mood + epilepsy so every indication contributes signal across the 7 radar
+// axes and selecting several indications yields a populated, differentiated radar.
 export const REASONS = [
-  { id: "pain",     label: "כאב כרוני",         terps: ["caryophyllene", "myrcene"] },
-  { id: "sleep",    label: "שינה",              terps: ["myrcene", "linalool"] },
-  { id: "anxiety",  label: "חרדה / מתח",        terps: ["linalool", "limonene"] },
-  { id: "ptsd",     label: "פוסט-טראומה",       terps: ["linalool", "caryophyllene"] },
-  { id: "appetite", label: "תיאבון / בחילות",   terps: ["myrcene", "limonene"] },
-  { id: "focus",    label: "ריכוז / אנרגיה",    terps: ["pinene", "terpinolene"] },
-  { id: "gi",       label: "מערכת עיכול",       terps: ["caryophyllene", "humulene"] },
-  { id: "diabetes", label: "נוירופתיה סוכרתית", terps: ["caryophyllene", "linalool"] },
+  { id: "pain",     label: "כאב כרוני",         terps: ["caryophyllene", "myrcene", "humulene"] },
+  { id: "sleep",    label: "שינה",              terps: ["myrcene", "linalool", "caryophyllene"] },
+  { id: "anxiety",  label: "חרדה / מתח",        terps: ["linalool", "limonene", "caryophyllene"] },
+  { id: "ptsd",     label: "פוסט-טראומה",       terps: ["linalool", "caryophyllene", "limonene"] },
+  { id: "appetite", label: "תיאבון / בחילות",   terps: ["myrcene", "limonene", "caryophyllene"] },
+  { id: "focus",    label: "ריכוז / אנרגיה",    terps: ["pinene", "terpinolene", "limonene"] },
+  { id: "gi",       label: "מערכת עיכול",       terps: ["caryophyllene", "humulene", "myrcene"] },
+  { id: "diabetes", label: "נוירופתיה סוכרתית", terps: ["caryophyllene", "linalool", "myrcene"] },
+  { id: "mood",     label: "מצב רוח",           terps: ["limonene", "pinene", "terpinolene"] },
+  { id: "epilepsy", label: "אפילפסיה",          terps: ["linalool", "caryophyllene", "pinene"] },
 ];
 
 // ── MoH 2026 T/C categories (official Israeli regulatory framework) ──

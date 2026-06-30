@@ -1,0 +1,14 @@
+{
+  "name": "קנאמאצ׳ — מלווה אישי לקנאביס רפואי",
+  "short_name": "קנאמאצ׳",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0c0d11",
+  "theme_color": "#16302B",
+  "icons": [
+    { "src": "/leaf.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

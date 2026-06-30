@@ -15,6 +15,7 @@ import { verifySession } from '../security/claudeProxyShield.js';
 import { bridgeScore }   from '../../src/engine/legacyBridge.ts';
 import { buildNeedVector } from '../../src/engine/vectorMath.ts';
 import { planBasket }    from '../../src/engine/basketPlanner.ts';
+import { buildBasketRoutes } from '../../src/lib/basketRoutes.js';
 import { DEFAULT_DNA }   from '../constants.js';
 
 const router = Router();
@@ -137,10 +138,24 @@ router.post('/basket/plan', verifySession, async (req, res) => {
       };
     });
 
+    // Two routes (יקר / זול) — same fit-first selection, differ only by presentation.
+    // DB path has one offer per strain (its cheapest batch); the client can post richer
+    // scan-session offers. Either way both routes are returned.
+    const offersByStrain = {};
+    const routeMeta = {};
+    for (const s of strains) {
+      (offersByStrain[s.id] ||= []).push({ price: s.price ?? null, packaging: null, format: null });
+      routeMeta[s.id] = { name: s.name ?? s.id, why: scoreMap[s.id]?.reasonHuman ?? '' };
+    }
+    const routes = buildBasketRoutes(need, scored, batches, { offersByStrain, meta: routeMeta, maxBags: 3 });
+
     res.json({
       track,
       bagCount:  bags.length,
-      bags,
+      bags,                       // backward-compatible single plan (enriched)
+      byFit:     routes.byFit,     // PRIMARY — pure best-fit
+      expensive: routes.expensive,
+      cheap:     routes.cheap,
       coverage:  plan.coverage,
       warnings:  plan.warnings,
     });
