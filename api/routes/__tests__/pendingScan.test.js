@@ -39,10 +39,16 @@ describe("POST /api/pending-scan — unknown strain enqueues to pending_product"
 
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toMatch(/INSERT INTO pending_product/);
-    expect(sql).not.toMatch(/product_sku/);          // never the live catalog
-    expect(sql).not.toMatch(/'approved'/);           // never auto-approved
+    expect(sql).not.toMatch(/product_sku/);                    // never the live catalog
+    expect(sql).not.toMatch(/'approved'/);                    // never auto-approved
+    expect(sql).toMatch(/'pending'/);                         // queued for review
+    expect(sql).toMatch(/ON CONFLICT \(canonical_key\)/);     // dedup on the real unique index
+    expect(sql).toMatch(/'user-scan'/);                       // valid sku_source
 
-    const context = JSON.parse(params[2]);            // raw_context JSON
+    // params: [commercial_name, normalized_name, product_format, canonical_key, raw_context]
+    expect(params[2]).toBe("oil");                           // product_format
+    expect(params[3]).toContain("|oil|");                    // canonical_key = normalize(name)|format|grower
+    const context = JSON.parse(params[4]);                   // raw_context JSON
     expect(context.format).toBe("oil");
     expect(context.grower).toBe("מגדל בדיקה");
     expect(context.raw).toContain("ולנטיין");

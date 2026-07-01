@@ -4,6 +4,7 @@ import { DEFAULT_DNA } from "../constants.js";
 import { computeOpenStatus, ISRAELI_PHARMACY_FALLBACK } from "../lib/pharmacyHours.js";
 import { bridgeScore } from "../../src/engine/legacyBridge.ts";
 import { LICENSED_CATEGORIES, DEFAULT_CATEGORY, PEEK_WINDOW_ENABLED } from "../../src/lib/categoryConfig.js";
+import { normalize, canonicalKey } from "../lib/catalogParser.js";
 
 const router = Router();
 
@@ -241,30 +242,34 @@ router.post("/pending-scan", async (req, res) => {
   const { names = [] } = req.body;
   if (!Array.isArray(names) || names.length === 0) return res.json({ added: 0 });
 
-  const normName = (s) =>
-    (s || '').toLowerCase().replace(/[\s‏‎]+/g, ' ').replace(/['"'׳״.\-–—_]/g, '').trim();
-
   let added = 0;
   for (const { name, cat, format, grower, raw } of names) {
     if (!name) continue;
-    const normed = normName(name);
+    const normed = normalize(name);
     if (!normed || normed.length < 3) continue;
-    // Detected format/grower + the raw OCR line travel in raw_context as JSON (no schema
-    // change). status defaults to 'pending' = needs_review — never auto-promoted to product_sku.
+
+    // Dedup on canonical_key (normalize(name)|format|normalize(grower)) — the partial unique
+    // index pending_product_canonical_key_uq. Reliable even though user scans have batch_id NULL
+    // (the name+batch+format index can't dedup NULL batches). Format/grower + raw OCR line kept
+    // in raw_context. Always status 'pending' + needs_review: queued for review, NEVER product_sku,
+    // NEVER auto-approved. Any error is caught (fail-closed) and never touches the live catalog.
+    const fmt  = format || 'inflorescence';
+    const ckey = canonicalKey(name, fmt, grower || 'unknown');
     const context = JSON.stringify({
       raw: raw || null, cat: cat || null,
-      format: format || null, grower: grower || null,
+      format: fmt, grower: grower || null,
     });
     try {
       const { rowCount } = await pool.query(
-        `INSERT INTO pending_product (commercial_name, normalized_name, source_id, raw_context)
-         VALUES ($1,$2,'user-scan',$3)
-         ON CONFLICT (normalized_name) DO NOTHING`,
-        [name, normed, context],
+        `INSERT INTO pending_product
+           (commercial_name, normalized_name, source_id, product_format, canonical_key, raw_context, status, needs_review)
+         VALUES ($1,$2,'user-scan',$3,$4,$5,'pending',true)
+         ON CONFLICT (canonical_key) WHERE canonical_key IS NOT NULL DO NOTHING`,
+        [name, normed, fmt, ckey, context],
       );
       added += rowCount;
     } catch (err) {
-      if (err.code !== '42P01') console.warn('[pending-scan]', err.message);
+      console.warn('[pending-scan]', err.code, err.message); // fail-closed: log, never crash
     }
   }
   return res.json({ added });
